@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_VERSION } from "@/lib/novedades";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -46,7 +47,7 @@ export default function BienvenidaPage() {
         return setError("Tu invitación caducó. Pídele al dueño de la agenda que te la reenvíe.");
       return setError("No se pudo guardar: " + error.message);
     }
-    if (u.user) await supabase.from("perfiles").update({ nombre: nombre.trim(), acepto_terminos_at: new Date().toISOString() }).eq("id", u.user.id);
+    if (u.user) await supabase.from("perfiles").update({ nombre: nombre.trim(), acepto_terminos_at: new Date().toISOString(), version_vista: APP_VERSION }).eq("id", u.user.id);
     router.replace("/");
     router.refresh();
   }

@@ -17,6 +17,7 @@ export type Perfil = {
   rol: "owner" | "companero";
   periodo_confirmado: string | null;
   acepto_terminos_at?: string | null;
+  version_vista?: string | null; // última versión de novedades leída
 };
 
 export type Clinica = {

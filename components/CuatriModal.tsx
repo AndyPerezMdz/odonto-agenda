@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Perfil } from "@/lib/types";
 import { useCompanero, quitar, FormInvitar } from "@/components/TarjetaCompanero";
 
 type Paso = "pregunta" | "confirmarBorrar" | "invitar" | "listo";
 
 // Al iniciar cada cuatrimestre le pregunta al dueño si sigue el mismo compañero.
-export default function CuatriModal({ yo, onCambio }: { yo: Perfil; onCambio: () => void }) {
+export default function CuatriModal({ yo, onCambio, onVisible }: { yo: Perfil; onCambio: () => void; onVisible?: (v: boolean) => void }) {
   const { estado } = useCompanero();
   const [paso, setPaso] = useState<Paso>("pregunta");
   const [cerrado, setCerrado] = useState(false);
@@ -18,6 +18,11 @@ export default function CuatriModal({ yo, onCambio }: { yo: Perfil; onCambio: ()
   const c = estado?.companero;
   // Sólo pregunta si hay un compañero ACTIVO y este cuatri aún no se confirma
   const toca = !!estado && !!c && !c.pendiente && yo.periodo_confirmado !== estado.periodo.id;
+  const visible = !cerrado && (toca || paso !== "pregunta");
+  // Avisa a la agenda si esta pregunta está en pantalla (para no encimar otras ventanas)
+  useEffect(() => {
+    if (estado) onVisible?.(visible);
+  }, [estado, visible, onVisible]);
   if (cerrado || (!toca && paso === "pregunta")) return null;
 
   async function confirmarPeriodo() {

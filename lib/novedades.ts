@@ -1,0 +1,49 @@
+// Versión de la app y lo nuevo de cada una. Al publicar una actualización:
+// 1) sube APP_VERSION, 2) agrega su bloque ARRIBA de la lista. Cada quien la ve una vez.
+
+export const APP_VERSION = "1.5";
+
+export type Novedad = { titulo: string; texto: string; icono: keyof typeof ICONOS };
+export type Version = { version: string; fecha: string; items: Novedad[] };
+
+export const NOVEDADES: Version[] = [
+  {
+    version: "1.5",
+    fecha: "septiembre 2026",
+    items: [
+      { icono: "avance", titulo: "Mi avance", texto: "Cuántos casos llevas por materia contra tu meta, y la lista de pacientes atendidos en PDF." },
+      { icono: "check", titulo: "¿Llegó tu paciente?", texto: "Marca cada cita como Asistió, Faltó o Canceló con un toque. Sólo cuentan las que asistieron." },
+      { icono: "buscar", titulo: "Buscar paciente", texto: "Con la lupa ves todo el historial de un paciente: fechas, clínica y si vino." },
+      { icono: "repetir", titulo: "Citas que se repiten", texto: "Repite una cita cada semana, o crea la siguiente sesión con “+ Otra sesión”." },
+      { icono: "lista", titulo: "Vista de lista", texto: "Tus próximas citas día por día. En el celular abre así; cámbiala con Mes / Lista." },
+      { icono: "cel", titulo: "Tenla como app", texto: "Agrégala a la pantalla de inicio de tu cel. Abajo de la agenda está “Instalar como app”." },
+    ],
+  },
+];
+
+/** "1.10" > "1.9": compara por partes numéricas. */
+export function versionMayor(a: string, b: string) {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d > 0;
+  }
+  return false;
+}
+
+/** Versiones que la persona no ha visto (todas si nunca vio ninguna, pero sólo la última). */
+export function pendientes(vista: string | null | undefined): Version[] {
+  if (!vista) return NOVEDADES.slice(0, 1);
+  return NOVEDADES.filter((v) => versionMayor(v.version, vista));
+}
+
+export const ICONOS = {
+  avance: "M3 3v18h18M7 15l4-4 3 3 5-6",
+  check: "m5 12 5 5 9-10",
+  buscar: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-3.5-3.5",
+  repetir: "M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.2L3 16M3 21v-5h5",
+  lista: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
+  cel: "M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM11 18h2",
+  estrella: "m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z",
+};

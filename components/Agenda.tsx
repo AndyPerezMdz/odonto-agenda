@@ -19,7 +19,9 @@ import AceptarTerminos from "@/components/AceptarTerminos";
 import { estadoPago, sumarDias } from "@/lib/pagos";
 import TarjetaCita from "@/components/TarjetaCita";
 import BuscarPaciente from "@/components/BuscarPaciente";
-import InstalarApp from "@/components/InstalarApp";
+import InstalarApp, { VentanaInstalar } from "@/components/InstalarApp";
+import Novedades from "@/components/Novedades";
+import { APP_VERSION, pendientes } from "@/lib/novedades";
 
 const CLAVE_VISTA = "vista-agenda";
 
@@ -39,6 +41,9 @@ export default function Agenda({ userId }: { userId: string }) {
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [modal, setModal] = useState<{ cita: Cita | null; fecha: string; plantilla?: Cita } | null>(null);
   const [menu, setMenu] = useState(false);
+  const [novedades, setNovedades] = useState<null | "nuevas" | "todas">(null);
+  const [verInstalar, setVerInstalar] = useState(false);
+  const [cuatriAbierto, setCuatriAbierto] = useState<boolean | null>(null);
   const [buscando, setBuscando] = useState(false);
   const [vista, setVista] = useState<"mes" | "lista">("mes");
 
@@ -74,6 +79,23 @@ export default function Agenda({ userId }: { userId: string }) {
   const { supabase, perfiles, clinicas, materias, nombreAgenda, pagadoHasta, recargar: recargarCatalogos } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
   const p = prefs(yo?.preferencias);
+  const sinLeer = !!yo && pendientes(yo.version_vista).length > 0;
+  const CLAVE_DESPUES = `novedades-despues-${APP_VERSION}`;
+
+  // Novedades: se abren solas una vez por actualización (después de términos y de la pregunta del cuatri)
+  useEffect(() => {
+    if (!yo || !yo.acepto_terminos_at || !sinLeer) return;
+    if (yo.rol === "owner" && cuatriAbierto !== false) return;
+    let pospuesta = false;
+    try { pospuesta = sessionStorage.getItem(CLAVE_DESPUES) === "1"; } catch {}
+    if (!pospuesta) setNovedades("nuevas");
+  }, [yo, sinLeer, cuatriAbierto, CLAVE_DESPUES]);
+
+  function cerrarNovedades() {
+    // Si no le dio "¡Entendido!", no vuelve a saltar en esta visita: queda el puntito para leerla después
+    try { sessionStorage.setItem(CLAVE_DESPUES, "1"); } catch {}
+    setNovedades(null);
+  }
 
   // Suscripción: si venció (pasada la gracia) la agenda queda en sólo lectura
   const pago = estadoPago(pagadoHasta, hoyISO());
@@ -157,6 +179,15 @@ export default function Agenda({ userId }: { userId: string }) {
           </Link>
           </span>
         )}
+        {sinLeer && (
+          <span className="hidden sm:contents">
+            <button onClick={() => setNovedades("nuevas")} className="btn btn-sec relative border-accent text-accent" title="Lo nuevo de la agenda">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>
+              Novedades
+              <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-accent" />
+            </button>
+          </span>
+        )}
         <button onClick={() => setBuscando(true)} className="btn btn-sec" title="Buscar paciente">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           <span className="hidden sm:inline">Buscar</span>
@@ -181,9 +212,11 @@ export default function Agenda({ userId }: { userId: string }) {
         <div className="relative sm:hidden">
           <button onClick={() => setMenu(!menu)} className="btn btn-sec relative" aria-label="Más opciones" aria-expanded={menu}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
-            {yo?.rol === "owner" && pago.tipo !== "cortesia" && pago.tipo !== "activa" && (
+            {yo?.rol === "owner" && pago.tipo !== "cortesia" && pago.tipo !== "activa" ? (
               <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-danger" />
-            )}
+            ) : sinLeer ? (
+              <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-accent" />
+            ) : null}
           </button>
           {menu && (
             <>
@@ -194,7 +227,12 @@ export default function Agenda({ userId }: { userId: string }) {
                     {pago.tipo === "activa" ? `Suscripción · ${fechaCorta(pago.vence)}` : pago.tipo === "por_vencer" ? (pago.dias === 0 ? "Suscripción · vence hoy" : `Suscripción · vence en ${pago.dias} d`) : "Pagar suscripción"}
                   </Link>
                 )}
+                <button onClick={() => { setMenu(false); setNovedades(sinLeer ? "nuevas" : "todas"); }} className="flex w-full items-center justify-between px-4 py-2.5 text-left hover:bg-panel-2">
+                  Novedades
+                  {sinLeer && <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-medium text-panel">Nuevo</span>}
+                </button>
                 <Link href="/personalizar" className="block px-4 py-2.5 hover:bg-panel-2">Personalizar</Link>
+                <button onClick={() => { setMenu(false); setVerInstalar(true); }} className="block w-full px-4 py-2.5 text-left hover:bg-panel-2">Instalar como app</button>
                 <a href={MANUAL_URL} target="_blank" rel="noopener noreferrer" className="block px-4 py-2.5 hover:bg-panel-2">Manual</a>
                 <button onClick={salir} className="block w-full border-t border-line px-4 py-2.5 text-left text-danger hover:bg-panel-2">Salir</button>
               </div>
@@ -370,11 +408,38 @@ export default function Agenda({ userId }: { userId: string }) {
         )}
       </div>
 
+      {/* Pie: versión, novedades e instalar (siempre a la mano) */}
+      <footer className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-muted">
+        <span>Agenda de clínicas · versión {APP_VERSION}</span>
+        <span aria-hidden>·</span>
+        <button onClick={() => setNovedades(sinLeer ? "nuevas" : "todas")} className="inline-flex items-center gap-1 hover:text-ink">
+          Novedades
+          {sinLeer && <span className="h-2 w-2 rounded-full bg-accent" />}
+        </button>
+        <span aria-hidden>·</span>
+        <button onClick={() => setVerInstalar(true)} className="hover:text-ink">Instalar como app</button>
+      </footer>
+
       {yo && !yo.acepto_terminos_at && (
         <AceptarTerminos supabase={supabase} userId={userId} onAceptado={recargarCatalogos} />
       )}
 
-      {yo?.acepto_terminos_at && yo.rol === "owner" && <CuatriModal yo={yo} onCambio={() => { recargarCatalogos(); recargarCitas(); }} />}
+      {yo?.acepto_terminos_at && yo.rol === "owner" && (
+        <CuatriModal yo={yo} onVisible={setCuatriAbierto} onCambio={() => { recargarCatalogos(); recargarCitas(); }} />
+      )}
+
+      {novedades && yo && (
+        <Novedades
+          supabase={supabase}
+          userId={userId}
+          vista={yo.version_vista}
+          todas={novedades === "todas" && !sinLeer}
+          onLeido={recargarCatalogos}
+          onClose={cerrarNovedades}
+        />
+      )}
+
+      {verInstalar && <VentanaInstalar onClose={() => setVerInstalar(false)} />}
 
       {buscando && (
         <BuscarPaciente

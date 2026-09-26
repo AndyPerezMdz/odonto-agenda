@@ -211,6 +211,9 @@ alter table public.citas add constraint citas_sin_traslape exclude using gist (
   tsrange(fecha + hora_inicio, fecha + hora_fin) with &&
 ) where (estado is distinct from 'cancelo');
 
+-- Última versión de la app cuyas novedades ya leyó cada persona ("¿Qué hay de nuevo?")
+alter table public.perfiles add column if not exists version_vista text;
+
 create index if not exists citas_paciente_idx on public.citas (agenda_id, lower(paciente));
 
 create index if not exists citas_fecha_idx on public.citas (fecha);
