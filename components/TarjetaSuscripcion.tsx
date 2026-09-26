@@ -20,7 +20,7 @@ function Copiable({ etiqueta, valor, grande }: { etiqueta: string; valor: string
     <div className="flex items-center justify-between gap-3 border-b border-line py-2.5 last:border-0">
       <div className="min-w-0">
         <p className="text-xs text-muted">{etiqueta}</p>
-        <p className={`truncate font-medium tabular-nums ${grande ? "text-lg tracking-wide" : ""}`}>{valor || "—"}</p>
+        <p className={`font-medium tabular-nums ${grande ? "text-base sm:text-lg sm:tracking-wide" : "truncate"}`}>{valor || "—"}</p>
       </div>
       {valor && (
         <button
@@ -115,8 +115,8 @@ export default function TarjetaSuscripcion() {
 
       {estado.tipo !== "cortesia" && (
         <>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-xl border border-line px-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="min-w-0 rounded-xl border border-line px-3">
               <p className="pt-3 text-sm font-semibold">Transferencia SPEI</p>
               {sinDatosBanco ? (
                 <p className="py-3 text-sm text-muted">Los datos bancarios aún no están disponibles. Contacta al administrador.</p>
@@ -131,7 +131,7 @@ export default function TarjetaSuscripcion() {
               )}
             </div>
 
-            <div className="flex flex-col">
+            <div className="flex min-w-0 flex-col">
               <ol className="mb-4 list-decimal space-y-1 pl-5 text-sm text-muted">
                 <li>Transfiere el monto desde la app de tu banco.</li>
                 <li>Escribe el <b className="text-ink">concepto {datos.codigo}</b> para identificar tu pago.</li>

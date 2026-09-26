@@ -169,7 +169,7 @@ function NuevaAgenda({ onCreada }: { onCreada: (msg: string) => void }) {
           <span className="mb-1 block text-sm font-medium">Inicio</span>
           <select className="campo" value={inicio} onChange={(e) => setInicio(e.target.value)}>
             <option value="pagado">Ya pagó el primer mes</option>
-            <option value="prueba">Prueba gratis de 7 días</option>
+            <option value="prueba">Prueba gratis de 1 mes</option>
             <option value="cortesia">Cortesía (sin vencimiento)</option>
           </select>
         </label>

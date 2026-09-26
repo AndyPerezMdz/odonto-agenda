@@ -3,7 +3,7 @@ import { superadminEnSesion, listarAgendas } from "@/lib/admin";
 import { correoValido, invitarUsuario } from "@/lib/invitar";
 import { fechaEnZona, urlSitio } from "@/lib/recordatorios";
 import { registrarPago } from "@/lib/pagosServer";
-import { sumarDias } from "@/lib/pagos";
+import { sumarDias, sumarMeses } from "@/lib/pagos";
 
 export const dynamic = "force-dynamic";
 
@@ -39,8 +39,8 @@ export async function POST(request: NextRequest) {
       nombre,
       notas: body.notas?.trim() || null,
       precio_mensual: precio,
-      // prueba: 7 días; pagado: se registra abajo; cortesía: sin vencimiento
-      pagado_hasta: body.inicio === "prueba" ? sumarDias(fechaEnZona(0), 7) : null,
+      // prueba: 1 mes; pagado: se registra abajo; cortesía: sin vencimiento
+      pagado_hasta: body.inicio === "prueba" ? sumarDias(sumarMeses(fechaEnZona(0), 1), -1) : null,
     })
     .select("id")
     .single();

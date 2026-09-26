@@ -104,7 +104,7 @@ export default function TarjetaCompanero({ onCambio }: { onCambio: () => void })
 
   return (
     <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
-      <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="mb-4 flex flex-col-reverse items-start gap-2 sm:flex-row sm:justify-between sm:gap-3">
         <div>
           <h2 className="font-semibold">Compañero/a del cuatrimestre</h2>
           <p className="mt-0.5 text-sm text-muted">
