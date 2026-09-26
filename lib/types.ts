@@ -3,6 +3,8 @@ export type Preferencias = {
   horaInicio?: string;       // "07:00" — hora sugerida al crear cita
   semanaEmpiezaLunes?: boolean;
   ocultarFinDeSemana?: boolean;
+  recordatorios?: boolean;   // recibir correo de recordatorio en la madrugada
+  recordatorioDias?: number[]; // con cuántos días de anticipación: 2, 1 y/o 0 (el mismo día)
 };
 
 export type Perfil = {
@@ -43,6 +45,8 @@ export const PREFERENCIAS_DEFAULT: Required<Preferencias> = {
   horaInicio: "08:00",
   semanaEmpiezaLunes: true,
   ocultarFinDeSemana: false,
+  recordatorios: true,
+  recordatorioDias: [2, 1, 0],
 };
 
 export function prefs(p?: Preferencias): Required<Preferencias> {

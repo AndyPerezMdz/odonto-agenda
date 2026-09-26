@@ -153,6 +153,53 @@ function MiPerfil({
         />
       </div>
 
+      {/* Recordatorios por correo */}
+      <div className="mt-6 border-t border-line pt-5">
+        <h3 className="font-semibold">Recordatorios por correo</h3>
+        <p className="mb-3 mt-0.5 text-sm text-muted">
+          Cada madrugada (entre 4 y 5 a. m.) te llega <b>un solo correo</b> con tus citas próximas. Si no tienes citas, no te llega nada.
+        </p>
+        <Interruptor
+          label="Recibir recordatorios"
+          valor={p.recordatorios}
+          onChange={(v) => setP({ ...p, recordatorios: v })}
+        />
+        <div className={`mt-3 flex flex-wrap gap-2 ${p.recordatorios ? "" : "pointer-events-none opacity-40"}`}>
+          {[
+            { n: 2, label: "2 días antes" },
+            { n: 1, label: "1 día antes" },
+            { n: 0, label: "El mismo día" },
+          ].map(({ n, label }) => {
+            const activo = p.recordatorioDias.includes(n);
+            return (
+              <button
+                key={n}
+                type="button"
+                aria-pressed={activo}
+                onClick={() =>
+                  setP({
+                    ...p,
+                    recordatorioDias: activo ? p.recordatorioDias.filter((x) => x !== n) : [...p.recordatorioDias, n].sort((a, b) => b - a),
+                  })
+                }
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition ${
+                  activo ? "border-accent bg-accent-soft font-medium text-accent" : "border-line text-muted hover:bg-panel-2"
+                }`}
+              >
+                <span className={`grid h-4 w-4 place-items-center rounded border text-[10px] ${activo ? "border-accent bg-accent text-panel" : "border-line"}`}>
+                  {activo ? "✓" : ""}
+                </span>
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        {p.recordatorios && p.recordatorioDias.length === 0 && (
+          <p className="mt-2 text-sm text-danger">Elige al menos una opción o apaga los recordatorios.</p>
+        )}
+        <BotonPrueba />
+      </div>
+
       <div className="mt-5 flex items-center justify-end gap-3">
         {estado === "ok" && <span className="text-sm text-accent">Guardado ✓</span>}
         {estado.startsWith("Error") && <span className="text-sm text-danger">{estado}</span>}
@@ -297,5 +344,33 @@ function BotonBorrar({ onConfirmar }: { onConfirmar: () => void }) {
     >
       {confirmar ? "¿Seguro?" : "Borrar"}
     </button>
+  );
+}
+
+function BotonPrueba() {
+  const [estado, setEstado] = useState<"" | "enviando" | string>("");
+
+  async function probar() {
+    setEstado("enviando");
+    try {
+      const res = await fetch("/api/recordatorios/prueba", { method: "POST" });
+      const data = await res.json();
+      setEstado(res.ok ? `ok:${data.correo}` : `Error: ${data.error ?? res.status}`);
+    } catch {
+      setEstado("Error: sin conexión");
+    }
+  }
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-3">
+      <button type="button" className="btn btn-sec" onClick={probar} disabled={estado === "enviando"}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>
+        {estado === "enviando" ? "Enviando…" : "Enviarme una prueba"}
+      </button>
+      {estado.startsWith("ok:") && (
+        <span className="text-sm text-accent">Enviado a {estado.slice(3)}. Si no lo ves, revisa Spam.</span>
+      )}
+      {estado.startsWith("Error") && <span className="text-sm text-danger">{estado}</span>}
+    </div>
   );
 }

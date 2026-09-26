@@ -57,3 +57,18 @@ lib/                     # clientes Supabase, tipos, fechas, hooks de datos
    El correo por defecto de Supabase sólo envía a los miembros del equipo del proyecto y con un límite muy bajo por hora.
 
 Rutas: `/recuperar` (pedir enlace), `/auth/confirm` (valida el enlace), `/nueva-contrasena` (elegir contraseña; también accesible desde *Personalizar → Cambiar contraseña*).
+
+## Recordatorios por correo
+
+Cada madrugada (cron de Vercel `0 10 * * *` UTC = entre 4 y 5 a. m. en Mérida) se manda **un correo por persona** con sus citas de hoy, mañana y en 2 días (según lo que cada quien elija en *Personalizar*). Si no hay citas, no se manda nada.
+
+1. Corre `supabase/recordatorios.sql` en el SQL Editor (crea la bitácora anti-duplicados).
+2. Variables en Vercel (Settings → Environment Variables), **sin** `NEXT_PUBLIC_`:
+   - `SUPABASE_SECRET_KEY` → Supabase → Project Settings → API Keys → *Secret key* (`sb_secret_...`). Sólo la usa el servidor.
+   - `RESEND_API_KEY` → la API key de Resend (`re_...`).
+   - `CRON_SECRET` → cualquier texto largo y aleatorio. Vercel lo manda solo al llamar al cron.
+   - Opcional: `NEXT_PUBLIC_SITE_URL` (link del botón "Abrir la agenda"), `RECORDATORIOS_REMITENTE`, `RECORDATORIOS_ZONA`.
+3. Redeploy. En Vercel → Settings → Cron Jobs debe aparecer `/api/recordatorios`.
+
+Pruebas: *Personalizar → Enviarme una prueba* manda el correo sólo a quien lo pide.
+En Vercel → Cron Jobs → **Run** lo ejecuta de verdad (no repite si ya se mandó ese día).
