@@ -37,6 +37,16 @@ export async function proxy(request: NextRequest) {
 }
 
 async function sesion(request: NextRequest) {
+  // Si un link de correo cae en otra ruta (p. ej. la raíz porque Supabase
+  // redirigió al Site URL), lo mandamos a /auth/confirm con sus parámetros.
+  const q = request.nextUrl.searchParams;
+  if (!request.nextUrl.pathname.startsWith("/auth/") && (q.get("code") || q.get("token_hash"))) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/confirm";
+    if (!url.searchParams.get("next")) url.searchParams.set("next", "/nueva-contrasena");
+    return NextResponse.redirect(url);
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_KEY, {

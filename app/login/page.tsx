@@ -14,8 +14,14 @@ export default function LoginPage() {
   const [cargando, setCargando] = useState(false);
 
   // Si el enlace del correo caducó, /auth/confirm nos manda aquí con ?error=enlace
+  // Supabase también puede mandar el error en el #hash (p. ej. #error_code=otp_expired)
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("error") === "enlace") {
+    const q = new URLSearchParams(window.location.search);
+    const h = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const err = q.get("error");
+    if (err === "navegador") {
+      setError("Abre el enlace del correo en el mismo navegador donde lo pediste, o pide uno nuevo desde este dispositivo.");
+    } else if (err === "enlace" || h.get("error_code") || h.get("error")) {
       setError("El enlace ya caducó o ya se usó. Pide uno nuevo.");
     }
   }, []);
