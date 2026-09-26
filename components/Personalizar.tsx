@@ -64,6 +64,11 @@ export default function Personalizar({ userId }: { userId: string }) {
           onCambio={recargar}
         />
       </div>
+
+      <p className="mt-8 text-center text-xs text-muted">
+        <Link href="/privacidad" className="hover:text-ink">Aviso de privacidad</Link> ·{" "}
+        <Link href="/terminos" className="hover:text-ink">Términos y condiciones</Link>
+      </p>
     </div>
   );
 }

@@ -366,6 +366,7 @@ function AvisosPago({ avisos, agendas, onCambio }: { avisos: AvisoAdmin[]; agend
   const [porDescartar, setPorDescartar] = useState<string | null>(null);
 
   async function confirmar(v: AvisoAdmin) {
+    if (trabajando) return; // evita doble clic
     const agenda = agendas.find((a) => a.id === v.agenda_id);
     setTrabajando(v.id);
     setError(null);
@@ -382,6 +383,7 @@ function AvisosPago({ avisos, agendas, onCambio }: { avisos: AvisoAdmin[]; agend
   }
 
   async function descartar(v: AvisoAdmin) {
+    if (trabajando) return;
     setTrabajando(v.id);
     const err = await api(`/api/admin/avisos/${v.id}`, "PATCH");
     setTrabajando(null);
@@ -496,13 +498,19 @@ function Suscripcion({ agenda, onCambio, onAviso }: { agenda: AgendaAdmin; onCam
   const [registrando, setRegistrando] = useState(false);
   const [monto, setMonto] = useState(agenda.precio_mensual);
   const [meses, setMeses] = useState(1);
-  const [metodo, setMetodo] = useState("spei");
+  const [metodo, setMetodo] = useState("efectivo");
   const [referencia, setReferencia] = useState("");
+  const [anulando, setAnulando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState(false);
   const ins = insigniaPago(agenda.pagado_hasta);
+  const corta = (iso: string) => {
+    const [, m, d] = iso.split("-").map(Number);
+    return `${d} ${["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"][m - 1]}`;
+  };
 
   async function correr(fn: () => Promise<string | null>, ok: string): Promise<boolean> {
+    if (trabajando) return false; // evita doble clic
     setTrabajando(true);
     setError(null);
     const err = await fn();
@@ -518,21 +526,29 @@ function Suscripcion({ agenda, onCambio, onAviso }: { agenda: AgendaAdmin; onCam
 
   return (
     <div className="mb-4 rounded-xl border border-line p-3">
+      {/* Encabezado: estado */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium">Suscripción</span>
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ins.c}`}>{ins.t}</span>
         <span className="text-xs text-muted">
           {pesos(agenda.precio_mensual)}/mes · concepto {codigoAgenda(agenda.id)}
         </span>
-        <div className="ml-auto flex flex-wrap gap-2">
-          {!registrando && (
-            <button className="btn btn-primario py-1 text-xs" onClick={() => setRegistrando(true)}>
-              Registrar pago
-            </button>
-          )}
+      </div>
+
+      {/* Acciones, con explicación */}
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="rounded-lg bg-panel-2 p-2.5">
+          <button className="btn btn-primario w-full py-1.5 text-sm" disabled={registrando} onClick={() => setRegistrando(true)}>
+            Registrar pago
+          </button>
+          <p className="mt-1.5 text-xs text-muted">
+            Sólo si te pagan <b>por fuera</b> del botón “Ya pagué” (efectivo, o varios meses de golpe). Los avisos “Ya pagué” se confirman arriba.
+          </p>
+        </div>
+        <div className="rounded-lg bg-panel-2 p-2.5">
           {agenda.pagado_hasta ? (
             <button
-              className="btn btn-sec py-1 text-xs"
+              className="btn btn-sec w-full py-1.5 text-sm"
               disabled={trabajando}
               onClick={() => correr(() => api(`/api/admin/agendas/${agenda.id}`, "PATCH", { pagado_hasta: null }), `“${agenda.nombre}” ahora es cortesía.`)}
             >
@@ -540,7 +556,7 @@ function Suscripcion({ agenda, onCambio, onAviso }: { agenda: AgendaAdmin; onCam
             </button>
           ) : (
             <button
-              className="btn btn-sec py-1 text-xs"
+              className="btn btn-sec w-full py-1.5 text-sm"
               disabled={trabajando}
               onClick={() =>
                 correr(
@@ -552,12 +568,17 @@ function Suscripcion({ agenda, onCambio, onAviso }: { agenda: AgendaAdmin; onCam
               Empezar a cobrar
             </button>
           )}
+          <p className="mt-1.5 text-xs text-muted">
+            {agenda.pagado_hasta
+              ? "La agenda deja de vencer y nunca se le cobra (amigos, familia…)."
+              : "Quita la cortesía: le da 7 días y después empieza a vencer normal."}
+          </p>
         </div>
       </div>
 
       {registrando && (
         <form
-          className="mt-3 grid gap-2 sm:grid-cols-5"
+          className="mt-3 grid gap-2 rounded-lg border border-line p-2.5 sm:grid-cols-5"
           onSubmit={(e) => {
             e.preventDefault();
             correr(
@@ -571,14 +592,14 @@ function Suscripcion({ agenda, onCambio, onAviso }: { agenda: AgendaAdmin; onCam
             <input type="number" min={0} className="campo py-1.5" value={monto} onChange={(e) => setMonto(Number(e.target.value))} />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs text-muted">Meses</span>
+            <span className="mb-1 block text-xs text-muted">Meses que paga</span>
             <input type="number" min={1} max={24} className="campo py-1.5" value={meses} onChange={(e) => setMeses(Number(e.target.value))} />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs text-muted">Método</span>
             <select className="campo py-1.5" value={metodo} onChange={(e) => setMetodo(e.target.value)}>
-              <option value="spei">SPEI</option>
               <option value="efectivo">Efectivo</option>
+              <option value="spei">SPEI</option>
               <option value="otro">Otro</option>
             </select>
           </label>
@@ -587,23 +608,53 @@ function Suscripcion({ agenda, onCambio, onAviso }: { agenda: AgendaAdmin; onCam
             <input className="campo py-1.5" value={referencia} onChange={(e) => setReferencia(e.target.value)} placeholder="Opcional" />
           </label>
           <div className="flex items-end gap-2">
-            <button className="btn btn-primario flex-1 py-1.5 text-sm" disabled={trabajando}>Guardar</button>
+            <button className="btn btn-primario flex-1 py-1.5 text-sm" disabled={trabajando}>{trabajando ? "…" : "Guardar"}</button>
             <button type="button" className="btn btn-sec py-1.5 text-sm" onClick={() => setRegistrando(false)}>✕</button>
           </div>
         </form>
       )}
 
-      {agenda.pagos.length > 0 && (
-        <ul className="mt-3 space-y-1 text-xs text-muted">
-          {agenda.pagos.map((p) => (
-            <li key={p.id} className="flex flex-wrap justify-between gap-2">
-              <span>
-                {fechaLarga(p.created_at.slice(0, 10))} · {p.metodo.toUpperCase()}
+      {/* Historial */}
+      <p className="mb-1 mt-4 text-xs font-medium uppercase tracking-wide text-muted">Historial de pagos</p>
+      {agenda.pagos.length === 0 ? (
+        <p className="text-xs text-muted">Todavía no hay pagos registrados.</p>
+      ) : (
+        <ul className="divide-y divide-line rounded-lg border border-line text-sm">
+          {agenda.pagos.map((p, i) => (
+            <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+              <span className="font-medium tabular-nums">{pesos(p.monto)}</span>
+              <span className="text-muted">
+                {p.meses} mes{p.meses === 1 ? "" : "es"} · cubre del {corta(p.cubre_desde)} al {corta(p.cubre_hasta)}
+              </span>
+              <span className="text-xs text-muted">
+                · {p.metodo.toUpperCase()} · registrado el {corta(p.created_at.slice(0, 10))}
                 {p.referencia ? ` · ${p.referencia}` : ""}
               </span>
-              <span>
-                {pesos(p.monto)} · {p.meses} mes{p.meses === 1 ? "" : "es"} → hasta {fechaLarga(p.cubre_hasta)}
-              </span>
+              {i === 0 && (
+                <span className="ml-auto">
+                  {anulando === p.id ? (
+                    <>
+                      <button
+                        className="btn btn-peligro py-0.5 text-xs"
+                        disabled={trabajando}
+                        onClick={() =>
+                          correr(
+                            () => api(`/api/admin/agendas/${agenda.id}/pagos?pago=${p.id}`, "DELETE"),
+                            `Pago anulado. “${agenda.nombre}” vuelve a vencer el ${fechaLarga(sumarDias(p.cubre_desde, -1))}.`
+                          ).then(() => setAnulando(null))
+                        }
+                      >
+                        ¿Anular? Sí
+                      </button>
+                      <button className="btn btn-sec ml-1 py-0.5 text-xs" onClick={() => setAnulando(null)}>No</button>
+                    </>
+                  ) : (
+                    <button className="btn btn-peligro py-0.5 text-xs" title="Deshacer este pago (por si fue un error)" onClick={() => setAnulando(p.id)}>
+                      Anular
+                    </button>
+                  )}
+                </span>
+              )}
             </li>
           ))}
         </ul>

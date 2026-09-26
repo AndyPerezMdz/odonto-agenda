@@ -205,3 +205,10 @@ textarea {
 .btn-peligro:hover:not(:disabled) {
   border-color: var(--danger);
 }
+
+/* Páginas de Aviso de privacidad y Términos */
+.legal h2 { font-weight: 600; font-size: 1.05rem; margin-top: 1.6rem; margin-bottom: .5rem; }
+.legal p { margin-top: .6rem; }
+.legal ul { list-style: disc; padding-left: 1.25rem; margin-top: .5rem; }
+.legal li { margin-top: .3rem; }
+.legal a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }

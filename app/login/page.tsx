@@ -91,6 +91,10 @@ export default function LoginPage() {
         <button type="submit" className="btn btn-primario w-full" disabled={cargando}>
           {cargando ? "Entrando…" : "Entrar"}
         </button>
+        <p className="mt-5 text-center text-xs text-muted">
+          <Link href="/privacidad" className="hover:text-ink">Aviso de privacidad</Link> ·{" "}
+          <Link href="/terminos" className="hover:text-ink">Términos</Link>
+        </p>
       </form>
     </AuthCard>
   );

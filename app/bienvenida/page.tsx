@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import AuthCard from "@/components/AuthCard";
@@ -14,6 +15,7 @@ export default function BienvenidaPage() {
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
   const [esDueno, setEsDueno] = useState(false);
+  const [acepto, setAcepto] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -31,6 +33,7 @@ export default function BienvenidaPage() {
     if (!nombre.trim()) return setError("Escribe tu nombre.");
     if (password.length < 8) return setError("La contraseña debe tener al menos 8 caracteres.");
     if (password !== confirmar) return setError("Las contraseñas no coinciden.");
+    if (!acepto) return setError("Para continuar, acepta el Aviso de privacidad y los Términos.");
 
     setCargando(true);
     const supabase = createClient();
@@ -43,7 +46,7 @@ export default function BienvenidaPage() {
         return setError("Tu invitación caducó. Pídele al dueño de la agenda que te la reenvíe.");
       return setError("No se pudo guardar: " + error.message);
     }
-    if (u.user) await supabase.from("perfiles").update({ nombre: nombre.trim() }).eq("id", u.user.id);
+    if (u.user) await supabase.from("perfiles").update({ nombre: nombre.trim(), acepto_terminos_at: new Date().toISOString() }).eq("id", u.user.id);
     router.replace("/");
     router.refresh();
   }
@@ -66,6 +69,15 @@ export default function BienvenidaPage() {
 
         <label className="mb-1 block text-sm font-medium" htmlFor="pw2">Repítela</label>
         <input id="pw2" type="password" autoComplete="new-password" required className="campo mb-5" value={confirmar} onChange={(e) => setConfirmar(e.target.value)} />
+
+        <label className="mb-5 flex items-start gap-2 text-sm text-muted">
+          <input type="checkbox" className="mt-1" checked={acepto} onChange={(e) => setAcepto(e.target.checked)} />
+          <span>
+            Acepto el{" "}
+            <Link href="/privacidad" target="_blank" className="text-accent underline">Aviso de privacidad</Link> y los{" "}
+            <Link href="/terminos" target="_blank" className="text-accent underline">Términos y condiciones</Link>.
+          </span>
+        </label>
 
         {error && <p className="mb-4 text-sm text-danger">{error}</p>}
         <button type="submit" className="btn btn-primario w-full" disabled={cargando}>

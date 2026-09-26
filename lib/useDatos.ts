@@ -16,7 +16,7 @@ export function useCatalogos() {
 
   const recargar = useCallback(async () => {
     const [p, c, m, a] = await Promise.all([
-      supabase.from("perfiles").select("id,nombre,color,preferencias,rol,periodo_confirmado").order("created_at"),
+      supabase.from("perfiles").select("id,nombre,color,preferencias,rol,periodo_confirmado,acepto_terminos_at").order("created_at"),
       supabase.from("clinicas").select("id,numero,descripcion,activo").order("numero"),
       supabase.from("materias").select("id,nombre,color,activo").order("nombre"),
       supabase.from("agendas").select("nombre,pagado_hasta").maybeSingle(),

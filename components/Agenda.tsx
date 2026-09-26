@@ -15,9 +15,15 @@ import { aplicarTema, type MarcadorId } from "@/lib/tema";
 import MarcadorHoy from "@/components/MarcadorHoy";
 import CuatriModal from "@/components/CuatriModal";
 import BannerPago from "@/components/BannerPago";
+import AceptarTerminos from "@/components/AceptarTerminos";
 import { estadoPago } from "@/lib/pagos";
 
 type Filtro = "todos" | string; // "todos" o id de perfil
+
+const fechaCorta = (iso: string) => {
+  const [, m, d] = iso.split("-").map(Number);
+  return `hasta ${d} ${MESES[m - 1].slice(0, 3).toLowerCase()}`;
+};
 
 export default function Agenda({ userId }: { userId: string }) {
   const router = useRouter();
@@ -98,6 +104,22 @@ export default function Agenda({ userId }: { userId: string }) {
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{nombreAgenda || "Agenda"}</h1>
           {yo && <p className="text-sm text-muted">Hola, {yo.nombre}</p>}
         </div>
+        {yo?.rol === "owner" && pago.tipo !== "cortesia" && (
+          <Link
+            href="/personalizar#suscripcion"
+            className={`btn btn-sec ${pago.tipo === "activa" ? "" : "border-danger text-danger"}`}
+            title="Suscripción y pagos"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+            <span className="hidden sm:inline">
+              {pago.tipo === "activa"
+                ? `Suscripción · ${fechaCorta(pago.vence)}`
+                : pago.tipo === "por_vencer"
+                  ? pago.dias === 0 ? "Vence hoy" : `Vence en ${pago.dias} d`
+                  : "Pagar suscripción"}
+            </span>
+          </Link>
+        )}
         <a href={MANUAL_URL} target="_blank" rel="noopener noreferrer" className="btn btn-sec" title="Manual de usuario">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg>
           <span className="hidden sm:inline">Manual</span>
@@ -252,7 +274,11 @@ export default function Agenda({ userId }: { userId: string }) {
         </aside>
       </div>
 
-      {yo?.rol === "owner" && <CuatriModal yo={yo} onCambio={() => { recargarCatalogos(); recargarCitas(); }} />}
+      {yo && !yo.acepto_terminos_at && (
+        <AceptarTerminos supabase={supabase} userId={userId} onAceptado={recargarCatalogos} />
+      )}
+
+      {yo?.acepto_terminos_at && yo.rol === "owner" && <CuatriModal yo={yo} onCambio={() => { recargarCatalogos(); recargarCitas(); }} />}
 
       {modal && (
         <CitaModal

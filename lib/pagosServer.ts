@@ -1,13 +1,14 @@
 import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { enviarConResend, esc, fechaEnZona } from "@/lib/recordatorios";
-import { codigoAgenda, DIAS_GRACIA, estadoPago, periodoDelPago, pesos } from "@/lib/pagos";
+import { codigoAgenda, DIAS_GRACIA, estadoPago, pesos } from "@/lib/pagos";
 import { fechaLarga } from "@/lib/fechas";
 
 type Db = ReturnType<typeof createAdminClient>;
 
 /**
- * Registra un pago y extiende "pagado_hasta". La usa tu panel (SPEI manual)
+ * Registra un pago y extiende "pagado_hasta" de forma atómica (función registrar_pago en la BD,
+ * con candado: dos confirmaciones simultáneas se suman una tras otra). La usa tu panel (SPEI manual)
  * y, el día que conectes Stripe/Conekta, la usará su webhook.
  */
 export async function registrarPago(
@@ -15,27 +16,24 @@ export async function registrarPago(
   agendaId: string,
   p: { monto: number; meses: number; metodo: string; referencia?: string | null }
 ): Promise<{ hasta?: string; error?: string }> {
-  const { data: agenda, error } = await db.from("agendas").select("pagado_hasta").eq("id", agendaId).single();
-  if (error || !agenda) return { error: error?.message ?? "Agenda no encontrada." };
-
-  const hoy = fechaEnZona(0);
   const meses = Math.min(Math.max(Math.round(p.meses || 1), 1), 24);
-  const { desde, hasta } = periodoDelPago(agenda.pagado_hasta, hoy, meses);
-
-  const { error: e1 } = await db.from("pagos").insert({
-    agenda_id: agendaId,
-    monto: p.monto,
-    meses,
-    metodo: p.metodo || "spei",
-    referencia: p.referencia?.trim() || null,
-    cubre_desde: desde,
-    cubre_hasta: hasta,
+  const { data, error } = await db.rpc("registrar_pago", {
+    p_agenda: agendaId,
+    p_monto: p.monto,
+    p_meses: meses,
+    p_metodo: p.metodo || "spei",
+    p_referencia: p.referencia ?? null,
+    p_hoy: fechaEnZona(0),
   });
-  if (e1) return { error: e1.message };
+  if (error) return { error: error.message };
+  return { hasta: data as string };
+}
 
-  const { error: e2 } = await db.from("agendas").update({ pagado_hasta: hasta }).eq("id", agendaId);
-  if (e2) return { error: e2.message };
-  return { hasta };
+/** Deshace el pago más reciente de una agenda (la fecha regresa a como estaba antes). */
+export async function anularUltimoPago(db: Db, pagoId: string): Promise<{ hasta?: string; error?: string }> {
+  const { data, error } = await db.rpc("anular_ultimo_pago", { p_pago: pagoId });
+  if (error) return { error: error.message };
+  return { hasta: data as string };
 }
 
 /** Correos de todos los superadmins (tú). */

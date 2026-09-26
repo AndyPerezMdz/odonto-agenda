@@ -16,6 +16,7 @@ export type Perfil = {
   preferencias: Preferencias;
   rol: "owner" | "companero";
   periodo_confirmado: string | null;
+  acepto_terminos_at?: string | null;
 };
 
 export type Clinica = {

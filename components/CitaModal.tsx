@@ -155,7 +155,13 @@ export default function CitaModal({
           </Campo>
 
           <Campo label="Notas (opcional)" className="col-span-2">
-            <textarea className="campo min-h-[70px] resize-y" value={notas} onChange={(e) => setNotas(e.target.value)} />
+            <textarea
+              className="campo min-h-[70px] resize-y"
+              value={notas}
+              onChange={(e) => setNotas(e.target.value)}
+              placeholder="Ej. traer radiografía, llegar 10 min antes"
+            />
+            <span className="mt-1 block text-xs text-muted">Sin diagnósticos ni datos clínicos: sólo lo necesario para organizarte.</span>
           </Campo>
         </fieldset>
 

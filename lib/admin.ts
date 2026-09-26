@@ -13,7 +13,7 @@ export type Miembro = {
   citas: number;
 };
 
-export type PagoAdmin = { id: string; monto: number; meses: number; metodo: string; referencia: string | null; cubre_hasta: string; created_at: string };
+export type PagoAdmin = { id: string; monto: number; meses: number; metodo: string; referencia: string | null; cubre_desde: string; cubre_hasta: string; created_at: string };
 
 export type AvisoAdmin = { id: string; agenda_id: string; agenda: string; monto: number | null; referencia: string | null; quien: string | null; created_at: string };
 
@@ -59,7 +59,7 @@ export async function listarAgendas(db: Db): Promise<{ agendas: AgendaAdmin[]; a
       db.from("perfiles").select("id,nombre,rol,agenda_id").not("agenda_id", "is", null),
       db.from("citas").select("owner_id,agenda_id"),
       db.auth.admin.listUsers({ perPage: 1000 }),
-      db.from("pagos").select("id,agenda_id,monto,meses,metodo,referencia,cubre_hasta,created_at").order("created_at", { ascending: false }),
+      db.from("pagos").select("id,agenda_id,monto,meses,metodo,referencia,cubre_desde,cubre_hasta,created_at").order("created_at", { ascending: false }).order("cubre_hasta", { ascending: false }),
       db.from("avisos_pago").select("id,agenda_id,monto,referencia,reportado_por,created_at").eq("estado", "pendiente").order("created_at"),
     ]);
   const err = e1 ?? e2 ?? e3 ?? e4;
@@ -80,7 +80,12 @@ export async function listarAgendas(db: Db): Promise<{ agendas: AgendaAdmin[]; a
     ...a,
     precio_mensual: Number(a.precio_mensual),
     citas: citasPorAgenda.get(a.id) ?? 0,
-    pagos: (pagos ?? []).filter((p) => p.agenda_id === a.id).slice(0, 5).map((p) => ({ ...p, monto: Number(p.monto) })),
+    pagos: (pagos ?? [])
+      .filter((p) => p.agenda_id === a.id)
+      // el más reciente primero (el único que se puede anular)
+      .sort((x, y) => y.created_at.localeCompare(x.created_at) || y.cubre_hasta.localeCompare(x.cubre_hasta))
+      .slice(0, 5)
+      .map((p) => ({ ...p, monto: Number(p.monto) })),
     miembros: (perfiles ?? [])
       .filter((p) => p.agenda_id === a.id)
       .map((p) => {

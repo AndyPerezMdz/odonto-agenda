@@ -46,6 +46,7 @@ create table if not exists public.perfiles (
 alter table public.perfiles add column if not exists agenda_id uuid references public.agendas (id) on delete cascade;
 alter table public.perfiles add column if not exists rol text not null default 'companero';
 alter table public.perfiles add column if not exists periodo_confirmado text; -- ej. '2026-3'
+alter table public.perfiles add column if not exists acepto_terminos_at timestamptz; -- cuándo aceptó aviso de privacidad y términos
 
 do $$ begin
   alter table public.perfiles add constraint perfiles_rol_valido check (rol in ('owner', 'companero'));
@@ -354,6 +355,72 @@ on conflict (clave) do nothing;
 alter table public.pagos         enable row level security;
 alter table public.avisos_pago   enable row level security;
 alter table public.configuracion enable row level security;
+
+-- Registrar un pago de forma ATÓMICA: bloquea la agenda mientras calcula, para que dos
+-- confirmaciones simultáneas (doble clic) no lean la misma fecha. Sólo la usa el servidor.
+create or replace function public.registrar_pago(
+  p_agenda uuid, p_monto numeric, p_meses int, p_metodo text, p_referencia text, p_hoy date
+)
+returns date
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_hasta date;
+  v_desde date;
+  v_nuevo date;
+begin
+  select pagado_hasta into v_hasta from public.agendas where id = p_agenda for update;
+  if not found then
+    raise exception 'Agenda no encontrada';
+  end if;
+  v_desde := case when v_hasta is not null and v_hasta >= p_hoy then v_hasta + 1 else p_hoy end;
+  v_nuevo := (v_desde + make_interval(months => p_meses))::date - 1;
+
+  insert into public.pagos (agenda_id, monto, meses, metodo, referencia, cubre_desde, cubre_hasta)
+  values (p_agenda, p_monto, p_meses, coalesce(nullif(p_metodo, ''), 'spei'), nullif(trim(p_referencia), ''), v_desde, v_nuevo);
+
+  update public.agendas set pagado_hasta = v_nuevo where id = p_agenda;
+  return v_nuevo;
+end;
+$$;
+
+-- Anular el pago MÁS RECIENTE de una agenda (para corregir errores). Regresa la fecha a como estaba.
+create or replace function public.anular_ultimo_pago(p_pago uuid)
+returns date
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_pago public.pagos%rowtype;
+  v_ultimo uuid;
+  v_fecha date;
+begin
+  select * into v_pago from public.pagos where id = p_pago;
+  if not found then
+    raise exception 'Pago no encontrado';
+  end if;
+  perform 1 from public.agendas where id = v_pago.agenda_id for update;
+  select id into v_ultimo from public.pagos where agenda_id = v_pago.agenda_id order by created_at desc, cubre_hasta desc limit 1;
+  if v_ultimo <> p_pago then
+    raise exception 'Sólo se puede anular el pago más reciente';
+  end if;
+  delete from public.pagos where id = p_pago;
+  -- Vuelve a como estaba, pero nunca por debajo de lo que cubren los pagos que quedan
+  v_fecha := greatest(
+    v_pago.cubre_desde - 1,
+    (select max(cubre_hasta) from public.pagos where agenda_id = v_pago.agenda_id)
+  );
+  update public.agendas set pagado_hasta = v_fecha where id = v_pago.agenda_id;
+  return v_fecha;
+end;
+$$;
+
+-- Nadie desde la app puede llamarlas directamente; sólo el servidor (secret key)
+revoke execute on function public.registrar_pago(uuid, numeric, int, text, text, date) from public, anon, authenticated;
+revoke execute on function public.anular_ultimo_pago(uuid) from public, anon, authenticated;
 
 -- El dueño ve el historial de pagos y avisos de SU agenda (escribe sólo el servidor)
 drop policy if exists pagos_select on public.pagos;

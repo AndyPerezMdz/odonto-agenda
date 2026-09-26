@@ -14,8 +14,15 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
   const { data: aviso } = await s.db.from("avisos_pago").select("agenda_id,monto,referencia,estado").eq("id", id).maybeSingle();
   if (!aviso) return NextResponse.json({ error: "Aviso no encontrado." }, { status: 404 });
 
-  const { error } = await s.db.from("avisos_pago").update({ estado: "descartado" }).eq("id", id);
+  // Sólo si sigue pendiente (evita avisarle dos veces al cliente por un doble clic)
+  const { data: tomado, error } = await s.db
+    .from("avisos_pago")
+    .update({ estado: "descartado" })
+    .eq("id", id)
+    .eq("estado", "pendiente")
+    .select("id");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!tomado?.length) return NextResponse.json({ error: "Este aviso ya se había procesado." }, { status: 409 });
 
   let correo = true;
   try {
