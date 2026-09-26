@@ -11,6 +11,7 @@ type Datos = {
   banco: { banco?: string; clabe?: string; titular?: string };
   pagos: { id: string; monto: number; meses: number; metodo: string; cubre_desde: string; cubre_hasta: string; created_at: string }[];
   avisoPendiente: string | null;
+  ultimoAviso: { estado: "pendiente" | "confirmado" | "descartado"; fecha: string } | null;
 };
 
 function Copiable({ etiqueta, valor, grande }: { etiqueta: string; valor: string; grande?: boolean }) {
@@ -137,6 +138,16 @@ export default function TarjetaSuscripcion() {
                 <li>Presiona <b className="text-ink">Ya pagué</b> aquí abajo.</li>
               </ol>
 
+              {!datos.avisoPendiente && datos.ultimoAviso?.estado === "descartado" && (
+                <p className="mb-3 rounded-xl bg-[#fbecea] px-3 py-3 text-sm text-[#7a1f1a] dark:bg-[#3a1d1b] dark:text-[#f1b5b0]">
+                  Tu aviso del {fechaLarga(datos.ultimoAviso.fecha.slice(0, 10))} <b>no se pudo confirmar</b>: no vimos la transferencia. Revisa CLABE y concepto y vuelve a avisar, o responde al correo que te enviamos con tu comprobante.
+                </p>
+              )}
+              {!datos.avisoPendiente && datos.ultimoAviso?.estado === "confirmado" && datos.pagos[0] && (
+                <p className="mb-3 rounded-xl bg-accent-soft px-3 py-3 text-sm text-accent">
+                  ¡Gracias! Tu último pago quedó confirmado. Estás cubierto hasta el {fechaLarga(datos.pagos[0].cubre_hasta)}.
+                </p>
+              )}
               {datos.avisoPendiente ? (
                 <p className="rounded-xl bg-accent-soft px-3 py-3 text-sm text-accent">
                   Avisaste de un pago el {fechaLarga(datos.avisoPendiente.slice(0, 10))}. Está en espera de confirmación.

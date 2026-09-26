@@ -39,7 +39,7 @@ export async function registrarPago(
 }
 
 /** Correos de todos los superadmins (tú). */
-async function correosSuperadmin(db: Db) {
+export async function correosSuperadmin(db: Db) {
   const [{ data: sa }, { data: usuarios }] = await Promise.all([
     db.from("superadmins").select("user_id"),
     db.auth.admin.listUsers({ perPage: 1000 }),
@@ -130,3 +130,71 @@ export async function avisosVencimiento(db: Db, sitio: string) {
   }
   return resultados;
 }
+
+/* ------------------------------------------------------------------ */
+/* Respuesta al cliente cuando confirmas o descartas su pago           */
+/* ------------------------------------------------------------------ */
+
+async function duenoDeAgenda(db: Db, agendaId: string) {
+  const [{ data: agenda }, { data: dueno }] = await Promise.all([
+    db.from("agendas").select("id,nombre,precio_mensual").eq("id", agendaId).single(),
+    db.from("perfiles").select("id,nombre").eq("agenda_id", agendaId).eq("rol", "owner").maybeSingle(),
+  ]);
+  if (!agenda || !dueno) return null;
+  const { data: u } = await db.auth.admin.getUserById(dueno.id);
+  if (!u.user?.email) return null;
+  return { agenda, nombre: dueno.nombre, email: u.user.email };
+}
+
+/** "¡Pago recibido!" — al confirmar un aviso o registrar un pago a mano. */
+export async function notificarPagoConfirmado(
+  db: Db,
+  agendaId: string,
+  p: { monto: number; meses: number; hasta: string; sitio: string }
+) {
+  const d = await duenoDeAgenda(db, agendaId);
+  if (!d) return;
+  const asunto = `¡Pago recibido! Tu agenda está activa hasta el ${fechaLarga(p.hasta)}`;
+  const html = envolver(
+    "¡Pago recibido, gracias!",
+    `<p style="margin:0 0 12px;color:#4a4843;">Hola, ${esc(d.nombre)}. Confirmamos tu pago de <b>${pesos(p.monto)}</b> para <b>${esc(d.agenda.nombre)}</b>.</p>
+     <table style="font-size:14px;color:#1c1b19;border-collapse:collapse;">
+       <tr><td style="padding:4px 12px 4px 0;color:#6d6a63;">Periodo pagado</td><td>${p.meses} mes${p.meses === 1 ? "" : "es"}</td></tr>
+       <tr><td style="padding:4px 12px 4px 0;color:#6d6a63;">Activa hasta</td><td><b>${fechaLarga(p.hasta)}</b></td></tr>
+     </table>
+     <p style="margin:14px 0 0;color:#4a4843;">Te avisaremos unos días antes del siguiente vencimiento. ¡Éxito en tus clínicas!</p>`,
+    p.sitio ? { texto: "Abrir la agenda", url: p.sitio } : undefined
+  );
+  const texto = `¡Pago recibido!\nHola, ${d.nombre}. Confirmamos tu pago de ${pesos(p.monto)} para ${d.agenda.nombre}.\nActiva hasta: ${fechaLarga(p.hasta)}.`;
+  await enviarConResend({ para: d.email, asunto, html, texto, responderA: await correosSuperadmin(db) });
+}
+
+/** "No hemos podido confirmar tu pago" — al marcar un aviso como "No llegó". */
+export async function notificarPagoNoReflejado(
+  db: Db,
+  agendaId: string,
+  a: { monto: number | null; referencia: string | null; sitio: string }
+) {
+  const d = await duenoDeAgenda(db, agendaId);
+  if (!d) return;
+  const monto = pesos(a.monto ?? Number(d.agenda.precio_mensual));
+  const asunto = "No hemos podido confirmar tu pago";
+  const html = envolver(
+    "No hemos podido confirmar tu pago",
+    `<p style="margin:0 0 12px;color:#4a4843;">Hola, ${esc(d.nombre)}. Revisamos y todavía no vemos reflejada tu transferencia de <b>${monto}</b>${
+      a.referencia ? ` (rastreo <b>${esc(a.referencia)}</b>)` : ""
+    } para <b>${esc(d.agenda.nombre)}</b>.</p>
+     <p style="margin:0 0 6px;color:#4a4843;">Por favor revisa:</p>
+     <ul style="margin:0 0 12px;padding-left:20px;color:#4a4843;">
+       <li>Que la <b>CLABE</b> y el <b>beneficiario</b> sean los que aparecen en tu agenda.</li>
+       <li>Que hayas escrito el concepto <b>${codigoAgenda(agendaId)}</b>.</li>
+       <li>Que la transferencia no haya sido rechazada o devuelta por tu banco.</li>
+     </ul>
+     <p style="margin:0;color:#4a4843;">Si ya está todo bien, <b>responde a este correo con tu comprobante</b> y lo revisamos. También puedes volver a presionar <b>“Ya pagué”</b> en tu agenda.</p>`,
+    p_sitio(a.sitio)
+  );
+  const texto = `No hemos podido confirmar tu pago\nHola, ${d.nombre}. Todavía no vemos tu transferencia de ${monto}${a.referencia ? ` (rastreo ${a.referencia})` : ""}.\nRevisa CLABE, beneficiario y el concepto ${codigoAgenda(agendaId)}. Si todo está bien, responde a este correo con tu comprobante.`;
+  await enviarConResend({ para: d.email, asunto, html, texto, responderA: await correosSuperadmin(db) });
+}
+
+const p_sitio = (sitio: string) => (sitio ? { texto: "Ver datos de pago", url: `${sitio}/personalizar#suscripcion` } : undefined);

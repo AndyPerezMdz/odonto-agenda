@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { superadminEnSesion } from "@/lib/admin";
-import { registrarPago } from "@/lib/pagosServer";
+import { registrarPago, notificarPagoConfirmado } from "@/lib/pagosServer";
+import { urlSitio } from "@/lib/recordatorios";
 
 export const dynamic = "force-dynamic";
 
@@ -18,5 +19,14 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
   if (r.error) return NextResponse.json({ error: r.error }, { status: 500 });
 
   if (b.avisoId) await s.db.from("avisos_pago").update({ estado: "confirmado" }).eq("id", b.avisoId).eq("agenda_id", id);
-  return NextResponse.json({ ok: true, hasta: r.hasta });
+
+  // Le avisamos al cliente que su pago quedó (si falla el correo, el pago igual quedó registrado)
+  let correo = true;
+  try {
+    await notificarPagoConfirmado(s.db, id, { monto, meses: Number(b.meses) || 1, hasta: r.hasta!, sitio: urlSitio(request.nextUrl.origin) });
+  } catch (e) {
+    correo = false;
+    console.error("[pagos] correo de confirmación", e);
+  }
+  return NextResponse.json({ ok: true, hasta: r.hasta, correo });
 }

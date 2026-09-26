@@ -363,6 +363,7 @@ function insigniaPago(pagadoHasta: string | null) {
 function AvisosPago({ avisos, agendas, onCambio }: { avisos: AvisoAdmin[]; agendas: AgendaAdmin[]; onCambio: (m: string) => void }) {
   const [trabajando, setTrabajando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [porDescartar, setPorDescartar] = useState<string | null>(null);
 
   async function confirmar(v: AvisoAdmin) {
     const agenda = agendas.find((a) => a.id === v.agenda_id);
@@ -377,7 +378,7 @@ function AvisosPago({ avisos, agendas, onCambio }: { avisos: AvisoAdmin[]; agend
     });
     setTrabajando(null);
     if (err) return setError(err);
-    onCambio(`Pago de “${v.agenda}” confirmado: +1 mes.`);
+    onCambio(`Pago de “${v.agenda}” confirmado: +1 mes. Le avisamos por correo.`);
   }
 
   async function descartar(v: AvisoAdmin) {
@@ -385,7 +386,8 @@ function AvisosPago({ avisos, agendas, onCambio }: { avisos: AvisoAdmin[]; agend
     const err = await api(`/api/admin/avisos/${v.id}`, "PATCH");
     setTrabajando(null);
     if (err) return setError(err);
-    onCambio(`Aviso de “${v.agenda}” descartado.`);
+    setPorDescartar(null);
+    onCambio(`Le avisamos a “${v.agenda}” que su pago no se ha reflejado.`);
   }
 
   return (
@@ -410,9 +412,18 @@ function AvisosPago({ avisos, agendas, onCambio }: { avisos: AvisoAdmin[]; agend
             <button className="btn btn-primario py-1.5 text-sm" disabled={trabajando === v.id} onClick={() => confirmar(v)}>
               Confirmar (+1 mes)
             </button>
-            <button className="btn btn-sec py-1.5 text-sm" disabled={trabajando === v.id} onClick={() => descartar(v)}>
-              No llegó
-            </button>
+            {porDescartar === v.id ? (
+              <>
+                <button className="btn bg-danger py-1.5 text-sm text-panel" disabled={trabajando === v.id} onClick={() => descartar(v)}>
+                  Sí, avisarle que no llegó
+                </button>
+                <button className="btn btn-sec py-1.5 text-sm" onClick={() => setPorDescartar(null)}>Cancelar</button>
+              </>
+            ) : (
+              <button className="btn btn-sec py-1.5 text-sm" disabled={trabajando === v.id} onClick={() => setPorDescartar(v.id)}>
+                No llegó
+              </button>
+            )}
           </li>
         ))}
       </ul>
@@ -551,7 +562,7 @@ function Suscripcion({ agenda, onCambio, onAviso }: { agenda: AgendaAdmin; onCam
             e.preventDefault();
             correr(
               () => api(`/api/admin/agendas/${agenda.id}/pagos`, "POST", { monto, meses, metodo, referencia }),
-              `Pago registrado para “${agenda.nombre}”.`
+              `Pago registrado para “${agenda.nombre}”. Le avisamos por correo.`
             ).then((ok) => ok && setRegistrando(false));
           }}
         >

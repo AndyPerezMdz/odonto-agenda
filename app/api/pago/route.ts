@@ -17,7 +17,7 @@ export async function GET() {
     s.db.from("agendas").select("id,nombre,pagado_hasta,precio_mensual").eq("id", s.agendaId).single(),
     s.db.from("configuracion").select("valor").eq("clave", "pago").maybeSingle(),
     s.db.from("pagos").select("id,monto,meses,metodo,cubre_desde,cubre_hasta,created_at").eq("agenda_id", s.agendaId).order("created_at", { ascending: false }).limit(6),
-    s.db.from("avisos_pago").select("id,created_at").eq("agenda_id", s.agendaId).eq("estado", "pendiente").order("created_at", { ascending: false }).limit(1),
+    s.db.from("avisos_pago").select("id,created_at,estado").eq("agenda_id", s.agendaId).order("created_at", { ascending: false }).limit(1),
   ]);
   if (!agenda) return NextResponse.json({ error: "Agenda no encontrada." }, { status: 404 });
 
@@ -27,7 +27,8 @@ export async function GET() {
     codigo: codigoAgenda(agenda.id),
     banco: config?.valor ?? {},
     pagos: pagos ?? [],
-    avisoPendiente: avisos?.[0]?.created_at ?? null,
+    avisoPendiente: avisos?.[0]?.estado === "pendiente" ? avisos[0].created_at : null,
+    ultimoAviso: avisos?.[0] ? { estado: avisos[0].estado, fecha: avisos[0].created_at } : null,
   });
 }
 
