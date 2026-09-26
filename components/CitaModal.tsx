@@ -17,25 +17,28 @@ type Props = {
   materias: Materia[];
   preferencias: Required<Preferencias>;
   soloLectura?: boolean;
+  plantilla?: Cita; // "Otra sesión": nueva cita con los datos de otra
+  onOtraSesion?: (c: Cita) => void;
   onClose: () => void;
   onGuardado: (fecha: string) => void;
 };
 
 export default function CitaModal({
-  supabase, userId, cita, fechaInicial, perfiles, clinicas, materias, preferencias, soloLectura = false, onClose, onGuardado,
+  supabase, userId, cita, fechaInicial, perfiles, clinicas, materias, preferencias, soloLectura = false, plantilla, onOtraSesion, onClose, onGuardado,
 }: Props) {
+  const base = cita ?? plantilla ?? null;
   const esNueva = !cita;
   const esMia = (esNueva || cita.owner_id === userId) && !soloLectura;
   const dueno = perfiles.find((p) => p.id === (cita?.owner_id ?? userId));
 
-  const [paciente, setPaciente] = useState(cita?.paciente ?? "");
+  const [paciente, setPaciente] = useState(base?.paciente ?? "");
   const [fecha, setFecha] = useState(cita?.fecha ?? fechaInicial);
-  const [inicio, setInicio] = useState(cita ? hhmm(cita.hora_inicio) : preferencias.horaInicio);
+  const [inicio, setInicio] = useState(base ? hhmm(base.hora_inicio) : preferencias.horaInicio);
   const [fin, setFin] = useState(
-    cita ? hhmm(cita.hora_fin) : sumarMinutos(preferencias.horaInicio, preferencias.duracionMin)
+    base ? hhmm(base.hora_fin) : sumarMinutos(preferencias.horaInicio, preferencias.duracionMin)
   );
-  const [clinicaId, setClinicaId] = useState(cita?.clinica_id ?? "");
-  const [materiaId, setMateriaId] = useState(cita?.materia_id ?? "");
+  const [clinicaId, setClinicaId] = useState(base?.clinica_id ?? "");
+  const [materiaId, setMateriaId] = useState(base?.materia_id ?? "");
   const [notas, setNotas] = useState(cita?.notas ?? "");
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -54,12 +57,12 @@ export default function CitaModal({
   // Al mover la hora de inicio en una cita nueva, arrastra la hora de fin
   function cambiarInicio(v: string) {
     setInicio(v);
-    if (esNueva && v) setFin(sumarMinutos(v, preferencias.duracionMin));
+    if (esNueva && !plantilla && v) setFin(sumarMinutos(v, preferencias.duracionMin));
   }
 
   // En catálogos, mostrar activos + el que ya tenga la cita (aunque esté inactivo)
-  const clinicasOpc = clinicas.filter((c) => c.activo || c.id === cita?.clinica_id);
-  const materiasOpc = materias.filter((m) => m.activo || m.id === cita?.materia_id);
+  const clinicasOpc = clinicas.filter((c) => c.activo || c.id === base?.clinica_id);
+  const materiasOpc = materias.filter((m) => m.activo || m.id === base?.materia_id);
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
@@ -133,7 +136,7 @@ export default function CitaModal({
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">
-            {esNueva ? "Nueva cita" : esMia ? "Editar cita" : "Detalle de cita"}
+            {esNueva ? (plantilla ? "Siguiente sesión" : "Nueva cita") : esMia ? "Editar cita" : "Detalle de cita"}
           </h2>
           <button type="button" onClick={onClose} className="btn btn-sec px-2.5 py-1" aria-label="Cerrar">✕</button>
         </div>
@@ -264,7 +267,12 @@ export default function CitaModal({
               ) : (
                 <button type="button" className="btn btn-peligro" onClick={() => setConfirmarBorrar(true)}>Borrar</button>
               ))}
-            <button type="submit" className="btn btn-primario ml-auto" disabled={guardando}>
+            {!esNueva && onOtraSesion && cita && (
+              <button type="button" className="btn btn-sec ml-auto" onClick={() => onOtraSesion(cita)} title="Nueva cita con el mismo paciente, clínica, materia y horario">
+                + Otra sesión
+              </button>
+            )}
+            <button type="submit" className={`btn btn-primario ${!esNueva && onOtraSesion ? "" : "ml-auto"}`} disabled={guardando}>
               {guardando ? "Guardando…" : "Guardar"}
             </button>
           </div>

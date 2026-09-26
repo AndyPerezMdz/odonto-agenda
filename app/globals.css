@@ -212,3 +212,11 @@ textarea {
 .legal ul { list-style: disc; padding-left: 1.25rem; margin-top: .5rem; }
 .legal li { margin-top: .3rem; }
 .legal a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+
+/* Imprimir "Mi avance" como PDF: sólo la lista de casos */
+.solo-imprimir { display: none; }
+@media print {
+  .no-imprimir { display: none !important; }
+  .solo-imprimir { display: block; color: #000; }
+  body { background: #fff !important; }
+}

@@ -31,7 +31,6 @@ export type Materia = {
   nombre: string;
   color: string;
   activo: boolean;
-  meta?: number | null; // casos que pide la materia en el cuatri
 };
 
 export type EstadoCita = "asistio" | "falto" | "cancelo";

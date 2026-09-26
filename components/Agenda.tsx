@@ -16,7 +16,7 @@ import MarcadorHoy from "@/components/MarcadorHoy";
 import CuatriModal from "@/components/CuatriModal";
 import BannerPago from "@/components/BannerPago";
 import AceptarTerminos from "@/components/AceptarTerminos";
-import { estadoPago } from "@/lib/pagos";
+import { estadoPago, sumarDias } from "@/lib/pagos";
 import TarjetaCita from "@/components/TarjetaCita";
 import BuscarPaciente from "@/components/BuscarPaciente";
 import InstalarApp from "@/components/InstalarApp";
@@ -37,13 +37,17 @@ export default function Agenda({ userId }: { userId: string }) {
   const [mes, setMes] = useState(hoy.getMonth());
   const [seleccionado, setSeleccionado] = useState(hoyISO());
   const [filtro, setFiltro] = useState<Filtro>("todos");
-  const [modal, setModal] = useState<{ cita: Cita | null; fecha: string } | null>(null);
+  const [modal, setModal] = useState<{ cita: Cita | null; fecha: string; plantilla?: Cita } | null>(null);
+  const [menu, setMenu] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [vista, setVista] = useState<"mes" | "lista">("mes");
 
   // Recuerda si prefieres ver el mes o la lista (sólo en este navegador)
   useEffect(() => {
-    try { if (localStorage.getItem(CLAVE_VISTA) === "lista") setVista("lista"); } catch {}
+    // Si nunca elegiste, en celular abre en lista (el mes con puntitos casi no se lee)
+    let guardada: string | null = null;
+    try { guardada = localStorage.getItem(CLAVE_VISTA); } catch {}
+    if (guardada === "lista" || (!guardada && window.matchMedia("(max-width: 639px)").matches)) setVista("lista");
   }, []);
   function cambiarVista(v: "mes" | "lista") {
     setVista(v);
@@ -138,20 +142,20 @@ export default function Agenda({ userId }: { userId: string }) {
           {yo && <p className="text-sm text-muted">Hola, {yo.nombre}</p>}
         </div>
         {yo?.rol === "owner" && pago.tipo !== "cortesia" && (
+          <span className="hidden sm:contents">
           <Link
             href="/personalizar#suscripcion"
             className={`btn btn-sec ${pago.tipo === "activa" ? "" : "border-danger text-danger"}`}
             title="Suscripción y pagos"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
-            <span className="hidden sm:inline">
-              {pago.tipo === "activa"
-                ? `Suscripción · ${fechaCorta(pago.vence)}`
-                : pago.tipo === "por_vencer"
-                  ? pago.dias === 0 ? "Vence hoy" : `Vence en ${pago.dias} d`
-                  : "Pagar suscripción"}
-            </span>
+            {pago.tipo === "activa"
+              ? `Suscripción · ${fechaCorta(pago.vence)}`
+              : pago.tipo === "por_vencer"
+                ? pago.dias === 0 ? "Vence hoy" : `Vence en ${pago.dias} d`
+                : "Pagar suscripción"}
           </Link>
+          </span>
         )}
         <button onClick={() => setBuscando(true)} className="btn btn-sec" title="Buscar paciente">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -161,15 +165,42 @@ export default function Agenda({ userId }: { userId: string }) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
           <span className="hidden sm:inline">Mi avance</span>
         </Link>
+        <span className="hidden sm:contents">
         <a href={MANUAL_URL} target="_blank" rel="noopener noreferrer" className="btn btn-sec" title="Manual de usuario">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg>
-          <span className="hidden sm:inline">Manual</span>
+          Manual
         </a>
         <Link href="/personalizar" className="btn btn-sec">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
-          <span className="hidden sm:inline">Personalizar</span>
+          Personalizar
         </Link>
         <button onClick={salir} className="btn btn-sec" title="Cerrar sesión">Salir</button>
+        </span>
+
+        {/* Celular: lo demás va en un menú */}
+        <div className="relative sm:hidden">
+          <button onClick={() => setMenu(!menu)} className="btn btn-sec relative" aria-label="Más opciones" aria-expanded={menu}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+            {yo?.rol === "owner" && pago.tipo !== "cortesia" && pago.tipo !== "activa" && (
+              <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-danger" />
+            )}
+          </button>
+          {menu && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setMenu(false)} />
+              <div className="absolute right-0 z-40 mt-2 w-56 overflow-hidden rounded-xl border border-line bg-panel py-1 text-sm shadow-xl">
+                {yo?.rol === "owner" && pago.tipo !== "cortesia" && (
+                  <Link href="/personalizar#suscripcion" className={`block px-4 py-2.5 hover:bg-panel-2 ${pago.tipo === "activa" ? "" : "text-danger"}`}>
+                    {pago.tipo === "activa" ? `Suscripción · ${fechaCorta(pago.vence)}` : pago.tipo === "por_vencer" ? (pago.dias === 0 ? "Suscripción · vence hoy" : `Suscripción · vence en ${pago.dias} d`) : "Pagar suscripción"}
+                  </Link>
+                )}
+                <Link href="/personalizar" className="block px-4 py-2.5 hover:bg-panel-2">Personalizar</Link>
+                <a href={MANUAL_URL} target="_blank" rel="noopener noreferrer" className="block px-4 py-2.5 hover:bg-panel-2">Manual</a>
+                <button onClick={salir} className="block w-full border-t border-line px-4 py-2.5 text-left text-danger hover:bg-panel-2">Salir</button>
+              </div>
+            </>
+          )}
+        </div>
       </header>
 
       <BannerPago estado={pago} esDueno={yo?.rol === "owner"} />
@@ -248,12 +279,10 @@ export default function Agenda({ userId }: { userId: string }) {
               const lista = porDia.get(iso) ?? [];
               const esHoy = iso === hoyStr;
               const esSel = iso === seleccionado;
-              const pasado = iso < hoyStr;
               return (
                 <button
                   key={iso}
                   onClick={() => elegirDia(iso)}
-                  onDoubleClick={() => !soloLectura && setModal({ cita: null, fecha: iso })}
                   className={`group relative flex min-h-[74px] flex-col items-stretch gap-1 p-1.5 text-left transition sm:min-h-[104px] sm:p-2 ${
                     delMes ? "bg-panel" : "bg-panel-2/60"
                   } ${esSel ? "ring-2 ring-inset ring-accent" : "hover:bg-panel-2"}`}
@@ -266,11 +295,6 @@ export default function Agenda({ userId }: { userId: string }) {
                         className={`grid h-7 w-7 place-items-center text-xs font-medium sm:h-8 sm:w-8 sm:text-sm ${delMes ? "" : "text-muted/60"}`}
                       >
                         {d.getDate()}
-                      </span>
-                    )}
-                    {delMes && !pasado && lista.length === 0 && (
-                      <span className="hidden rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent sm:inline">
-                        Libre
                       </span>
                     )}
                   </div>
@@ -302,7 +326,6 @@ export default function Agenda({ userId }: { userId: string }) {
               );
             })}
           </div>
-          <p className="mt-2 hidden text-xs text-muted sm:block">Tip: doble clic en un día para agendar directo.</p>
           </>)}
         </section>
 
@@ -367,10 +390,13 @@ export default function Agenda({ userId }: { userId: string }) {
 
       {modal && (
         <CitaModal
+          key={`${modal.cita?.id ?? "nueva"}-${modal.fecha}-${modal.plantilla?.id ?? ""}`}
           supabase={supabase}
           userId={userId}
           cita={modal.cita}
           fechaInicial={modal.fecha}
+          plantilla={modal.plantilla}
+          onOtraSesion={(c) => setModal({ cita: null, fecha: sumarDias(c.fecha, 7), plantilla: c })}
           perfiles={perfiles}
           clinicas={clinicas}
           materias={materias}

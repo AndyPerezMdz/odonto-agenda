@@ -14,6 +14,30 @@ const PALETA = ["#2f5d50", "#6366f1", "#db2777", "#ea580c", "#0891b2", "#65a30d"
 export default function Personalizar({ userId }: { userId: string }) {
   const { supabase, perfiles, clinicas, materias, recargar } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
+  const esDueno = yo?.rol === "owner";
+  const [pestana, setPestana] = useState<"yo" | "agenda" | "suscripcion">("yo");
+
+  // /personalizar#suscripcion (o #agenda) abre directo esa pestaña
+  useEffect(() => {
+    const leer = () => {
+      const h = window.location.hash.replace("#", "");
+      if (h === "suscripcion" || h === "agenda" || h === "yo") setPestana(h);
+    };
+    leer();
+    window.addEventListener("hashchange", leer);
+    return () => window.removeEventListener("hashchange", leer);
+  }, []);
+
+  function elegir(p: "yo" | "agenda" | "suscripcion") {
+    setPestana(p);
+    history.replaceState(null, "", `#${p}`);
+  }
+
+  const pestanas = [
+    ["yo", "Yo"],
+    ["agenda", "Agenda"],
+    ...(esDueno ? [["suscripcion", "Suscripción"]] : []),
+  ] as ["yo" | "agenda" | "suscripcion", string][];
 
   return (
     <div className="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-6">
@@ -29,12 +53,31 @@ export default function Personalizar({ userId }: { userId: string }) {
         </Link>
       </header>
 
-      <div className="flex flex-col gap-5">
+      <nav className="mb-5 flex gap-1 rounded-xl border border-line bg-panel p-1 text-sm font-medium">
+        {pestanas.map(([id, t]) => (
+          <button
+            key={id}
+            onClick={() => elegir(id)}
+            className={`flex-1 rounded-lg px-3 py-2 transition ${pestana === id ? "bg-accent text-panel" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
+          >
+            {t}
+          </button>
+        ))}
+      </nav>
+
+      {/* Las pestañas se ocultan (no se desmontan) para no perder lo que llevas escrito */}
+      <div className={pestana === "yo" ? "" : "hidden"}>
         {yo && <MiPerfil key={yo.id} supabase={supabase} yo={yo} onGuardado={recargar} />}
+      </div>
 
-        {yo?.rol === "owner" && <TarjetaSuscripcion />}
+      {esDueno && (
+        <div className={pestana === "suscripcion" ? "" : "hidden"}>
+          <TarjetaSuscripcion />
+        </div>
+      )}
 
-        {yo?.rol === "owner" && <TarjetaCompanero onCambio={recargar} />}
+      <div className={`flex flex-col gap-5 ${pestana === "agenda" ? "" : "hidden"}`}>
+        {esDueno && <TarjetaCompanero onCambio={recargar} />}
 
         <Catalogo
           titulo="Clínicas"

@@ -171,10 +171,7 @@ alter table public.materias drop constraint if exists materias_nombre_unico;
 create unique index if not exists clinicas_numero_por_agenda on public.clinicas (agenda_id, numero);
 create unique index if not exists materias_nombre_por_agenda on public.materias (agenda_id, nombre);
 
--- Cuántos casos pide cada materia en el cuatrimestre (para "Mi avance"). NULL = sin meta.
-alter table public.materias add column if not exists meta int;
-alter table public.materias drop constraint if exists materias_meta_valida;
-alter table public.materias add constraint materias_meta_valida check (meta is null or meta between 1 and 999);
+
 
 -- ---------------------------------------------------------------------
 -- CITAS
@@ -256,6 +253,41 @@ end $$;
 alter table public.clinicas alter column agenda_id set not null;
 alter table public.materias alter column agenda_id set not null;
 alter table public.citas    alter column agenda_id set not null;
+
+-- ---------------------------------------------------------------------
+-- METAS: cuántos casos le pide cada materia a CADA persona (para "Mi avance")
+-- ---------------------------------------------------------------------
+create table if not exists public.metas (
+  perfil_id   uuid not null references public.perfiles (id) on delete cascade,
+  materia_id  uuid not null references public.materias (id) on delete cascade,
+  meta        int  not null check (meta between 1 and 999),
+  primary key (perfil_id, materia_id)
+);
+
+-- Si alguien alcanzó a usar la meta compartida (materias.meta), se copia a cada persona de la agenda y se quita
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'materias' and column_name = 'meta') then
+    insert into public.metas (perfil_id, materia_id, meta)
+      select p.id, m.id, m.meta from public.materias m join public.perfiles p on p.agenda_id = m.agenda_id
+      where m.meta is not null
+      on conflict do nothing;
+    alter table public.materias drop column meta;
+  end if;
+end $$;
+
+alter table public.metas enable row level security;
+drop policy if exists metas_select on public.metas;
+create policy metas_select on public.metas
+  for select to authenticated
+  using (exists (select 1 from public.perfiles p where p.id = perfil_id and p.agenda_id = (select public.mi_agenda())));
+drop policy if exists metas_propias on public.metas;
+create policy metas_propias on public.metas
+  for all to authenticated
+  using (perfil_id = (select auth.uid()))
+  with check (perfil_id = (select auth.uid())
+              and exists (select 1 from public.materias m where m.id = materia_id and m.agenda_id = (select public.mi_agenda())));
+grant select, insert, update, delete on public.metas to authenticated;
 
 -- ---------------------------------------------------------------------
 -- RLS — cada quien ve SÓLO lo de su agenda. Nadie anónimo ve nada.

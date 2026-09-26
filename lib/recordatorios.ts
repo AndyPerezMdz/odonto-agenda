@@ -37,7 +37,8 @@ export async function enviarRecordatorios(opts: { soloUsuario?: string; prueba?:
   // Datos base
   let qPerfiles = db.from("perfiles").select("id,nombre,color,preferencias");
   if (opts.soloUsuario) qPerfiles = qPerfiles.eq("id", opts.soloUsuario);
-  const [{ data: perfiles, error: e1 }, { data: citas, error: e2 }, { data: clinicas }, { data: materias }, { data: usuarios, error: e3 }] =
+  const ayer = fechaEnZona(-1);
+  const [{ data: perfiles, error: e1 }, { data: citas, error: e2 }, { data: clinicas }, { data: materias }, { data: usuarios, error: e3 }, { data: sinMarcar }] =
     await Promise.all([
       qPerfiles,
       db
@@ -51,6 +52,15 @@ export async function enviarRecordatorios(opts: { soloUsuario?: string; prueba?:
       db.from("clinicas").select("id,numero,descripcion,activo"),
       db.from("materias").select("id,nombre,color,activo"),
       db.auth.admin.listUsers({ perPage: 1000 }),
+      // Citas de la última semana que nadie marcó (asistió / faltó): para "Mi avance"
+      db
+        .from("citas")
+        .select("id,owner_id,paciente,fecha,hora_inicio,hora_fin,clinica_id,materia_id,notas")
+        .gte("fecha", fechaEnZona(-7))
+        .lte("fecha", ayer)
+        .is("estado", null)
+        .order("fecha")
+        .order("hora_inicio"),
     ]);
   if (e1 || e2 || e3) throw new Error((e1 ?? e2 ?? e3)!.message);
 
@@ -77,8 +87,11 @@ export async function enviarRecordatorios(opts: { soloUsuario?: string; prueba?:
         citas: ((citas as Cita[]) ?? []).filter((c) => c.owner_id === perfil.id && c.fecha === d.fecha),
       }))
       .filter((b) => b.citas.length > 0);
+    const pendientes = ((sinMarcar as Cita[]) ?? []).filter((c) => c.owner_id === perfil.id);
+    // Sólo por las pendientes no se manda correo, salvo que sean de ayer (para no insistir toda la semana)
+    const hayDeAyer = pendientes.some((c) => c.fecha === ayer);
 
-    if (bloques.length === 0 && !opts.prueba) { resultados.push({ persona: perfil.nombre, estado: "sin citas" }); continue; }
+    if (bloques.length === 0 && !hayDeAyer && !opts.prueba) { resultados.push({ persona: perfil.nombre, estado: "sin citas" }); continue; }
 
     // Bitácora: si ya se mandó hoy, no repetir
     if (!opts.prueba) {
@@ -89,7 +102,7 @@ export async function enviarRecordatorios(opts: { soloUsuario?: string; prueba?:
       }
     }
 
-    const { asunto, html, texto } = armarCorreo({ nombre: perfil.nombre, bloques, clinicaPorId, materiaPorId, sitio: opts.sitio, prueba: !!opts.prueba });
+    const { asunto, html, texto } = armarCorreo({ nombre: perfil.nombre, bloques, pendientes, ayer, clinicaPorId, materiaPorId, sitio: opts.sitio, prueba: !!opts.prueba });
 
     try {
       await enviarConResend({
@@ -134,19 +147,24 @@ const TITULO_DIA = ["Hoy", "Mañana", "En 2 días"];
 const plural = (n: number) => `${n} cita${n === 1 ? "" : "s"}`;
 
 function armarCorreo({
-  nombre, bloques, clinicaPorId, materiaPorId, sitio, prueba,
+  nombre, bloques, pendientes, ayer, clinicaPorId, materiaPorId, sitio, prueba,
 }: {
   nombre: string;
   bloques: { n: number; fecha: string; citas: Cita[] }[];
+  pendientes: Cita[];
+  ayer: string;
   clinicaPorId: Map<string, Clinica>;
   materiaPorId: Map<string, Materia>;
   sitio: string;
   prueba: boolean;
 }) {
   const primero = bloques[0];
+  const deAyer = pendientes.filter((c) => c.fecha === ayer).length;
   const asunto = prueba
     ? "Prueba de recordatorio — Agenda de clínicas"
-    : primero.n === 0
+    : !primero
+      ? `¿Llegaron tus ${deAyer === 1 ? "paciente" : `${deAyer} pacientes`} de ayer?`
+      : primero.n === 0
       ? `Hoy tienes ${plural(primero.citas.length)}`
       : primero.n === 1
         ? `Mañana tienes ${plural(primero.citas.length)}`
@@ -176,15 +194,31 @@ function armarCorreo({
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;">${b.citas.map(filaHtml).join("")}</table>`
         )
         .join("")
-    : `<p style="color:#6d6a63;">No tienes citas en los próximos 3 días. Así se verán tus recordatorios cuando tengas.</p>`;
+    : prueba
+      ? `<p style="color:#6d6a63;">No tienes citas en los próximos 3 días. Así se verán tus recordatorios cuando tengas.</p>`
+      : "";
+
+  const diaCorto = (iso: string) => (iso === ayer ? "Ayer" : fechaLarga(iso).replace(/^./, (x) => x.toUpperCase()));
+  const pendientesHtml = pendientes.length
+    ? `
+      <div style="margin-top:24px;background:#fdf6e3;border-radius:12px;padding:16px;">
+        <p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#5c4712;">¿Llegaron? Tienes ${plural(pendientes.length)} sin marcar</p>
+        <p style="margin:0 0 10px;font-size:13px;color:#5c4712;">En <b>Mi avance</b> sólo cuentan las que marques como <b>Asistió</b>.</p>
+        ${pendientes
+          .map((c) => `<div style="font-size:13px;padding:3px 0;color:#1c1b19;">${esc(diaCorto(c.fecha))} · ${hhmm(c.hora_inicio)} · <b>${esc(c.paciente)}</b></div>`)
+          .join("")}
+        ${sitio ? `<p style="margin:12px 0 0;"><a href="${sitio}/avance" style="display:inline-block;background:#5c4712;color:#ffffff;text-decoration:none;padding:9px 16px;border-radius:8px;font-weight:bold;font-size:13px;">Marcar asistencia</a></p>` : ""}
+      </div>`
+    : "";
 
   const html = `<!doctype html><html lang="es"><body style="margin:0;background:#f6f5f2;">
   <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1c1b19;">
     <div style="background:#ffffff;border:1px solid #e4e2dc;border-radius:16px;padding:24px;">
       <p style="margin:0 0 4px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#2f5d50;font-weight:bold;">Agenda de clínicas</p>
       <h2 style="margin:0 0 6px;font-size:22px;">${prueba ? "Así se ven tus recordatorios" : esc(asunto)}</h2>
-      <p style="margin:0;color:#4a4843;">Buen día, ${esc(nombre)}. ${prueba ? "Este es un correo de prueba." : "Esto es lo que viene:"}</p>
+      <p style="margin:0;color:#4a4843;">Buen día, ${esc(nombre)}. ${prueba ? "Este es un correo de prueba." : bloques.length ? "Esto es lo que viene:" : "Te falta marcar cómo te fue:"}</p>
       ${bloquesHtml}
+      ${pendientesHtml}
       ${sitio ? `<p style="margin:24px 0 0;"><a href="${sitio}" style="display:inline-block;background:#2f5d50;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold;">Abrir la agenda</a></p>` : ""}
     </div>
     <p style="font-size:12px;color:#8a877f;margin:14px 4px 0;">Recibes esto porque tienes activados los recordatorios. Puedes cambiarlos en <b>Personalizar</b>.</p>
@@ -203,6 +237,9 @@ function armarCorreo({
         return `- ${hhmm(c.hora_inicio)}–${hhmm(c.hora_fin)} ${c.paciente}${extra ? ` (${extra})` : ""}`;
       }),
     ]),
+    ...(pendientes.length
+      ? ["", `Sin marcar (${pendientes.length}):`, ...pendientes.map((c) => `- ${diaCorto(c.fecha)} ${hhmm(c.hora_inicio)} ${c.paciente}`), sitio ? `Marcar asistencia: ${sitio}/avance` : ""]
+      : []),
     "",
     sitio ? `Abrir la agenda: ${sitio}` : "",
   ].join("\n");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useCatalogos, useCitas } from "@/lib/useDatos";
 import { prefs, type Cita, type Materia } from "@/lib/types";
@@ -11,11 +11,22 @@ import { sumarDias } from "@/lib/pagos";
 
 // "Mi avance": cuántos casos lleva cada quien por materia en el cuatrimestre, contra la meta.
 export default function Avance({ userId }: { userId: string }) {
-  const { supabase, perfiles, materias, recargar: recargarCatalogos } = useCatalogos();
+  const { supabase, perfiles, materias } = useCatalogos();
   const [fechaRef, setFechaRef] = useState(hoyISO());
   const [persona, setPersona] = useState(userId);
+  const [todo, setTodo] = useState(false);
   const rango = rangoDe(deISO(fechaRef));
-  const { citas, recargar } = useCitas(rango.desde, rango.hasta);
+  const { citas, recargar } = useCitas(todo ? "2000-01-01" : rango.desde, todo ? "2100-12-31" : rango.hasta);
+  const [metas, setMetas] = useState<Map<string, number>>(new Map());
+
+  // Metas: cada quien tiene las suyas (clave = persona:materia)
+  const cargarMetas = useCallback(async () => {
+    const { data } = await supabase.from("metas").select("perfil_id,materia_id,meta");
+    setMetas(new Map((data ?? []).map((m) => [`${m.perfil_id}:${m.materia_id}`, m.meta as number])));
+  }, [supabase]);
+  useEffect(() => {
+    cargarMetas();
+  }, [cargarMetas]);
   const hoy = hoyISO();
 
   const yo = perfiles.find((p) => p.id === userId);
@@ -38,12 +49,14 @@ export default function Avance({ userId }: { userId: string }) {
     if (porMateria.has("")) lista.push({ materia: null, citas: porMateria.get("")! });
     return lista.map(({ materia, citas }) => ({
       materia,
+      meta: materia ? metas.get(`${persona}:${materia.id}`) ?? null : null,
+      pacientes: citas.filter((c) => c.estado === "asistio").sort((a, b) => a.fecha.localeCompare(b.fecha)),
       asistio: citas.filter((c) => c.estado === "asistio").length,
       falto: citas.filter((c) => c.estado === "falto").length,
       agendadas: citas.filter((c) => !c.estado && c.fecha >= hoy).length,
       sinMarcar: citas.filter((c) => !c.estado && c.fecha < hoy).length,
     }));
-  }, [mias, materias, hoy]);
+  }, [mias, materias, hoy, metas, persona]);
 
   const total = filas.reduce((n, f) => n + f.asistio, 0);
   const faltas = filas.reduce((n, f) => n + f.falto, 0);
@@ -56,27 +69,44 @@ export default function Avance({ userId }: { userId: string }) {
     recargar();
   }
 
-  async function guardarMeta(id: string, meta: number | null) {
-    await supabase.from("materias").update({ meta }).eq("id", id);
-    recargarCatalogos();
+  async function guardarMeta(materiaId: string, meta: number | null) {
+    if (meta === null) await supabase.from("metas").delete().eq("perfil_id", userId).eq("materia_id", materiaId);
+    else await supabase.from("metas").upsert({ perfil_id: userId, materia_id: materiaId, meta });
+    cargarMetas();
   }
 
   return (
     <div className="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-6">
-      <header className="mb-5 flex items-center gap-3">
+      <header className="no-imprimir mb-5 flex items-center gap-3">
         <Link href="/" className="btn btn-sec px-2.5" aria-label="Volver">‹</Link>
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Mi avance</h1>
-          <p className="text-sm text-muted">Casos atendidos por materia en el cuatrimestre.</p>
+          <p className="text-sm text-muted">Casos atendidos por materia.</p>
         </div>
+        <button onClick={() => window.print()} className="btn btn-sec ml-auto" title="Imprime o guarda en PDF la lista de casos atendidos">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"/><rect x="6" y="14" width="12" height="8"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/></svg>
+          <span className="hidden sm:inline">PDF</span>
+        </button>
       </header>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1">
-          <button className="btn btn-sec px-2.5" onClick={() => setFechaRef(sumarDias(rango.desde, -1))} aria-label="Cuatrimestre anterior">‹</button>
-          <button className="btn btn-sec px-2.5" onClick={() => setFechaRef(sumarDias(rango.hasta, 1))} aria-label="Cuatrimestre siguiente">›</button>
+      <div className="no-imprimir mb-4 flex flex-wrap items-center gap-2">
+        <div className="flex rounded-lg border border-line p-0.5 text-xs font-medium">
+          {[false, true].map((v) => (
+            <button key={String(v)} onClick={() => setTodo(v)} className={`rounded-md px-2.5 py-1 ${todo === v ? "bg-accent-soft text-accent" : "text-muted hover:text-ink"}`}>
+              {v ? "Todo" : "Cuatri"}
+            </button>
+          ))}
         </div>
-        <h2 className="font-semibold first-letter:uppercase">{rango.nombre}</h2>
+        {!todo && (
+          <>
+            <div className="flex items-center gap-1">
+              <button className="btn btn-sec px-2.5" onClick={() => setFechaRef(sumarDias(rango.desde, -1))} aria-label="Cuatrimestre anterior">‹</button>
+              <button className="btn btn-sec px-2.5" onClick={() => setFechaRef(sumarDias(rango.hasta, 1))} aria-label="Cuatrimestre siguiente">›</button>
+            </div>
+            <h2 className="font-semibold first-letter:uppercase">{rango.nombre}</h2>
+          </>
+        )}
+        {todo && <h2 className="font-semibold">Desde el principio</h2>}
         <div className="ml-auto flex flex-wrap gap-1.5">
           {perfiles.map((p) => (
             <button
@@ -91,7 +121,7 @@ export default function Avance({ userId }: { userId: string }) {
         </div>
       </div>
 
-      <div className="mb-5 grid grid-cols-3 gap-3">
+      <div className="no-imprimir mb-5 grid grid-cols-3 gap-3">
         {[
           ["Casos atendidos", String(total)],
           ["Faltas de pacientes", String(faltas)],
@@ -105,7 +135,7 @@ export default function Avance({ userId }: { userId: string }) {
       </div>
 
       {esMio && pendientesDeMarcar.length > 0 && (
-        <section className="mb-5 rounded-2xl border-2 border-accent bg-panel p-4">
+        <section className="no-imprimir mb-5 rounded-2xl border-2 border-accent bg-panel p-4">
           <h3 className="font-semibold">Tienes {pendientesDeMarcar.length} cita{pendientesDeMarcar.length === 1 ? "" : "s"} sin marcar</h3>
           <p className="mb-3 text-sm text-muted">Sólo cuentan los casos marcados como <b>Asistió</b>.</p>
           <ul className="divide-y divide-line rounded-xl border border-line text-sm">
@@ -124,10 +154,10 @@ export default function Avance({ userId }: { userId: string }) {
         </section>
       )}
 
-      <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
+      <section className="no-imprimir rounded-2xl border border-line bg-panel p-4 sm:p-5">
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="font-semibold">{esMio ? "Tus casos por materia" : `Casos de ${quien?.nombre ?? ""}`}</h3>
-          <span className="text-xs text-muted">La meta es la misma para los dos. Toca el número para cambiarla.</span>
+          <span className="text-xs text-muted">{esMio ? "Toca el número para poner tu meta." : "Cada quien pone sus propias metas."}</span>
         </div>
         {filas.length === 0 ? (
           <p className="rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted">
@@ -136,19 +166,52 @@ export default function Avance({ userId }: { userId: string }) {
         ) : (
           <ul className="flex flex-col gap-5">
             {filas.map((f) => (
-              <FilaMateria key={f.materia?.id ?? "sin"} {...f} onMeta={guardarMeta} />
+              <FilaMateria key={`${persona}-${f.materia?.id ?? "sin"}`} {...f} editable={esMio} onMeta={guardarMeta} />
             ))}
           </ul>
         )}
       </section>
+
+      {/* Sólo al imprimir / guardar como PDF */}
+      <div className="solo-imprimir">
+        <h1 style={{ fontSize: 20, fontWeight: 700 }}>Casos atendidos — {quien?.nombre}</h1>
+        <p style={{ margin: "4px 0 16px", color: "#555" }}>
+          {todo ? "Todos los registros" : `Cuatrimestre ${rango.nombre}`} · generado el {fechaLarga(hoy)}
+        </p>
+        {filas.filter((f) => f.asistio > 0 || f.meta).map((f) => (
+          <div key={f.materia?.id ?? "sin"} style={{ marginBottom: 16, breakInside: "avoid" }}>
+            <h2 style={{ fontSize: 15, fontWeight: 700, borderBottom: "1px solid #999", paddingBottom: 2 }}>
+              {f.materia?.nombre ?? "Sin materia"} — {f.asistio}{f.meta ? ` de ${f.meta}` : ""} caso{f.asistio === 1 ? "" : "s"}
+            </h2>
+            {f.pacientes.length === 0 ? (
+              <p style={{ fontSize: 12, color: "#777" }}>Sin casos atendidos.</p>
+            ) : (
+              <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse", marginTop: 4 }}>
+                <tbody>
+                  {f.pacientes.map((c, i) => (
+                    <tr key={c.id}>
+                      <td style={{ padding: "2px 6px", width: 28, color: "#777" }}>{i + 1}.</td>
+                      <td style={{ padding: "2px 6px" }}>{c.paciente}</td>
+                      <td style={{ padding: "2px 6px", textAlign: "right", whiteSpace: "nowrap" }}>{fechaLarga(c.fecha)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ))}
+        <p style={{ fontSize: 10, color: "#999", marginTop: 24 }}>Generado con Agenda de clínicas. Sólo incluye citas marcadas como “Asistió”.</p>
+      </div>
     </div>
   );
 }
 
 function FilaMateria({
-  materia, asistio, falto, agendadas, sinMarcar, onMeta,
+  materia, meta, asistio, falto, agendadas, sinMarcar, editable, onMeta,
 }: {
   materia: Materia | null;
+  meta: number | null;
+  editable: boolean;
   asistio: number;
   falto: number;
   agendadas: number;
@@ -156,8 +219,7 @@ function FilaMateria({
   onMeta: (id: string, meta: number | null) => void;
 }) {
   const [editando, setEditando] = useState(false);
-  const [valor, setValor] = useState(String(materia?.meta ?? ""));
-  const meta = materia?.meta ?? null;
+  const [valor, setValor] = useState(String(meta ?? ""));
   const color = materia?.color ?? "#94a3b8";
   const pct = meta ? Math.min(100, (asistio / meta) * 100) : 0;
   const pctAgendadas = meta ? Math.min(100 - pct, (agendadas / meta) * 100) : 0;
@@ -181,7 +243,9 @@ function FilaMateria({
           {materia && (
             <>
               <span className="text-muted"> de </span>
-              {editando ? (
+              {!editable ? (
+                <span className="text-muted">{meta ?? "—"}</span>
+              ) : editando ? (
                 <input
                   autoFocus
                   type="number"
@@ -190,6 +254,7 @@ function FilaMateria({
                   className="campo inline-block w-16 px-2 py-0.5 text-sm"
                   value={valor}
                   onChange={(e) => setValor(e.target.value)}
+                  onFocus={() => setValor(String(meta ?? ""))}
                   onBlur={guardar}
                   onKeyDown={(e) => e.key === "Enter" && guardar()}
                 />
