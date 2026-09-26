@@ -1,0 +1,17 @@
+<!-- Pega esto en: Supabase → Authentication → Emails → Templates → "Reset password"
+     Asunto sugerido: Restablece tu contraseña — Agenda de clínicas -->
+<div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; color: #1c1b19;">
+  <h2 style="margin: 0 0 12px;">Restablece tu contraseña</h2>
+  <p style="margin: 0 0 20px; color: #4a4843;">
+    Pediste cambiar la contraseña de la Agenda de clínicas. Toca el botón para elegir una nueva.
+  </p>
+  <p style="margin: 0 0 24px;">
+    <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/nueva-contrasena"
+       style="display: inline-block; background: #2f5d50; color: #ffffff; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-weight: bold;">
+      Elegir nueva contraseña
+    </a>
+  </p>
+  <p style="margin: 0; font-size: 13px; color: #6d6a63;">
+    El enlace sirve una sola vez y caduca en 1 hora. Si tú no lo pediste, ignora este correo; tu contraseña no cambia.
+  </p>
+</div>

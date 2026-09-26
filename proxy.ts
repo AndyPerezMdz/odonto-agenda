@@ -2,6 +2,14 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_URL, SUPABASE_KEY } from "@/lib/supabase/env";
 
+// Rutas que se pueden ver SIN sesión
+const PUBLICAS = ["/login", "/recuperar", "/auth"];
+// Rutas que un usuario YA logueado no necesita ver
+const SOLO_INVITADOS = ["/login", "/recuperar"];
+
+const empiezaCon = (path: string, lista: string[]) =>
+  lista.some((p) => path === p || path.startsWith(p + "/"));
+
 // Refresca la sesión en cada request y saca a quien no esté logueado.
 export async function proxy(request: NextRequest) {
   // Diagnóstico: si faltan variables, dilo claro en vez de tronar con un 500 mudo
@@ -31,40 +39,38 @@ export async function proxy(request: NextRequest) {
 async function sesion(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  const supabase = createServerClient(
-    SUPABASE_URL,
-    SUPABASE_KEY,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          );
-        },
+  const supabase = createServerClient(SUPABASE_URL, SUPABASE_KEY, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
       },
-    }
-  );
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request });
+        cookiesToSet.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, options)
+        );
+      },
+    },
+  });
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const esLogin = request.nextUrl.pathname.startsWith("/login");
+  const path = request.nextUrl.pathname;
 
-  if (!user && !esLogin) {
+  if (!user && !empiezaCon(path, PUBLICAS)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    url.search = "";
     return NextResponse.redirect(url);
   }
 
-  if (user && esLogin) {
+  if (user && empiezaCon(path, SOLO_INVITADOS)) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
+    url.search = "";
     return NextResponse.redirect(url);
   }
 
@@ -72,5 +78,5 @@ async function sesion(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|.*\\.(?:svg|png|jpg|jpeg|gif|webp|pdf)$).*)"],
 };

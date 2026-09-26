@@ -45,3 +45,15 @@ app/personalizar         # botón "Personalizar"
 components/              # Agenda, CitaModal, Personalizar
 lib/                     # clientes Supabase, tipos, fechas, hooks de datos
 ```
+
+## Recuperar contraseña (configuración única en Supabase)
+
+1. **Authentication → URL Configuration**
+   - *Site URL*: el dominio de producción, p. ej. `https://odonto-agenda.vercel.app`
+   - *Redirect URLs*: agrega `https://odonto-agenda.vercel.app/**` (y `http://localhost:3000/**` para pruebas locales)
+2. **Authentication → Emails → Templates → Reset password**: pega el contenido de `supabase/email-restablecer.html`.
+   El link del correo apunta a `/auth/confirm`, que funciona aunque abran el correo en otro dispositivo.
+3. **Authentication → Emails → SMTP Settings**: configura un SMTP propio (p. ej. Resend).
+   El correo por defecto de Supabase sólo envía a los miembros del equipo del proyecto y con un límite muy bajo por hora.
+
+Rutas: `/recuperar` (pedir enlace), `/auth/confirm` (valida el enlace), `/nueva-contrasena` (elegir contraseña; también accesible desde *Personalizar → Cambiar contraseña*).
