@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Cita, Clinica, Materia, Perfil, Preferencias } from "@/lib/types";
-import { hhmm, sumarMinutos } from "@/lib/fechas";
+import type { Cita, Clinica, EstadoCita, Materia, Perfil, Preferencias } from "@/lib/types";
+import { fechaLarga, hhmm, sumarMinutos } from "@/lib/fechas";
+import { sumarDias } from "@/lib/pagos";
+import { ESTADOS } from "@/lib/estados";
 
 type Props = {
   supabase: SupabaseClient;
@@ -38,6 +40,10 @@ export default function CitaModal({
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [confirmarBorrar, setConfirmarBorrar] = useState(false);
+  const [estado, setEstado] = useState<EstadoCita | null>(cita?.estado ?? null);
+  const [repetir, setRepetir] = useState(false);
+  const [veces, setVeces] = useState(4);
+  const [resumen, setResumen] = useState<{ ok: number; choques: string[] } | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -72,13 +78,35 @@ export default function CitaModal({
       notas: notas.trim() || null,
     };
 
+    // Nueva y repetida: una por semana. Si alguna choca con otra cita, se salta y se avisa.
+    if (esNueva && repetir && veces > 1) {
+      let ok = 0;
+      const choques: string[] = [];
+      for (let i = 0; i < veces; i++) {
+        const f = sumarDias(fecha, 7 * i);
+        const { error } = await supabase.from("citas").insert({ ...datos, fecha: f });
+        if (!error) ok++;
+        else if (error.code === "23P01") choques.push(f);
+        else {
+          setGuardando(false);
+          return setError(`Se guardaron ${ok}, pero falló el ${fechaLarga(f)}: ${error.message}`);
+        }
+      }
+      setGuardando(false);
+      if (choques.length === 0) return onGuardado(fecha);
+      return setResumen({ ok, choques });
+    }
+
     const { error } = esNueva
       ? await supabase.from("citas").insert(datos)
-      : await supabase.from("citas").update(datos).eq("id", cita.id);
+      : await supabase.from("citas").update({ ...datos, estado }).eq("id", cita.id);
 
     setGuardando(false);
     if (error) {
-      if (error.code === "23P01") setError("Ya tienes otra cita que se encima con ese horario.");
+      if (error.code === "23P01")
+        setError(estado === null && cita?.estado === "cancelo"
+          ? "No se puede reactivar: ya tienes otra cita en ese horario."
+          : "Ya tienes otra cita que se encima con ese horario.");
       else setError("No se pudo guardar: " + error.message);
       return;
     }
@@ -119,6 +147,28 @@ export default function CitaModal({
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: dueno?.color }} />
             Cita de {dueno?.nombre}. Sólo esa persona la puede modificar.
           </p>
+        )}
+
+        {!esNueva && (
+          <div className="mb-4">
+            <span className="mb-1 block text-sm font-medium">¿Cómo fue?</span>
+            <div className="grid grid-cols-4 gap-1 rounded-xl border border-line p-1">
+              {ESTADOS.map((e) => (
+                <button
+                  key={e.nombre}
+                  type="button"
+                  disabled={!esMia || guardando}
+                  onClick={() => setEstado(e.id)}
+                  className={`rounded-lg px-1 py-1.5 text-xs font-medium transition sm:text-sm ${
+                    estado === e.id ? e.clase.replace("line-through", "") + " ring-1 ring-current" : "text-muted hover:bg-panel-2"
+                  }`}
+                >
+                  {e.nombre}
+                </button>
+              ))}
+            </div>
+            {estado === "cancelo" && <p className="mt-1 text-xs text-muted">Una cita cancelada ya no ocupa el horario ni te llega recordatorio.</p>}
+          </div>
         )}
 
         <fieldset disabled={!esMia || guardando} className="grid grid-cols-2 gap-3">
@@ -163,6 +213,26 @@ export default function CitaModal({
             />
             <span className="mt-1 block text-xs text-muted">Sin diagnósticos ni datos clínicos: sólo lo necesario para organizarte.</span>
           </Campo>
+
+          {esNueva && (
+            <div className="col-span-2 rounded-xl border border-line p-3">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={repetir} onChange={(e) => setRepetir(e.target.checked)} />
+                Repetir cada semana
+              </label>
+              {repetir && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-muted">Mismo día y hora, durante</span>
+                  <select className="campo w-auto py-1" value={veces} onChange={(e) => setVeces(Number(e.target.value))}>
+                    {Array.from({ length: 15 }, (_, i) => i + 2).map((n) => (
+                      <option key={n} value={n}>{n} semanas</option>
+                    ))}
+                  </select>
+                  <span className="text-xs text-muted">(hasta el {fechaLarga(sumarDias(fecha, 7 * (veces - 1)))})</span>
+                </div>
+              )}
+            </div>
+          )}
         </fieldset>
 
         {(clinicas.length === 0 || materias.length === 0) && esMia && (
@@ -173,7 +243,17 @@ export default function CitaModal({
 
         {error && <p className="mt-3 text-sm text-danger">{error}</p>}
 
-        {esMia && (
+        {resumen && (
+          <div className="mt-4 rounded-xl bg-panel-2 p-3 text-sm">
+            <p className="mb-1 font-medium">Se agendaron {resumen.ok} de {resumen.ok + resumen.choques.length} citas.</p>
+            <p className="text-muted">
+              Estas fechas ya tenían otra cita a esa hora y se saltaron: {resumen.choques.map(fechaLarga).join(", ")}.
+            </p>
+            <button type="button" className="btn btn-primario mt-3 w-full" onClick={() => onGuardado(fecha)}>Entendido</button>
+          </div>
+        )}
+
+        {esMia && !resumen && (
           <div className="mt-5 flex items-center gap-2">
             {!esNueva &&
               (confirmarBorrar ? (

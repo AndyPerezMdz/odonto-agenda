@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Cita, Clinica, Materia, Perfil } from "@/lib/types";
 
+export const CAMPOS_CITA = "id,owner_id,paciente,fecha,hora_inicio,hora_fin,clinica_id,materia_id,notas,estado";
+
 /** Perfiles + catálogos, con recarga en tiempo real. */
 export function useCatalogos() {
   const supabase = useMemo(() => createClient(), []);
@@ -18,7 +20,7 @@ export function useCatalogos() {
     const [p, c, m, a] = await Promise.all([
       supabase.from("perfiles").select("id,nombre,color,preferencias,rol,periodo_confirmado,acepto_terminos_at").order("created_at"),
       supabase.from("clinicas").select("id,numero,descripcion,activo").order("numero"),
-      supabase.from("materias").select("id,nombre,color,activo").order("nombre"),
+      supabase.from("materias").select("id,nombre,color,activo,meta").order("nombre"),
       supabase.from("agendas").select("nombre,pagado_hasta").maybeSingle(),
     ]);
     if (p.data) setPerfiles(p.data as Perfil[]);
@@ -53,7 +55,7 @@ export function useCitas(desde: string, hasta: string) {
   const recargar = useCallback(async () => {
     const { data } = await supabase
       .from("citas")
-      .select("id,owner_id,paciente,fecha,hora_inicio,hora_fin,clinica_id,materia_id,notas")
+      .select(CAMPOS_CITA)
       .gte("fecha", desde)
       .lte("fecha", hasta)
       .order("fecha")

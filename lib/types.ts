@@ -31,7 +31,10 @@ export type Materia = {
   nombre: string;
   color: string;
   activo: boolean;
+  meta?: number | null; // casos que pide la materia en el cuatri
 };
+
+export type EstadoCita = "asistio" | "falto" | "cancelo";
 
 export type Cita = {
   id: string;
@@ -43,6 +46,7 @@ export type Cita = {
   clinica_id: string | null;
   materia_id: string | null;
   notas: string | null;
+  estado?: EstadoCita | null; // null = pendiente
 };
 
 export const PREFERENCIAS_DEFAULT: Required<Preferencias> = {

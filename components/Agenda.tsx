@@ -17,6 +17,11 @@ import CuatriModal from "@/components/CuatriModal";
 import BannerPago from "@/components/BannerPago";
 import AceptarTerminos from "@/components/AceptarTerminos";
 import { estadoPago } from "@/lib/pagos";
+import TarjetaCita from "@/components/TarjetaCita";
+import BuscarPaciente from "@/components/BuscarPaciente";
+import InstalarApp from "@/components/InstalarApp";
+
+const CLAVE_VISTA = "vista-agenda";
 
 type Filtro = "todos" | string; // "todos" o id de perfil
 
@@ -33,6 +38,34 @@ export default function Agenda({ userId }: { userId: string }) {
   const [seleccionado, setSeleccionado] = useState(hoyISO());
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [modal, setModal] = useState<{ cita: Cita | null; fecha: string } | null>(null);
+  const [buscando, setBuscando] = useState(false);
+  const [vista, setVista] = useState<"mes" | "lista">("mes");
+
+  // Recuerda si prefieres ver el mes o la lista (sólo en este navegador)
+  useEffect(() => {
+    try { if (localStorage.getItem(CLAVE_VISTA) === "lista") setVista("lista"); } catch {}
+  }, []);
+  function cambiarVista(v: "mes" | "lista") {
+    setVista(v);
+    try { localStorage.setItem(CLAVE_VISTA, v); } catch {}
+  }
+
+  // En celular, al tocar un día baja solito a sus citas
+  function elegirDia(iso: string) {
+    setSeleccionado(iso);
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      requestAnimationFrame(() => document.getElementById("panel-dia")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  }
+
+  function irAFecha(iso: string) {
+    const d = deISO(iso);
+    setAnio(d.getFullYear());
+    setMes(d.getMonth());
+    setSeleccionado(iso);
+    setBuscando(false);
+    if (vista === "lista") cambiarVista("mes");
+  }
 
   const { supabase, perfiles, clinicas, materias, nombreAgenda, pagadoHasta, recargar: recargarCatalogos } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
@@ -120,20 +153,29 @@ export default function Agenda({ userId }: { userId: string }) {
             </span>
           </Link>
         )}
+        <button onClick={() => setBuscando(true)} className="btn btn-sec" title="Buscar paciente">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <span className="hidden sm:inline">Buscar</span>
+        </button>
+        <Link href="/avance" className="btn btn-sec" title="Mi avance por materia">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
+          <span className="hidden sm:inline">Mi avance</span>
+        </Link>
         <a href={MANUAL_URL} target="_blank" rel="noopener noreferrer" className="btn btn-sec" title="Manual de usuario">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg>
           <span className="hidden sm:inline">Manual</span>
         </a>
         <Link href="/personalizar" className="btn btn-sec">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
-          Personalizar
+          <span className="hidden sm:inline">Personalizar</span>
         </Link>
         <button onClick={salir} className="btn btn-sec" title="Cerrar sesión">Salir</button>
       </header>
 
       <BannerPago estado={pago} esDueno={yo?.rol === "owner"} />
+      <InstalarApp />
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
+      <div className={`grid gap-5 ${vista === "mes" ? "lg:grid-cols-[1fr_340px]" : ""}`}>
         {/* Calendario */}
         <section className="rounded-2xl border border-line bg-panel p-3 sm:p-4">
           <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -143,6 +185,20 @@ export default function Agenda({ userId }: { userId: string }) {
             </div>
             <h2 className="text-lg font-semibold">{MESES[mes]} {anio}</h2>
             <button className="btn btn-sec ml-1 py-1 text-xs" onClick={irAHoy}>Hoy</button>
+            <div className="flex rounded-lg border border-line p-0.5 text-xs font-medium">
+              {(["mes", "lista"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => cambiarVista(v)}
+                  className={`rounded-md px-2.5 py-1 ${vista === v ? "bg-accent-soft text-accent" : "text-muted hover:text-ink"}`}
+                >
+                  {v === "mes" ? "Mes" : "Lista"}
+                </button>
+              ))}
+            </div>
+            {vista === "lista" && !soloLectura && (
+              <button className="btn btn-primario py-1 text-xs" onClick={() => setModal({ cita: null, fecha: hoyStr })}>+ Cita</button>
+            )}
 
             {/* Filtro por persona */}
             <div className="ml-auto flex flex-wrap gap-1.5">
@@ -155,6 +211,31 @@ export default function Agenda({ userId }: { userId: string }) {
             </div>
           </div>
 
+          {vista === "lista" && (
+            <VistaLista
+              dias={diasVisibles.filter((d) => d.getMonth() === mes).map(aISO)}
+              porDia={porDia}
+              hoy={hoyStr}
+              render={(c) => (
+                <TarjetaCita
+                  key={c.id}
+                  cita={c}
+                  userId={userId}
+                  hoy={hoyStr}
+                  dueno={perfilPorId.get(c.owner_id)}
+                  clinica={c.clinica_id ? clinicaPorId.get(c.clinica_id) : null}
+                  materia={c.materia_id ? materiaPorId.get(c.materia_id) : null}
+                  supabase={supabase}
+                  soloLectura={soloLectura}
+                  onAbrir={() => setModal({ cita: c, fecha: c.fecha })}
+                  onCambio={recargarCitas}
+                />
+              )}
+              onNueva={soloLectura ? undefined : (iso) => setModal({ cita: null, fecha: iso })}
+            />
+          )}
+
+          {vista === "mes" && (<>
           <div className="grid gap-px overflow-hidden rounded-xl border border-line bg-line" style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }}>
             {encabezados.map((d) => (
               <div key={d} className="bg-panel-2 py-2 text-center text-xs font-medium uppercase tracking-wide text-muted">
@@ -171,7 +252,7 @@ export default function Agenda({ userId }: { userId: string }) {
               return (
                 <button
                   key={iso}
-                  onClick={() => setSeleccionado(iso)}
+                  onClick={() => elegirDia(iso)}
                   onDoubleClick={() => !soloLectura && setModal({ cita: null, fecha: iso })}
                   className={`group relative flex min-h-[74px] flex-col items-stretch gap-1 p-1.5 text-left transition sm:min-h-[104px] sm:p-2 ${
                     delMes ? "bg-panel" : "bg-panel-2/60"
@@ -196,7 +277,7 @@ export default function Agenda({ userId }: { userId: string }) {
 
                   {/* Móvil: puntitos */}
                   <div className="flex flex-wrap gap-0.5 sm:hidden">
-                    {lista.slice(0, 6).map((c) => (
+                    {lista.filter((c) => c.estado !== "cancelo").slice(0, 6).map((c) => (
                       <span key={c.id} className="h-1.5 w-1.5 rounded-full" style={{ background: perfilPorId.get(c.owner_id)?.color }} />
                     ))}
                   </div>
@@ -206,7 +287,7 @@ export default function Agenda({ userId }: { userId: string }) {
                     {lista.slice(0, 3).map((c) => (
                       <span
                         key={c.id}
-                        className="truncate rounded-md px-1.5 py-0.5 text-[11px] leading-tight"
+                        className={`truncate rounded-md px-1.5 py-0.5 text-[11px] leading-tight ${c.estado === "cancelo" ? "line-through opacity-50" : ""}`}
                         style={{
                           background: `${perfilPorId.get(c.owner_id)?.color ?? "#888"}22`,
                           borderLeft: `3px solid ${perfilPorId.get(c.owner_id)?.color ?? "#888"}`,
@@ -222,10 +303,12 @@ export default function Agenda({ userId }: { userId: string }) {
             })}
           </div>
           <p className="mt-2 hidden text-xs text-muted sm:block">Tip: doble clic en un día para agendar directo.</p>
+          </>)}
         </section>
 
         {/* Panel del día */}
-        <aside className="rounded-2xl border border-line bg-panel p-4">
+        {vista === "mes" && (
+        <aside id="panel-dia" className="scroll-mt-3 rounded-2xl border border-line bg-panel p-4">
           <div className="mb-4 flex items-start justify-between gap-2">
             <div>
               <p className="text-xs uppercase tracking-wide text-muted">Día seleccionado</p>
@@ -242,36 +325,26 @@ export default function Agenda({ userId }: { userId: string }) {
             </div>
           ) : (
             <ul className="flex flex-col gap-2">
-              {citasDelDia.map((c) => {
-                const dueno = perfilPorId.get(c.owner_id);
-                const clinica = c.clinica_id ? clinicaPorId.get(c.clinica_id) : null;
-                const materia = c.materia_id ? materiaPorId.get(c.materia_id) : null;
-                return (
-                  <li key={c.id}>
-                    <button
-                      onClick={() => setModal({ cita: c, fecha: c.fecha })}
-                      className="w-full rounded-xl border border-line p-3 text-left transition hover:bg-panel-2"
-                      style={{ borderLeft: `4px solid ${dueno?.color ?? "#888"}` }}
-                    >
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="font-medium">{c.paciente}</span>
-                        <span className="shrink-0 text-sm tabular-nums text-muted">
-                          {hhmm(c.hora_inicio)}–{hhmm(c.hora_fin)}
-                        </span>
-                      </div>
-                      <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
-                        {clinica && <Etiqueta>{clinica.numero}</Etiqueta>}
-                        {materia && <Etiqueta color={materia.color}>{materia.nombre}</Etiqueta>}
-                        <span className="ml-auto text-muted">{dueno?.id === userId ? "Tú" : dueno?.nombre}</span>
-                      </div>
-                      {c.notas && <p className="mt-1.5 line-clamp-2 text-xs text-muted">{c.notas}</p>}
-                    </button>
-                  </li>
-                );
-              })}
+              {citasDelDia.map((c) => (
+                <li key={c.id}>
+                  <TarjetaCita
+                    cita={c}
+                    userId={userId}
+                    hoy={hoyStr}
+                    dueno={perfilPorId.get(c.owner_id)}
+                    clinica={c.clinica_id ? clinicaPorId.get(c.clinica_id) : null}
+                    materia={c.materia_id ? materiaPorId.get(c.materia_id) : null}
+                    supabase={supabase}
+                    soloLectura={soloLectura}
+                    onAbrir={() => setModal({ cita: c, fecha: c.fecha })}
+                    onCambio={recargarCitas}
+                  />
+                </li>
+              ))}
             </ul>
           )}
         </aside>
+        )}
       </div>
 
       {yo && !yo.acepto_terminos_at && (
@@ -279,6 +352,18 @@ export default function Agenda({ userId }: { userId: string }) {
       )}
 
       {yo?.acepto_terminos_at && yo.rol === "owner" && <CuatriModal yo={yo} onCambio={() => { recargarCatalogos(); recargarCitas(); }} />}
+
+      {buscando && (
+        <BuscarPaciente
+          supabase={supabase}
+          userId={userId}
+          perfiles={perfiles}
+          clinicas={clinicas}
+          materias={materias}
+          onIr={irAFecha}
+          onClose={() => setBuscando(false)}
+        />
+      )}
 
       {modal && (
         <CitaModal
@@ -321,13 +406,48 @@ function Chip({
   );
 }
 
-function Etiqueta({ color, children }: { color?: string; children: React.ReactNode }) {
+function VistaLista({
+  dias, porDia, hoy, render, onNueva,
+}: {
+  dias: string[];
+  porDia: Map<string, Cita[]>;
+  hoy: string;
+  render: (c: Cita) => React.ReactNode;
+  onNueva?: (iso: string) => void;
+}) {
+  const [verPasados, setVerPasados] = useState(false);
+  const esteMes = dias.includes(hoy);
+  const conCitas = dias.filter((d) => (porDia.get(d)?.length ?? 0) > 0);
+  const pasados = esteMes ? conCitas.filter((d) => d < hoy) : [];
+  const visibles = esteMes && !verPasados ? conCitas.filter((d) => d >= hoy) : conCitas;
+
   return (
-    <span
-      className="rounded-md bg-panel-2 px-1.5 py-0.5"
-      style={color ? { background: `${color}22`, color } : undefined}
-    >
-      {children}
-    </span>
+    <div className="flex flex-col gap-5">
+      {pasados.length > 0 && (
+        <button className="self-start text-xs font-medium text-accent hover:underline" onClick={() => setVerPasados(!verPasados)}>
+          {verPasados ? "Ocultar días pasados" : `Ver ${pasados.length} día${pasados.length === 1 ? "" : "s"} pasado${pasados.length === 1 ? "" : "s"} de este mes`}
+        </button>
+      )}
+      {visibles.length === 0 && (
+        <div className="rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted">
+          {esteMes ? "No hay citas de aquí a fin de mes." : "No hay citas este mes."}
+          {onNueva && (
+            <button className="btn btn-primario mx-auto mt-3 block" onClick={() => onNueva(esteMes ? hoy : dias[0])}>+ Cita</button>
+          )}
+        </div>
+      )}
+      {visibles.map((iso) => (
+        <section key={iso}>
+          <div className="mb-2 flex items-center gap-2">
+            <h3 className="text-sm font-semibold first-letter:uppercase">{fechaLarga(iso)}</h3>
+            {iso === hoy && <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium text-panel">Hoy</span>}
+            {onNueva && (
+              <button className="ml-auto text-xs font-medium text-accent hover:underline" onClick={() => onNueva(iso)}>+ Cita</button>
+            )}
+          </div>
+          <div className="flex flex-col gap-2">{(porDia.get(iso) ?? []).map(render)}</div>
+        </section>
+      ))}
+    </div>
   );
 }

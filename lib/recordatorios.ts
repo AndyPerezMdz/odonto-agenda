@@ -45,6 +45,7 @@ export async function enviarRecordatorios(opts: { soloUsuario?: string; prueba?:
         .select("id,owner_id,paciente,fecha,hora_inicio,hora_fin,clinica_id,materia_id,notas")
         .gte("fecha", dias[0].fecha)
         .lte("fecha", dias[2].fecha)
+        .or("estado.is.null,estado.neq.cancelo") // las canceladas no se recuerdan
         .order("fecha")
         .order("hora_inicio"),
       db.from("clinicas").select("id,numero,descripcion,activo"),

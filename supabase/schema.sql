@@ -171,6 +171,11 @@ alter table public.materias drop constraint if exists materias_nombre_unico;
 create unique index if not exists clinicas_numero_por_agenda on public.clinicas (agenda_id, numero);
 create unique index if not exists materias_nombre_por_agenda on public.materias (agenda_id, nombre);
 
+-- Cuántos casos pide cada materia en el cuatrimestre (para "Mi avance"). NULL = sin meta.
+alter table public.materias add column if not exists meta int;
+alter table public.materias drop constraint if exists materias_meta_valida;
+alter table public.materias add constraint materias_meta_valida check (meta is null or meta between 1 and 999);
+
 -- ---------------------------------------------------------------------
 -- CITAS
 -- ---------------------------------------------------------------------
@@ -196,6 +201,20 @@ create table if not exists public.citas (
 
 alter table public.citas add column if not exists agenda_id uuid references public.agendas (id) on delete cascade;
 alter table public.citas alter column agenda_id set default public.mi_agenda();
+
+-- Estado de la cita: NULL = pendiente; 'asistio' | 'falto' | 'cancelo'
+alter table public.citas add column if not exists estado text;
+alter table public.citas drop constraint if exists citas_estado_valido;
+alter table public.citas add constraint citas_estado_valido check (estado is null or estado in ('asistio', 'falto', 'cancelo'));
+
+-- Las citas canceladas ya no ocupan el horario (se puede agendar otra encima)
+alter table public.citas drop constraint if exists citas_sin_traslape;
+alter table public.citas add constraint citas_sin_traslape exclude using gist (
+  owner_id with =,
+  tsrange(fecha + hora_inicio, fecha + hora_fin) with &&
+) where (estado is distinct from 'cancelo');
+
+create index if not exists citas_paciente_idx on public.citas (agenda_id, lower(paciente));
 
 create index if not exists citas_fecha_idx on public.citas (fecha);
 create index if not exists citas_agenda_fecha_idx on public.citas (agenda_id, fecha);
