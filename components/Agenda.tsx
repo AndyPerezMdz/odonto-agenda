@@ -10,6 +10,7 @@ import {
   MESES, DIAS_CORTOS_LUNES, DIAS_CORTOS_DOMINGO,
 } from "@/lib/fechas";
 import CitaModal from "@/components/CitaModal";
+import { MANUAL_URL } from "@/lib/manual";
 
 type Filtro = "todos" | string; // "todos" o id de perfil
 
@@ -83,6 +84,10 @@ export default function Agenda({ userId }: { userId: string }) {
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Agenda</h1>
           {yo && <p className="text-sm text-muted">Hola, {yo.nombre}</p>}
         </div>
+        <a href={MANUAL_URL} target="_blank" rel="noopener noreferrer" className="btn btn-sec" title="Manual de usuario">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg>
+          <span className="hidden sm:inline">Manual</span>
+        </a>
         <Link href="/personalizar" className="btn btn-sec">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
           Personalizar
