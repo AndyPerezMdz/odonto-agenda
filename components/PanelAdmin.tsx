@@ -27,6 +27,10 @@ export default function PanelAdmin({ email }: { email: string }) {
   const [avisos, setAvisos] = useState<AvisoAdmin[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [pestana, setPestana] = useState<"agendas" | "nueva" | "ajustes">("agendas");
+  const [busca, setBusca] = useState("");
+  const [filtro, setFiltro] = useState<Filtro>("todas");
+  const [abierta, setAbierta] = useState<string | null>(null);
 
   const recargar = useCallback(async () => {
     const res = await fetch("/api/admin/agendas", { cache: "no-store" });
@@ -62,6 +66,13 @@ export default function PanelAdmin({ email }: { email: string }) {
       const e = estadoPago(a.pagado_hasta, hoy);
       return e.tipo === "cortesia" || e.tipo === "vencida" ? n : n + a.precio_mensual;
     }, 0) ?? 0;
+
+  const q = busca.trim().toLowerCase();
+  const visibles = (agendas ?? []).filter(
+    (a) =>
+      (filtro === "todas" || grupoPago(a.pagado_hasta) === filtro) &&
+      (!q || a.nombre.toLowerCase().includes(q) || a.miembros.some((m) => `${m.email} ${m.nombre}`.toLowerCase().includes(q)))
+  );
 
   return (
     <div className="mx-auto max-w-4xl px-3 py-4 sm:px-6 sm:py-6">
@@ -105,30 +116,133 @@ export default function PanelAdmin({ email }: { email: string }) {
         />
       )}
 
-      <NuevaAgenda
-        onCreada={(msg) => {
-          setAviso(msg);
-          recargar();
-        }}
-      />
-
-      <DatosBancarios onAviso={setAviso} />
-
-      <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-muted">Agendas</h2>
-      {!agendas && !error && <p className="text-sm text-muted">Cargando…</p>}
-      {agendas?.length === 0 && (
-        <p className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">Aún no hay agendas. Crea la primera arriba.</p>
-      )}
-      <div className="flex flex-col gap-4">
-        {agendas?.map((a) => (
-          <TarjetaAgenda key={a.id} agenda={a} onCambio={recargar} onAviso={setAviso} />
+      {/* Pestañas */}
+      <nav className="mb-5 flex gap-1 rounded-xl border border-line bg-panel p-1 text-sm font-medium">
+        {(
+          [
+            ["agendas", `Agendas${agendas ? ` (${agendas.length})` : ""}`],
+            ["nueva", "+ Nueva"],
+            ["ajustes", "Datos de pago"],
+          ] as const
+        ).map(([id, t]) => (
+          <button
+            key={id}
+            onClick={() => setPestana(id)}
+            className={`flex-1 whitespace-nowrap rounded-lg px-2 py-2 text-xs transition sm:px-3 sm:text-sm ${pestana === id ? "bg-accent text-panel" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
+          >
+            {t}
+          </button>
         ))}
-      </div>
+      </nav>
+
+      {pestana === "nueva" && (
+        <NuevaAgenda
+          onCreada={(msg) => {
+            setAviso(msg);
+            setPestana("agendas");
+            recargar();
+          }}
+        />
+      )}
+
+      {pestana === "ajustes" && <DatosBancarios onAviso={setAviso} />}
+
+      {pestana === "agendas" && (
+        <>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <input
+              className="campo min-w-0 flex-1 py-2 text-sm sm:max-w-xs"
+              placeholder="Buscar por nombre o correo…"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+            />
+            <div className="flex flex-wrap gap-1.5">
+              {FILTROS.map(([id, t]) => {
+                const n = agendas?.filter((a) => grupoPago(a.pagado_hasta) === id).length ?? 0;
+                if (id !== "todas" && n === 0) return null;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setFiltro(id)}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium ${filtro === id ? "border-ink bg-ink text-panel" : "border-line text-muted hover:text-ink"}`}
+                  >
+                    {t}
+                    {id !== "todas" && ` · ${n}`}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {!agendas && !error && <p className="text-sm text-muted">Cargando…</p>}
+          {agendas?.length === 0 && (
+            <p className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">
+              Aún no hay agendas. Crea la primera en <b>+ Nueva agenda</b>.
+            </p>
+          )}
+          {agendas && agendas.length > 0 && visibles.length === 0 && (
+            <p className="rounded-2xl border border-dashed border-line p-6 text-center text-sm text-muted">Ninguna agenda coincide.</p>
+          )}
+
+          <div className="overflow-hidden rounded-2xl border border-line bg-panel">
+            {visibles.map((a, i) => (
+              <FilaAgenda
+                key={a.id}
+                agenda={a}
+                primera={i === 0}
+                abierta={abierta === a.id}
+                onToggle={() => setAbierta(abierta === a.id ? null : a.id)}
+                onCambio={recargar}
+                onAviso={setAviso}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-/* ------------------------------------------------------------------ */
+const FILTROS = [
+  ["todas", "Todas"],
+  ["atencion", "Por vencer / vencidas"],
+  ["activa", "Al corriente"],
+  ["cortesia", "Cortesía"],
+] as const;
+type Filtro = (typeof FILTROS)[number][0];
+
+function grupoPago(pagadoHasta: string | null): Filtro {
+  const t = estadoPago(pagadoHasta, hoyISO()).tipo;
+  if (t === "cortesia") return "cortesia";
+  if (t === "activa") return "activa";
+  return "atencion";
+}
+
+function FilaAgenda({
+  agenda, primera, abierta, onToggle, onCambio, onAviso,
+}: { agenda: AgendaAdmin; primera: boolean; abierta: boolean; onToggle: () => void; onCambio: () => void; onAviso: (m: string) => void }) {
+  const ins = insigniaPago(agenda.pagado_hasta);
+  const dueno = agenda.miembros.find((m) => m.rol === "owner");
+  const compa = agenda.miembros.find((m) => m.rol !== "owner");
+  return (
+    <div className={primera ? "" : "border-t border-line"}>
+      <button onClick={onToggle} className={`flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-panel-2 ${abierta ? "bg-panel-2" : ""}`}>
+        <span className="flex min-w-0 flex-1 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-4">
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-semibold">{agenda.nombre}</span>
+            <span className="block truncate text-xs text-muted">
+              {dueno ? dueno.email : "Sin dueño"}
+              {compa ? ` · ${compa.nombre}` : ""} · {agenda.citas} cita{agenda.citas === 1 ? "" : "s"}
+            </span>
+          </span>
+          <span className={`self-start rounded-full px-2.5 py-0.5 text-xs font-medium sm:self-auto ${ins.c}`}>{ins.t}</span>
+        </span>
+        <svg className={`shrink-0 text-muted transition ${abierta ? "rotate-180" : ""}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      {abierta && <TarjetaAgenda agenda={agenda} onCambio={onCambio} onAviso={onAviso} />}
+    </div>
+  );
+}
 
 function NuevaAgenda({ onCreada }: { onCreada: (msg: string) => void }) {
   const [nombre, setNombre] = useState("");
@@ -218,7 +332,7 @@ function TarjetaAgenda({ agenda, onCambio, onAviso }: { agenda: AgendaAdmin; onC
   }
 
   return (
-    <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
+    <section className="border-t border-line bg-panel-2/40 p-4 sm:p-5">
       <div className="mb-3 flex flex-wrap items-start gap-3">
         <div className="mr-auto min-w-0 flex-1">
           <input
@@ -435,7 +549,7 @@ function AvisosPago({ avisos, agendas, onCambio }: { avisos: AvisoAdmin[]; agend
 }
 
 function DatosBancarios({ onAviso }: { onAviso: (m: string) => void }) {
-  const [abierto, setAbierto] = useState(false);
+  const [abierto, setAbierto] = useState(true);
   const [d, setD] = useState({ banco: "", clabe: "", titular: "" });
   const [error, setError] = useState<string | null>(null);
 
@@ -460,7 +574,7 @@ function DatosBancarios({ onAviso }: { onAviso: (m: string) => void }) {
   }
 
   return (
-    <section className="mt-5 rounded-2xl border border-line bg-panel p-4 sm:p-5">
+    <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
       <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setAbierto(!abierto)}>
         <span>
           <span className="block font-semibold">Datos para recibir pagos</span>
