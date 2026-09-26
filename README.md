@@ -17,13 +17,13 @@ Sólo entran los usuarios que tú des de alta.
 npm install
 # Crea un archivo .env.local con esto (Project Settings → API):
 #   NEXT_PUBLIC_SUPABASE_URL=https://TU-PROYECTO.supabase.co
-#   NEXT_PUBLIC_SUPABASE_ANON_KEY=tu-anon-key
+#   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 npm run dev
 ```
 
 ## 3. Deploy (Vercel)
 
-Importa el repo en Vercel y agrega las dos variables `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+Importa el repo en Vercel y agrega las dos variables `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (también acepta `NEXT_PUBLIC_SUPABASE_ANON_KEY`).
 
 ## Cómo funciona
 
