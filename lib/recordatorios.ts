@@ -111,7 +111,7 @@ export async function enviarRecordatorios(opts: { soloUsuario?: string; prueba?:
 
 /* ------------------------------------------------------------------ */
 
-async function enviarConResend(m: { para: string; asunto: string; html: string; texto: string; idempotencia?: string }) {
+export async function enviarConResend(m: { para: string; asunto: string; html: string; texto: string; idempotencia?: string }) {
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error("Falta la variable RESEND_API_KEY en Vercel.");
   const res = await fetch(`${process.env.RESEND_API_URL || "https://api.resend.com"}/emails`, {
@@ -126,7 +126,7 @@ async function enviarConResend(m: { para: string; asunto: string; html: string; 
   if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
 }
 
-const esc = (s: string) =>
+export const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 const TITULO_DIA = ["Hoy", "Mañana", "En 2 días"];

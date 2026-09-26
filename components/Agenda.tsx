@@ -14,6 +14,8 @@ import { MANUAL_URL } from "@/lib/manual";
 import { aplicarTema, type MarcadorId } from "@/lib/tema";
 import MarcadorHoy from "@/components/MarcadorHoy";
 import CuatriModal from "@/components/CuatriModal";
+import BannerPago from "@/components/BannerPago";
+import { estadoPago } from "@/lib/pagos";
 
 type Filtro = "todos" | string; // "todos" o id de perfil
 
@@ -26,9 +28,13 @@ export default function Agenda({ userId }: { userId: string }) {
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [modal, setModal] = useState<{ cita: Cita | null; fecha: string } | null>(null);
 
-  const { supabase, perfiles, clinicas, materias, nombreAgenda, recargar: recargarCatalogos } = useCatalogos();
+  const { supabase, perfiles, clinicas, materias, nombreAgenda, pagadoHasta, recargar: recargarCatalogos } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
   const p = prefs(yo?.preferencias);
+
+  // Suscripción: si venció (pasada la gracia) la agenda queda en sólo lectura
+  const pago = estadoPago(pagadoHasta, hoyISO());
+  const soloLectura = pago.tipo === "vencida";
 
   // Aplica el tema guardado de quien está viendo
   useEffect(() => {
@@ -103,6 +109,8 @@ export default function Agenda({ userId }: { userId: string }) {
         <button onClick={salir} className="btn btn-sec" title="Cerrar sesión">Salir</button>
       </header>
 
+      <BannerPago estado={pago} esDueno={yo?.rol === "owner"} />
+
       <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
         {/* Calendario */}
         <section className="rounded-2xl border border-line bg-panel p-3 sm:p-4">
@@ -142,7 +150,7 @@ export default function Agenda({ userId }: { userId: string }) {
                 <button
                   key={iso}
                   onClick={() => setSeleccionado(iso)}
-                  onDoubleClick={() => setModal({ cita: null, fecha: iso })}
+                  onDoubleClick={() => !soloLectura && setModal({ cita: null, fecha: iso })}
                   className={`group relative flex min-h-[74px] flex-col items-stretch gap-1 p-1.5 text-left transition sm:min-h-[104px] sm:p-2 ${
                     delMes ? "bg-panel" : "bg-panel-2/60"
                   } ${esSel ? "ring-2 ring-inset ring-accent" : "hover:bg-panel-2"}`}
@@ -201,7 +209,7 @@ export default function Agenda({ userId }: { userId: string }) {
               <p className="text-xs uppercase tracking-wide text-muted">Día seleccionado</p>
               <h3 className="text-lg font-semibold first-letter:uppercase">{fechaLarga(seleccionado)}</h3>
             </div>
-            <button className="btn btn-primario shrink-0" onClick={() => setModal({ cita: null, fecha: seleccionado })}>
+            <button className="btn btn-primario shrink-0" disabled={soloLectura} title={soloLectura ? "Agenda en sólo lectura" : undefined} onClick={() => setModal({ cita: null, fecha: seleccionado })}>
               + Cita
             </button>
           </div>
@@ -256,6 +264,7 @@ export default function Agenda({ userId }: { userId: string }) {
           clinicas={clinicas}
           materias={materias}
           preferencias={p}
+          soloLectura={soloLectura}
           onClose={() => setModal(null)}
           onGuardado={(fecha) => {
             setModal(null);

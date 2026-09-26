@@ -13,13 +13,20 @@ export type Miembro = {
   citas: number;
 };
 
+export type PagoAdmin = { id: string; monto: number; meses: number; metodo: string; referencia: string | null; cubre_hasta: string; created_at: string };
+
+export type AvisoAdmin = { id: string; agenda_id: string; agenda: string; monto: number | null; referencia: string | null; quien: string | null; created_at: string };
+
 export type AgendaAdmin = {
   id: string;
   nombre: string;
   notas: string | null;
   created_at: string;
+  pagado_hasta: string | null;
+  precio_mensual: number;
   miembros: Miembro[];
   citas: number;
+  pagos: PagoAdmin[];
 };
 
 export async function esSuperadmin(db: Db, userId: string) {
@@ -38,13 +45,22 @@ export async function superadminEnSesion() {
   return (await esSuperadmin(db, user.id)) ? { user, db } : null;
 }
 
-export async function listarAgendas(db: Db): Promise<AgendaAdmin[]> {
-  const [{ data: agendas, error: e1 }, { data: perfiles, error: e2 }, { data: citas, error: e3 }, { data: usuarios, error: e4 }] =
+export async function listarAgendas(db: Db): Promise<{ agendas: AgendaAdmin[]; avisos: AvisoAdmin[] }> {
+  const [
+    { data: agendas, error: e1 },
+    { data: perfiles, error: e2 },
+    { data: citas, error: e3 },
+    { data: usuarios, error: e4 },
+    { data: pagos },
+    { data: avisos },
+  ] =
     await Promise.all([
-      db.from("agendas").select("id,nombre,notas,created_at").order("created_at"),
+      db.from("agendas").select("id,nombre,notas,created_at,pagado_hasta,precio_mensual").order("created_at"),
       db.from("perfiles").select("id,nombre,rol,agenda_id").not("agenda_id", "is", null),
       db.from("citas").select("owner_id,agenda_id"),
       db.auth.admin.listUsers({ perPage: 1000 }),
+      db.from("pagos").select("id,agenda_id,monto,meses,metodo,referencia,cubre_hasta,created_at").order("created_at", { ascending: false }),
+      db.from("avisos_pago").select("id,agenda_id,monto,referencia,reportado_por,created_at").eq("estado", "pendiente").order("created_at"),
     ]);
   const err = e1 ?? e2 ?? e3 ?? e4;
   if (err) throw new Error(err.message);
@@ -57,9 +73,14 @@ export async function listarAgendas(db: Db): Promise<AgendaAdmin[]> {
     citasPorAgenda.set(c.agenda_id, (citasPorAgenda.get(c.agenda_id) ?? 0) + 1);
   }
 
-  return (agendas ?? []).map((a) => ({
+  const nombrePerfil = new Map((perfiles ?? []).map((p) => [p.id, p.nombre]));
+  const nombreAgenda = new Map((agendas ?? []).map((a) => [a.id, a.nombre]));
+
+  const lista = (agendas ?? []).map((a) => ({
     ...a,
+    precio_mensual: Number(a.precio_mensual),
     citas: citasPorAgenda.get(a.id) ?? 0,
+    pagos: (pagos ?? []).filter((p) => p.agenda_id === a.id).slice(0, 5).map((p) => ({ ...p, monto: Number(p.monto) })),
     miembros: (perfiles ?? [])
       .filter((p) => p.agenda_id === a.id)
       .map((p) => {
@@ -75,4 +96,17 @@ export async function listarAgendas(db: Db): Promise<AgendaAdmin[]> {
       })
       .sort((x, y) => (x.rol === "owner" ? -1 : y.rol === "owner" ? 1 : 0)),
   }));
+
+  return {
+    agendas: lista,
+    avisos: (avisos ?? []).map((v) => ({
+      id: v.id,
+      agenda_id: v.agenda_id,
+      agenda: nombreAgenda.get(v.agenda_id) ?? "—",
+      monto: v.monto != null ? Number(v.monto) : null,
+      referencia: v.referencia,
+      quien: v.reportado_por ? nombrePerfil.get(v.reportado_por) ?? null : null,
+      created_at: v.created_at,
+    })),
+  };
 }

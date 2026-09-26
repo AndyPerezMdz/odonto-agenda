@@ -7,6 +7,7 @@ import { prefs, type Preferencias } from "@/lib/types";
 import { TEMAS, MARCADORES, aplicarTema, type MarcadorId } from "@/lib/tema";
 import MarcadorHoy from "@/components/MarcadorHoy";
 import TarjetaCompanero from "@/components/TarjetaCompanero";
+import TarjetaSuscripcion from "@/components/TarjetaSuscripcion";
 
 const PALETA = ["#2f5d50", "#6366f1", "#db2777", "#ea580c", "#0891b2", "#65a30d", "#9333ea", "#b45309"];
 
@@ -30,6 +31,8 @@ export default function Personalizar({ userId }: { userId: string }) {
 
       <div className="flex flex-col gap-5">
         {yo && <MiPerfil key={yo.id} supabase={supabase} yo={yo} onGuardado={recargar} />}
+
+        {yo?.rol === "owner" && <TarjetaSuscripcion />}
 
         {yo?.rol === "owner" && <TarjetaCompanero onCambio={recargar} />}
 

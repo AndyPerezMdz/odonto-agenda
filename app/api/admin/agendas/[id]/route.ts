@@ -5,16 +5,20 @@ export const dynamic = "force-dynamic";
 
 const noExiste = () => NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
-// PATCH { nombre?, notas? } → renombrar la agenda o editar tus notas
+// PATCH { nombre?, notas?, pagado_hasta?, precio_mensual? } → editar la agenda
 export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const s = await superadminEnSesion();
   if (!s) return noExiste();
   const { id } = await ctx.params;
-  const body = (await request.json().catch(() => ({}))) as { nombre?: string; notas?: string };
+  const body = (await request.json().catch(() => ({}))) as { nombre?: string; notas?: string; pagado_hasta?: string | null; precio_mensual?: number };
 
-  const cambios: Record<string, string | null> = {};
+  const cambios: Record<string, string | number | null> = {};
   if (typeof body.nombre === "string" && body.nombre.trim()) cambios.nombre = body.nombre.trim();
   if (typeof body.notas === "string") cambios.notas = body.notas.trim() || null;
+  // null = cortesía (sin vencimiento); "YYYY-MM-DD" = ajustar a mano la fecha
+  if (body.pagado_hasta === null || (typeof body.pagado_hasta === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.pagado_hasta)))
+    cambios.pagado_hasta = body.pagado_hasta;
+  if (typeof body.precio_mensual === "number" && body.precio_mensual >= 0) cambios.precio_mensual = body.precio_mensual;
 
   const { error } = await s.db.from("agendas").update(cambios).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

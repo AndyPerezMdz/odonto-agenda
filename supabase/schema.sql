@@ -17,6 +17,10 @@ create table if not exists public.agendas (
   created_at timestamptz not null default now()
 );
 
+-- Suscripción: pagada hasta esta fecha. NULL = sin vencimiento (cortesía).
+alter table public.agendas add column if not exists pagado_hasta date;
+alter table public.agendas add column if not exists precio_mensual numeric not null default 200;
+
 -- SUPERADMINS: quién puede entrar a /admin (tú). Sin políticas: nadie lo lee desde la app.
 create table if not exists public.superadmins (
   user_id uuid primary key references auth.users (id) on delete cascade
@@ -108,6 +112,33 @@ as $$
   select agenda_id from public.perfiles where id = auth.uid()
 $$;
 grant execute on function public.mi_agenda() to authenticated;
+
+-- ¿La agenda de quien está en sesión está al corriente? (3 días de gracia tras vencer)
+create or replace function public.agenda_activa()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (select a.pagado_hasta is null or a.pagado_hasta + 3 >= current_date
+       from public.agendas a where a.id = public.mi_agenda()),
+    false)
+$$;
+grant execute on function public.agenda_activa() to authenticated;
+
+-- ¿Quien está en sesión es el dueño de su agenda?
+create or replace function public.soy_dueno()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((select rol = 'owner' from public.perfiles where id = auth.uid()), false)
+$$;
+grant execute on function public.soy_dueno() to authenticated;
 
 -- ---------------------------------------------------------------------
 -- CATÁLOGOS: clínicas y materias (por agenda)
@@ -249,18 +280,19 @@ create policy citas_select on public.citas
 drop policy if exists citas_insert on public.citas;
 create policy citas_insert on public.citas
   for insert to authenticated
-  with check (owner_id = (select auth.uid()) and agenda_id = (select public.mi_agenda()));
+  with check (owner_id = (select auth.uid()) and agenda_id = (select public.mi_agenda())
+              and (select public.agenda_activa()));
 
 drop policy if exists citas_update on public.citas;
 create policy citas_update on public.citas
   for update to authenticated
-  using (owner_id = (select auth.uid()))
+  using (owner_id = (select auth.uid()) and (select public.agenda_activa()))
   with check (owner_id = (select auth.uid()) and agenda_id = (select public.mi_agenda()));
 
 drop policy if exists citas_delete on public.citas;
 create policy citas_delete on public.citas
   for delete to authenticated
-  using (owner_id = (select auth.uid()));
+  using (owner_id = (select auth.uid()) and (select public.agenda_activa()));
 
 -- ---------------------------------------------------------------------
 -- REALTIME (respeta RLS: cada agenda sólo recibe sus cambios)
@@ -282,6 +314,62 @@ create table if not exists public.recordatorios_enviados (
   primary key (owner_id, fecha)
 );
 alter table public.recordatorios_enviados enable row level security;
+
+-- ---------------------------------------------------------------------
+-- PAGOS (transferencia SPEI; los registra el superadmin o, en el futuro, un webhook)
+-- ---------------------------------------------------------------------
+create table if not exists public.pagos (
+  id          uuid primary key default gen_random_uuid(),
+  agenda_id   uuid not null references public.agendas (id) on delete cascade,
+  monto       numeric not null check (monto >= 0),
+  meses       int not null default 1 check (meses between 1 and 24),
+  metodo      text not null default 'spei',   -- spei, efectivo, stripe, conekta…
+  referencia  text,                           -- clave de rastreo, folio, etc.
+  cubre_desde date not null,
+  cubre_hasta date not null,
+  created_at  timestamptz not null default now()
+);
+create index if not exists pagos_agenda_idx on public.pagos (agenda_id, created_at desc);
+
+-- "Ya pagué": aviso del dueño para que el superadmin confirme
+create table if not exists public.avisos_pago (
+  id            uuid primary key default gen_random_uuid(),
+  agenda_id     uuid not null references public.agendas (id) on delete cascade,
+  reportado_por uuid references public.perfiles (id) on delete set null,
+  monto         numeric,
+  referencia    text,
+  estado        text not null default 'pendiente' check (estado in ('pendiente', 'confirmado', 'descartado')),
+  created_at    timestamptz not null default now()
+);
+
+-- Configuración general (datos bancarios para transferir). La edita el superadmin.
+create table if not exists public.configuracion (
+  clave text primary key,
+  valor jsonb not null default '{}'::jsonb
+);
+insert into public.configuracion (clave, valor)
+values ('pago', '{"banco": "", "clabe": "", "titular": ""}'::jsonb)
+on conflict (clave) do nothing;
+
+alter table public.pagos         enable row level security;
+alter table public.avisos_pago   enable row level security;
+alter table public.configuracion enable row level security;
+
+-- El dueño ve el historial de pagos y avisos de SU agenda (escribe sólo el servidor)
+drop policy if exists pagos_select on public.pagos;
+create policy pagos_select on public.pagos
+  for select to authenticated
+  using (agenda_id = (select public.mi_agenda()) and (select public.soy_dueno()));
+
+drop policy if exists avisos_select on public.avisos_pago;
+create policy avisos_select on public.avisos_pago
+  for select to authenticated
+  using (agenda_id = (select public.mi_agenda()) and (select public.soy_dueno()));
+
+-- Los datos bancarios los puede leer cualquier usuario con sesión (para saber a dónde transferir)
+drop policy if exists configuracion_select on public.configuracion;
+create policy configuracion_select on public.configuracion
+  for select to authenticated using (clave = 'pago');
 
 -- =====================================================================
 -- Listo. Después: entra a /admin con tu cuenta para asignar al dueño de

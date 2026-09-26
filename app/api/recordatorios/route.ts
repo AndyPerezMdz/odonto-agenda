@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { enviarRecordatorios, urlSitio } from "@/lib/recordatorios";
+import { avisosVencimiento } from "@/lib/pagosServer";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // La llama el cron de Vercel cada madrugada (ver vercel.json).
 // Vercel manda "Authorization: Bearer <CRON_SECRET>" automáticamente.
@@ -12,9 +14,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const resultados = await enviarRecordatorios({ sitio: urlSitio(request.nextUrl.origin) });
-    console.log("[recordatorios]", JSON.stringify(resultados));
-    return NextResponse.json({ ok: true, resultados });
+    const sitio = urlSitio(request.nextUrl.origin);
+    const resultados = await enviarRecordatorios({ sitio });
+    // Mismo cron: avisos de vencimiento de la suscripción a los dueños
+    const vencimientos = await avisosVencimiento(createAdminClient(), sitio).catch((e) => [{ agenda: "-", aviso: "error: " + e.message }]);
+    console.log("[recordatorios]", JSON.stringify({ resultados, vencimientos }));
+    return NextResponse.json({ ok: true, resultados, vencimientos });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[recordatorios]", msg);

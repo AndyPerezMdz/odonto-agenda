@@ -14,15 +14,16 @@ type Props = {
   clinicas: Clinica[];
   materias: Materia[];
   preferencias: Required<Preferencias>;
+  soloLectura?: boolean;
   onClose: () => void;
   onGuardado: (fecha: string) => void;
 };
 
 export default function CitaModal({
-  supabase, userId, cita, fechaInicial, perfiles, clinicas, materias, preferencias, onClose, onGuardado,
+  supabase, userId, cita, fechaInicial, perfiles, clinicas, materias, preferencias, soloLectura = false, onClose, onGuardado,
 }: Props) {
   const esNueva = !cita;
-  const esMia = esNueva || cita.owner_id === userId;
+  const esMia = (esNueva || cita.owner_id === userId) && !soloLectura;
   const dueno = perfiles.find((p) => p.id === (cita?.owner_id ?? userId));
 
   const [paciente, setPaciente] = useState(cita?.paciente ?? "");
@@ -109,7 +110,11 @@ export default function CitaModal({
           <button type="button" onClick={onClose} className="btn btn-sec px-2.5 py-1" aria-label="Cerrar">✕</button>
         </div>
 
-        {!esMia && (
+        {soloLectura && (
+          <p className="mb-4 rounded-lg bg-panel-2 px-3 py-2 text-sm text-muted">La agenda está en sólo lectura porque la suscripción venció.</p>
+        )}
+
+        {!esMia && !soloLectura && (
           <p className="mb-4 flex items-center gap-2 rounded-lg bg-panel-2 px-3 py-2 text-sm text-muted">
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: dueno?.color }} />
             Cita de {dueno?.nombre}. Sólo esa persona la puede modificar.
