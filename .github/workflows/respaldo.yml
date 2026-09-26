@@ -1,0 +1,68 @@
+# Respaldo semanal de la base de datos de Supabase.
+# El plan gratis de Supabase NO hace respaldos automáticos: esto los hace por ti.
+#
+# Configuración (una sola vez), en GitHub → tu repo → Settings → Secrets and variables → Actions → New repository secret:
+#   SUPABASE_DB_URL  = Supabase → botón "Connect" → "Session pooler" → la URI (postgresql://postgres.xxxx:[TU-CONTRASEÑA]@...pooler.supabase.com:5432/postgres)
+#                      (usa la del "Session pooler": la "Direct connection" no funciona desde GitHub porque es sólo IPv6)
+#   RESPALDO_CLAVE   = una contraseña larga que inventes. Con ella se cifra el respaldo. ¡GUÁRDALA! Sin ella no se puede abrir.
+#
+# Dónde queda: GitHub → pestaña Actions → "Respaldo semanal" → la ejecución → Artifacts. Se guarda 90 días.
+# Para abrirlo:   gpg -d respaldo-AAAA-MM-DD.tar.gz.gpg > respaldo.tar.gz   (pide la RESPALDO_CLAVE)
+
+name: Respaldo semanal
+
+on:
+  schedule:
+    - cron: "0 9 * * 1" # lunes 9:00 UTC = 3:00 a. m. en Mérida
+  workflow_dispatch: # botón "Run workflow" para hacerlo a mano
+
+jobs:
+  respaldo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Revisar que existan los secretos
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          RESPALDO_CLAVE: ${{ secrets.RESPALDO_CLAVE }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$RESPALDO_CLAVE" ]; then
+            echo "::error::Faltan los secretos SUPABASE_DB_URL y/o RESPALDO_CLAVE (ver instrucciones al inicio de este archivo)."
+            exit 1
+          fi
+
+      - name: Instalar pg_dump 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Respaldar y cifrar
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          RESPALDO_CLAVE: ${{ secrets.RESPALDO_CLAVE }}
+        run: |
+          set -euo pipefail
+          F="respaldo-$(date -u +%F)"
+          PGDUMP=/usr/lib/postgresql/17/bin/pg_dump
+          # 1) Todo lo de la app: tablas, funciones, políticas y datos
+          $PGDUMP "$SUPABASE_DB_URL" --schema=public --no-owner --no-privileges -f "$F-app.sql"
+          # 2) Cuentas de usuario (para poder restaurar los accesos)
+          $PGDUMP "$SUPABASE_DB_URL" --data-only --table=auth.users --table=auth.identities -f "$F-cuentas.sql"
+          tar czf "$F.tar.gz" "$F"-*.sql
+          # Cifrado: contiene nombres de pacientes, NUNCA se sube sin cifrar
+          gpg --batch --yes --pinentry-mode loopback --symmetric --cipher-algo AES256 \
+              --passphrase "$RESPALDO_CLAVE" -o "$F.tar.gz.gpg" "$F.tar.gz"
+          rm -f "$F"-*.sql "$F.tar.gz"
+          ls -lh "$F.tar.gz.gpg"
+          echo "NOMBRE=$F" >> "$GITHUB_ENV"
+
+      - name: Guardar respaldo (90 días)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.NOMBRE }}
+          path: "*.tar.gz.gpg"
+          retention-days: 90
+          if-no-files-found: error
