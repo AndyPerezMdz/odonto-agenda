@@ -5,6 +5,8 @@ export type Preferencias = {
   ocultarFinDeSemana?: boolean;
   recordatorios?: boolean;   // recibir correo de recordatorio en la madrugada
   recordatorioDias?: number[]; // con cuántos días de anticipación: 2, 1 y/o 0 (el mismo día)
+  tema?: string;             // ver lib/tema.ts
+  marcadorHoy?: string;      // forma del día de hoy: circulo, muela, corazon, flor, cuadro
 };
 
 export type Perfil = {
@@ -12,6 +14,8 @@ export type Perfil = {
   nombre: string;
   color: string;
   preferencias: Preferencias;
+  rol: "owner" | "companero";
+  periodo_confirmado: string | null;
 };
 
 export type Clinica = {
@@ -47,6 +51,8 @@ export const PREFERENCIAS_DEFAULT: Required<Preferencias> = {
   ocultarFinDeSemana: false,
   recordatorios: true,
   recordatorioDias: [2, 1, 0],
+  tema: "verde",
+  marcadorHoy: "circulo",
 };
 
 export function prefs(p?: Preferencias): Required<Preferencias> {

@@ -1,23 +1,59 @@
 -- =====================================================================
---  AGENDA DE CLÍNICAS — Esquema de Supabase
---  Pégalo completo en: Supabase → SQL Editor → New query → Run
---  Es idempotente: lo puedes volver a correr sin romper nada.
+--  AGENDA DE CLÍNICAS — Esquema completo de Supabase (multi-agenda)
+--  Pégalo COMPLETO en: Supabase → SQL Editor → New query → Run
+--  Es idempotente: sirve para instalar desde cero y para actualizar una base existente.
+--  Si ya había datos (una sola agenda), se convierten en la primera agenda automáticamente.
 -- =====================================================================
 
 create extension if not exists btree_gist with schema extensions;
 
 -- ---------------------------------------------------------------------
--- PERFILES (uno por usuario de auth). Nombre, color y preferencias.
+-- AGENDAS (cada cliente que compra la app tiene la suya)
 -- ---------------------------------------------------------------------
-create table if not exists public.perfiles (
-  id          uuid primary key references auth.users (id) on delete cascade,
-  nombre      text not null default 'Sin nombre',
-  color       text not null default '#6366f1',
-  preferencias jsonb not null default '{}'::jsonb,
-  created_at  timestamptz not null default now()
+create table if not exists public.agendas (
+  id         uuid primary key default gen_random_uuid(),
+  nombre     text not null default 'Agenda de clínicas',
+  notas      text,                              -- notas internas del superadmin (a quién se vendió, etc.)
+  created_at timestamptz not null default now()
 );
 
--- Crea el perfil automáticamente cuando das de alta un usuario
+-- SUPERADMINS: quién puede entrar a /admin (tú). Sin políticas: nadie lo lee desde la app.
+create table if not exists public.superadmins (
+  user_id uuid primary key references auth.users (id) on delete cascade
+);
+alter table public.superadmins enable row level security;
+
+-- Tú eres superadmin (si tu usuario ya existe en este proyecto)
+insert into public.superadmins (user_id)
+select id from auth.users where email = 'aperezmdz21@gmail.com'
+on conflict do nothing;
+
+-- ---------------------------------------------------------------------
+-- PERFILES (uno por usuario). Rol dentro de su agenda.
+-- ---------------------------------------------------------------------
+create table if not exists public.perfiles (
+  id           uuid primary key references auth.users (id) on delete cascade,
+  nombre       text not null default 'Sin nombre',
+  color        text not null default '#6366f1',
+  preferencias jsonb not null default '{}'::jsonb,
+  created_at   timestamptz not null default now()
+);
+
+alter table public.perfiles add column if not exists agenda_id uuid references public.agendas (id) on delete cascade;
+alter table public.perfiles add column if not exists rol text not null default 'companero';
+alter table public.perfiles add column if not exists periodo_confirmado text; -- ej. '2026-3'
+
+do $$ begin
+  alter table public.perfiles add constraint perfiles_rol_valido check (rol in ('owner', 'companero'));
+exception when duplicate_object then null;
+end $$;
+
+-- Un solo dueño POR AGENDA (quita el índice viejo de "un dueño en toda la base")
+drop index if exists public.perfiles_un_solo_owner;
+create unique index if not exists perfiles_un_owner_por_agenda on public.perfiles (agenda_id) where rol = 'owner';
+create index if not exists perfiles_agenda_idx on public.perfiles (agenda_id);
+
+-- Crea el perfil al dar de alta un usuario (sin agenda: el servidor se la asigna al invitar)
 create or replace function public.crear_perfil()
 returns trigger
 language plpgsql
@@ -37,21 +73,51 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.crear_perfil();
 
--- Por si ya existían usuarios antes de correr este script
 insert into public.perfiles (id, nombre)
 select id, split_part(email, '@', 1) from auth.users
 on conflict (id) do nothing;
 
+-- Nadie se cambia de rol ni de agenda desde la app. Sólo el servidor o el SQL Editor.
+create or replace function public.proteger_rol()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if current_user = 'authenticated'
+     and (new.rol is distinct from old.rol or new.agenda_id is distinct from old.agenda_id) then
+    raise exception 'No puedes cambiar tu rol ni tu agenda.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists perfiles_proteger_rol on public.perfiles;
+create trigger perfiles_proteger_rol
+  before update on public.perfiles
+  for each row execute function public.proteger_rol();
+
+-- La agenda de quien está en sesión (se usa en todas las políticas)
+create or replace function public.mi_agenda()
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select agenda_id from public.perfiles where id = auth.uid()
+$$;
+grant execute on function public.mi_agenda() to authenticated;
+
 -- ---------------------------------------------------------------------
--- CATÁLOGOS: clínicas físicas y materias (editables desde "Personalizar")
+-- CATÁLOGOS: clínicas y materias (por agenda)
 -- ---------------------------------------------------------------------
 create table if not exists public.clinicas (
   id          uuid primary key default gen_random_uuid(),
-  numero      text not null,                 -- "Clínica 3", "C-12", etc.
+  numero      text not null,
   descripcion text,
   activo      boolean not null default true,
-  created_at  timestamptz not null default now(),
-  constraint clinicas_numero_unico unique (numero)
+  created_at  timestamptz not null default now()
 );
 
 create table if not exists public.materias (
@@ -59,9 +125,19 @@ create table if not exists public.materias (
   nombre      text not null,
   color       text not null default '#94a3b8',
   activo      boolean not null default true,
-  created_at  timestamptz not null default now(),
-  constraint materias_nombre_unico unique (nombre)
+  created_at  timestamptz not null default now()
 );
+
+alter table public.clinicas add column if not exists agenda_id uuid references public.agendas (id) on delete cascade;
+alter table public.materias add column if not exists agenda_id uuid references public.agendas (id) on delete cascade;
+alter table public.clinicas alter column agenda_id set default public.mi_agenda();
+alter table public.materias alter column agenda_id set default public.mi_agenda();
+
+-- Nombres únicos DENTRO de cada agenda (antes eran únicos en toda la base)
+alter table public.clinicas drop constraint if exists clinicas_numero_unico;
+alter table public.materias drop constraint if exists materias_nombre_unico;
+create unique index if not exists clinicas_numero_por_agenda on public.clinicas (agenda_id, numero);
+create unique index if not exists materias_nombre_por_agenda on public.materias (agenda_id, nombre);
 
 -- ---------------------------------------------------------------------
 -- CITAS
@@ -86,7 +162,11 @@ create table if not exists public.citas (
   )
 );
 
+alter table public.citas add column if not exists agenda_id uuid references public.agendas (id) on delete cascade;
+alter table public.citas alter column agenda_id set default public.mi_agenda();
+
 create index if not exists citas_fecha_idx on public.citas (fecha);
+create index if not exists citas_agenda_fecha_idx on public.citas (agenda_id, fecha);
 
 create or replace function public.tocar_updated_at()
 returns trigger language plpgsql set search_path = '' as $$
@@ -102,17 +182,47 @@ create trigger citas_updated_at
   for each row execute function public.tocar_updated_at();
 
 -- ---------------------------------------------------------------------
--- RLS — sólo usuarios con sesión. Nadie anónimo ve nada.
+-- MIGRACIÓN: si ya había datos de antes (una sola agenda), se vuelven la primera agenda.
+-- Sólo corre la primera vez (cuando todavía no existe ninguna agenda).
 -- ---------------------------------------------------------------------
+do $$
+declare
+  a uuid;
+begin
+  if not exists (select 1 from public.agendas)
+     and (exists (select 1 from public.citas) or exists (select 1 from public.clinicas)
+          or exists (select 1 from public.perfiles p where p.id not in (select user_id from public.superadmins))) then
+    insert into public.agendas (nombre, notas) values ('Agenda de clínicas', 'Primera agenda (migrada)') returning id into a;
+    update public.perfiles set agenda_id = a
+      where agenda_id is null and id not in (select user_id from public.superadmins);
+    update public.clinicas set agenda_id = a where agenda_id is null;
+    update public.materias set agenda_id = a where agenda_id is null;
+    update public.citas    set agenda_id = a where agenda_id is null;
+  end if;
+end $$;
+
+-- Ya con todo migrado, catálogos y citas SIEMPRE pertenecen a una agenda
+alter table public.clinicas alter column agenda_id set not null;
+alter table public.materias alter column agenda_id set not null;
+alter table public.citas    alter column agenda_id set not null;
+
+-- ---------------------------------------------------------------------
+-- RLS — cada quien ve SÓLO lo de su agenda. Nadie anónimo ve nada.
+-- ---------------------------------------------------------------------
+alter table public.agendas  enable row level security;
 alter table public.perfiles enable row level security;
 alter table public.clinicas enable row level security;
 alter table public.materias enable row level security;
 alter table public.citas    enable row level security;
 
--- Perfiles: todos los logueados los ven (para nombres/colores); cada quien edita el suyo
+drop policy if exists agendas_select on public.agendas;
+create policy agendas_select on public.agendas
+  for select to authenticated using (id = (select public.mi_agenda()));
+
 drop policy if exists perfiles_select on public.perfiles;
 create policy perfiles_select on public.perfiles
-  for select to authenticated using (true);
+  for select to authenticated
+  using (id = (select auth.uid()) or agenda_id = (select public.mi_agenda()));
 
 drop policy if exists perfiles_update on public.perfiles;
 create policy perfiles_update on public.perfiles
@@ -120,30 +230,32 @@ create policy perfiles_update on public.perfiles
   using (id = (select auth.uid()))
   with check (id = (select auth.uid()));
 
--- Catálogos: compartidos, cualquiera de los usuarios los administra
 drop policy if exists clinicas_all on public.clinicas;
 create policy clinicas_all on public.clinicas
-  for all to authenticated using (true) with check (true);
+  for all to authenticated
+  using (agenda_id = (select public.mi_agenda()))
+  with check (agenda_id = (select public.mi_agenda()));
 
 drop policy if exists materias_all on public.materias;
 create policy materias_all on public.materias
-  for all to authenticated using (true) with check (true);
+  for all to authenticated
+  using (agenda_id = (select public.mi_agenda()))
+  with check (agenda_id = (select public.mi_agenda()));
 
--- Citas: todos ven todas; sólo el dueño crea/edita/borra las suyas
 drop policy if exists citas_select on public.citas;
 create policy citas_select on public.citas
-  for select to authenticated using (true);
+  for select to authenticated using (agenda_id = (select public.mi_agenda()));
 
 drop policy if exists citas_insert on public.citas;
 create policy citas_insert on public.citas
   for insert to authenticated
-  with check (owner_id = (select auth.uid()));
+  with check (owner_id = (select auth.uid()) and agenda_id = (select public.mi_agenda()));
 
 drop policy if exists citas_update on public.citas;
 create policy citas_update on public.citas
   for update to authenticated
   using (owner_id = (select auth.uid()))
-  with check (owner_id = (select auth.uid()));
+  with check (owner_id = (select auth.uid()) and agenda_id = (select public.mi_agenda()));
 
 drop policy if exists citas_delete on public.citas;
 create policy citas_delete on public.citas
@@ -151,47 +263,27 @@ create policy citas_delete on public.citas
   using (owner_id = (select auth.uid()));
 
 -- ---------------------------------------------------------------------
--- REALTIME: que uno vea al instante lo que agenda el otro
+-- REALTIME (respeta RLS: cada agenda sólo recibe sus cambios)
 -- ---------------------------------------------------------------------
 do $$
 begin
-  begin
-    alter publication supabase_realtime add table public.citas;
-  exception when duplicate_object then null;
-  end;
-  begin
-    alter publication supabase_realtime add table public.clinicas;
-  exception when duplicate_object then null;
-  end;
-  begin
-    alter publication supabase_realtime add table public.materias;
-  exception when duplicate_object then null;
-  end;
+  begin alter publication supabase_realtime add table public.citas;    exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table public.clinicas; exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table public.materias; exception when duplicate_object then null; end;
 end $$;
 
 -- ---------------------------------------------------------------------
--- DATOS DE EJEMPLO (bórralos o edítalos desde "Personalizar")
+-- RECORDATORIOS POR CORREO (bitácora de envíos; sólo la usa el servidor)
 -- ---------------------------------------------------------------------
-insert into public.clinicas (numero) values ('Clínica 1'), ('Clínica 2')
-on conflict (numero) do nothing;
-
-insert into public.materias (nombre, color) values
-  ('Operatoria', '#0ea5e9'),
-  ('Periodoncia', '#22c55e'),
-  ('Endodoncia', '#f97316')
-on conflict (nombre) do nothing;
-
--- ---------------------------------------------------------------------
--- RECORDATORIOS POR CORREO (bitácora de envíos)
--- ---------------------------------------------------------------------
--- Bitácora: evita mandar dos veces el recordatorio del mismo día a la misma persona
--- (por si el cron de Vercel se dispara dos veces).
 create table if not exists public.recordatorios_enviados (
   owner_id   uuid not null references public.perfiles (id) on delete cascade,
-  fecha      date not null,               -- día (hora de Mérida) en que se envió
+  fecha      date not null,
   enviado_at timestamptz not null default now(),
   primary key (owner_id, fecha)
 );
-
--- RLS encendido y SIN políticas: sólo el servidor (con la secret key) puede leer/escribir.
 alter table public.recordatorios_enviados enable row level security;
+
+-- =====================================================================
+-- Listo. Después: entra a /admin con tu cuenta para asignar al dueño de
+-- cada agenda o crear agendas nuevas para tus clientes.
+-- =====================================================================

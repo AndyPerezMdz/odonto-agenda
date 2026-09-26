@@ -18,6 +18,21 @@ export default function LoginPage() {
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const h = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+
+    // Plantillas de fábrica de Supabase: la sesión viene en el #hash (invitaciones y recuperación)
+    const access_token = h.get("access_token");
+    const refresh_token = h.get("refresh_token");
+    if (access_token && refresh_token) {
+      const destino = h.get("type") === "invite" ? "/bienvenida" : h.get("type") === "recovery" ? "/nueva-contrasena" : "/";
+      createClient()
+        .auth.setSession({ access_token, refresh_token })
+        .then(({ error }) => {
+          if (error) setError("El enlace ya caducó o ya se usó. Pide uno nuevo.");
+          else window.location.replace(destino);
+        });
+      return;
+    }
+
     const err = q.get("error");
     if (err === "navegador") {
       setError("Abre el enlace del correo en el mismo navegador donde lo pediste, o pide uno nuevo desde este dispositivo.");

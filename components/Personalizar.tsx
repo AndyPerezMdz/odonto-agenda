@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useCatalogos } from "@/lib/useDatos";
 import { prefs, type Preferencias } from "@/lib/types";
+import { TEMAS, MARCADORES, aplicarTema, type MarcadorId } from "@/lib/tema";
+import MarcadorHoy from "@/components/MarcadorHoy";
+import TarjetaCompanero from "@/components/TarjetaCompanero";
 
 const PALETA = ["#2f5d50", "#6366f1", "#db2777", "#ea580c", "#0891b2", "#65a30d", "#9333ea", "#b45309"];
 
@@ -27,6 +30,8 @@ export default function Personalizar({ userId }: { userId: string }) {
 
       <div className="flex flex-col gap-5">
         {yo && <MiPerfil key={yo.id} supabase={supabase} yo={yo} onGuardado={recargar} />}
+
+        {yo?.rol === "owner" && <TarjetaCompanero onCambio={recargar} />}
 
         <Catalogo
           titulo="Clínicas"
@@ -85,6 +90,11 @@ function MiPerfil({
   const [color, setColor] = useState(yo.color);
   const [p, setP] = useState(prefs(yo.preferencias));
   const [estado, setEstado] = useState<"" | "guardando" | "ok" | string>("");
+
+  // Vista previa en vivo del tema (se guarda hasta "Guardar cambios")
+  useEffect(() => {
+    aplicarTema(p.tema);
+  }, [p.tema]);
 
   useEffect(() => {
     if (estado === "ok") {
@@ -151,6 +161,59 @@ function MiPerfil({
           valor={p.ocultarFinDeSemana}
           onChange={(v) => setP({ ...p, ocultarFinDeSemana: v })}
         />
+      </div>
+
+      {/* Apariencia */}
+      <div className="mt-6 border-t border-line pt-5">
+        <h3 className="font-semibold">Apariencia</h3>
+        <p className="mb-3 mt-0.5 text-sm text-muted">Sólo cambia cómo ves tú la agenda. Se ve al instante; guarda para conservarlo.</p>
+
+        <span className="mb-2 block text-sm font-medium">Colores</span>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          {TEMAS.map((t) => {
+            const activo = p.tema === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                aria-pressed={activo}
+                onClick={() => setP({ ...p, tema: t.id })}
+                className={`rounded-xl border p-2.5 text-left transition ${activo ? "border-accent ring-2 ring-accent/30" : "border-line hover:bg-panel-2"}`}
+              >
+                <span className="mb-2 flex h-8 overflow-hidden rounded-lg border border-black/5">
+                  <span className="w-1/2" style={{ background: t.muestra[0] }} />
+                  <span className="w-1/4" style={{ background: t.muestra[1] }} />
+                  <span className="w-1/4" style={{ background: t.muestra[2] }} />
+                </span>
+                <span className="flex items-center justify-between text-sm">
+                  {t.nombre}
+                  {activo && <span className="text-accent">✓</span>}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <span className="mb-2 mt-4 block text-sm font-medium">Forma del día de hoy</span>
+        <div className="flex flex-wrap gap-2">
+          {MARCADORES.map((m) => {
+            const activo = p.marcadorHoy === m.id;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                aria-pressed={activo}
+                onClick={() => setP({ ...p, marcadorHoy: m.id })}
+                className={`flex w-[76px] flex-col items-center gap-1.5 rounded-xl border px-2 pb-2 pt-3 text-xs transition ${
+                  activo ? "border-accent bg-accent-soft font-medium text-accent" : "border-line text-muted hover:bg-panel-2"
+                }`}
+              >
+                <MarcadorHoy forma={m.id as MarcadorId} dia={new Date().getDate()} />
+                {m.nombre}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Recordatorios por correo */}

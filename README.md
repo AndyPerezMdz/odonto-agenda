@@ -62,7 +62,7 @@ Rutas: `/recuperar` (pedir enlace), `/auth/confirm` (valida el enlace), `/nueva-
 
 Cada madrugada (cron de Vercel `0 10 * * *` UTC = entre 4 y 5 a. m. en Mérida) se manda **un correo por persona** con sus citas de hoy, mañana y en 2 días (según lo que cada quien elija en *Personalizar*). Si no hay citas, no se manda nada.
 
-1. Corre `supabase/recordatorios.sql` en el SQL Editor (crea la bitácora anti-duplicados).
+1. La bitácora anti-duplicados ya viene en `supabase/schema.sql`.
 2. Variables en Vercel (Settings → Environment Variables), **sin** `NEXT_PUBLIC_`:
    - `SUPABASE_SECRET_KEY` → Supabase → Project Settings → API Keys → *Secret key* (`sb_secret_...`). Sólo la usa el servidor.
    - `RESEND_API_KEY` → la API key de Resend (`re_...`).
@@ -72,3 +72,12 @@ Cada madrugada (cron de Vercel `0 10 * * *` UTC = entre 4 y 5 a. m. en Mérida) 
 
 Pruebas: *Personalizar → Enviarme una prueba* manda el correo sólo a quien lo pide.
 En Vercel → Cron Jobs → **Run** lo ejecuta de verdad (no repite si ya se mandó ese día).
+
+## Varias agendas (para vender la app) y panel de admin
+
+- Cada cliente tiene **su propia agenda**: citas, clínicas, materias y compañero aislados por RLS (`agenda_id` + `mi_agenda()`).
+- `supabase/schema.sql` es el ÚNICO script: instala desde cero o migra una base vieja (lo que hubiera se vuelve la primera agenda). Se puede correr varias veces.
+- Tu cuenta (`aperezmdz21@gmail.com`) queda en la tabla `superadmins`. Si creas tu usuario después de correr el script, agrégalo con:
+  `insert into public.superadmins (user_id) select id from auth.users where email = 'aperezmdz21@gmail.com' on conflict do nothing;`
+- **/admin**: sólo los superadmins lo ven (a cualquier otro le da 404). Ahí creas agendas nuevas e invitas al dueño, asignas/reasignas dueño, reenvías invitaciones, editas notas internas y eliminas agendas.
+- Plantilla de invitación: `supabase/email-invitacion.html` → Authentication → Emails → Templates → *Invite user*.

@@ -28,6 +28,106 @@
   }
 }
 
+/* ------------------------------------------------------------------
+   TEMAS (Personalizar → Apariencia). El default (sin data-tema) es Salvia.
+   ------------------------------------------------------------------ */
+:root[data-tema="rosa"] {
+  --bg: #fbf4f6;
+  --panel: #ffffff;
+  --panel-2: #f8ebef;
+  --line: #f0dbe2;
+  --text: #2a1d22;
+  --muted: #86707a;
+  --accent: #d24a83;
+  --accent-soft: #fbe3ec;
+  --danger: #b4322b;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-tema="rosa"] {
+    --bg: #1a1417;
+    --panel: #221a1e;
+    --panel-2: #2b2126;
+    --line: #3a2c33;
+    --text: #f3e9ed;
+    --muted: #b39da7;
+    --accent: #f28bb5;
+    --accent-soft: #3a2130;
+    --danger: #e0766f;
+  }
+}
+:root[data-tema="lavanda"] {
+  --bg: #f6f4fb;
+  --panel: #ffffff;
+  --panel-2: #efebf8;
+  --line: #e2dcf0;
+  --text: #1f1b2b;
+  --muted: #6f6983;
+  --accent: #7b5cc7;
+  --accent-soft: #ece6fa;
+  --danger: #b4322b;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-tema="lavanda"] {
+    --bg: #151320;
+    --panel: #1c1a28;
+    --panel-2: #242131;
+    --line: #312d42;
+    --text: #ecebf5;
+    --muted: #a39fb8;
+    --accent: #b39cf0;
+    --accent-soft: #2a2440;
+    --danger: #e0766f;
+  }
+}
+:root[data-tema="cielo"] {
+  --bg: #f3f7fa;
+  --panel: #ffffff;
+  --panel-2: #e9f1f7;
+  --line: #d9e5ee;
+  --text: #16212b;
+  --muted: #637585;
+  --accent: #2c7fb8;
+  --accent-soft: #e0eef8;
+  --danger: #b4322b;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-tema="cielo"] {
+    --bg: #11171c;
+    --panel: #172028;
+    --panel-2: #1e2932;
+    --line: #2a3845;
+    --text: #e8eff5;
+    --muted: #98aab9;
+    --accent: #7cc0ec;
+    --accent-soft: #1b3142;
+    --danger: #e0766f;
+  }
+}
+:root[data-tema="durazno"] {
+  --bg: #fbf6f2;
+  --panel: #ffffff;
+  --panel-2: #f7ece4;
+  --line: #efdfd3;
+  --text: #2a1f19;
+  --muted: #85736a;
+  --accent: #c8623a;
+  --accent-soft: #fbe8dd;
+  --danger: #b4322b;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-tema="durazno"] {
+    --bg: #1a1512;
+    --panel: #221c18;
+    --panel-2: #2b231e;
+    --line: #3a2f28;
+    --text: #f3ebe5;
+    --muted: #b3a297;
+    --accent: #f0a07c;
+    --accent-soft: #3a261c;
+    --danger: #e0766f;
+  }
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-panel: var(--panel);

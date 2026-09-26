@@ -10,17 +10,20 @@ export function useCatalogos() {
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
   const [clinicas, setClinicas] = useState<Clinica[]>([]);
   const [materias, setMaterias] = useState<Materia[]>([]);
+  const [nombreAgenda, setNombreAgenda] = useState<string>("");
   const [cargando, setCargando] = useState(true);
 
   const recargar = useCallback(async () => {
-    const [p, c, m] = await Promise.all([
-      supabase.from("perfiles").select("id,nombre,color,preferencias").order("created_at"),
+    const [p, c, m, a] = await Promise.all([
+      supabase.from("perfiles").select("id,nombre,color,preferencias,rol,periodo_confirmado").order("created_at"),
       supabase.from("clinicas").select("id,numero,descripcion,activo").order("numero"),
       supabase.from("materias").select("id,nombre,color,activo").order("nombre"),
+      supabase.from("agendas").select("nombre").maybeSingle(),
     ]);
     if (p.data) setPerfiles(p.data as Perfil[]);
     if (c.data) setClinicas(c.data as Clinica[]);
     if (m.data) setMaterias(m.data as Materia[]);
+    if (a.data?.nombre) setNombreAgenda(a.data.nombre);
     setCargando(false);
   }, [supabase]);
 
@@ -36,7 +39,7 @@ export function useCatalogos() {
     };
   }, [supabase, recargar]);
 
-  return { supabase, perfiles, clinicas, materias, cargando, recargar };
+  return { supabase, perfiles, clinicas, materias, nombreAgenda, cargando, recargar };
 }
 
 /** Citas entre dos fechas (inclusive), con recarga en tiempo real. */

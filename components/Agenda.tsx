@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCatalogos, useCitas } from "@/lib/useDatos";
@@ -11,6 +11,9 @@ import {
 } from "@/lib/fechas";
 import CitaModal from "@/components/CitaModal";
 import { MANUAL_URL } from "@/lib/manual";
+import { aplicarTema, type MarcadorId } from "@/lib/tema";
+import MarcadorHoy from "@/components/MarcadorHoy";
+import CuatriModal from "@/components/CuatriModal";
 
 type Filtro = "todos" | string; // "todos" o id de perfil
 
@@ -23,9 +26,14 @@ export default function Agenda({ userId }: { userId: string }) {
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [modal, setModal] = useState<{ cita: Cita | null; fecha: string } | null>(null);
 
-  const { supabase, perfiles, clinicas, materias } = useCatalogos();
+  const { supabase, perfiles, clinicas, materias, nombreAgenda, recargar: recargarCatalogos } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
   const p = prefs(yo?.preferencias);
+
+  // Aplica el tema guardado de quien está viendo
+  useEffect(() => {
+    if (yo) aplicarTema(p.tema);
+  }, [yo, p.tema]);
 
   const dias = useMemo(
     () => diasDelMes(anio, mes, p.semanaEmpiezaLunes),
@@ -37,7 +45,7 @@ export default function Agenda({ userId }: { userId: string }) {
   );
   const columnas = p.ocultarFinDeSemana ? 5 : 7;
 
-  const { citas } = useCitas(aISO(dias[0]), aISO(dias[dias.length - 1]));
+  const { citas, recargar: recargarCitas } = useCitas(aISO(dias[0]), aISO(dias[dias.length - 1]));
 
   const perfilPorId = useMemo(() => new Map(perfiles.map((x) => [x.id, x])), [perfiles]);
   const clinicaPorId = useMemo(() => new Map(clinicas.map((x) => [x.id, x])), [clinicas]);
@@ -81,7 +89,7 @@ export default function Agenda({ userId }: { userId: string }) {
       {/* Encabezado */}
       <header className="mb-5 flex flex-wrap items-center gap-3">
         <div className="mr-auto">
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Agenda</h1>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{nombreAgenda || "Agenda"}</h1>
           {yo && <p className="text-sm text-muted">Hola, {yo.nombre}</p>}
         </div>
         <a href={MANUAL_URL} target="_blank" rel="noopener noreferrer" className="btn btn-sec" title="Manual de usuario">
@@ -140,13 +148,15 @@ export default function Agenda({ userId }: { userId: string }) {
                   } ${esSel ? "ring-2 ring-inset ring-accent" : "hover:bg-panel-2"}`}
                 >
                   <div className="flex items-center justify-between">
-                    <span
-                      className={`grid h-6 w-6 place-items-center rounded-full text-xs font-medium sm:text-sm ${
-                        esHoy ? "bg-accent text-panel" : delMes ? "" : "text-muted/60"
-                      }`}
-                    >
-                      {d.getDate()}
-                    </span>
+                    {esHoy ? (
+                      <MarcadorHoy forma={p.marcadorHoy as MarcadorId} dia={d.getDate()} />
+                    ) : (
+                      <span
+                        className={`grid h-7 w-7 place-items-center text-xs font-medium sm:h-8 sm:w-8 sm:text-sm ${delMes ? "" : "text-muted/60"}`}
+                      >
+                        {d.getDate()}
+                      </span>
+                    )}
                     {delMes && !pasado && lista.length === 0 && (
                       <span className="hidden rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent sm:inline">
                         Libre
@@ -233,6 +243,8 @@ export default function Agenda({ userId }: { userId: string }) {
           )}
         </aside>
       </div>
+
+      {yo?.rol === "owner" && <CuatriModal yo={yo} onCambio={() => { recargarCatalogos(); recargarCitas(); }} />}
 
       {modal && (
         <CitaModal
