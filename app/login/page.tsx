@@ -93,7 +93,8 @@ export default function LoginPage() {
         </button>
         <p className="mt-5 text-center text-xs text-muted">
           <Link href="/privacidad" className="hover:text-ink">Aviso de privacidad</Link> ·{" "}
-          <Link href="/terminos" className="hover:text-ink">Términos</Link>
+          <Link href="/terminos" className="hover:text-ink">Términos</Link> ·{" "}
+          <Link href="/novedades" className="hover:text-ink">Novedades</Link>
         </p>
       </form>
     </AuthCard>

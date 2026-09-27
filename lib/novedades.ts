@@ -43,9 +43,9 @@ export function versionMayor(a: string, b: string) {
   return false;
 }
 
-/** Versiones que la persona no ha visto (todas si nunca vio ninguna, pero sólo la última). */
+/** Versiones que la persona no ha visto. Sin registro = cuenta de antes de 1.5: le tocan todas. */
 export function pendientes(vista: string | null | undefined): Version[] {
-  if (!vista) return NOVEDADES.slice(0, 1);
+  if (!vista) return NOVEDADES;
   return NOVEDADES.filter((v) => versionMayor(v.version, vista));
 }
 
