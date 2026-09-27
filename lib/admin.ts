@@ -113,7 +113,9 @@ export async function listarAgendas(db: Db): Promise<{ agendas: AgendaAdmin[]; a
           nombre: p.nombre,
           email: u?.email ?? null,
           rol: p.rol,
-          pendiente: !u?.email_confirmed_at,
+          // Pendiente = nunca activó su cuenta. Si ya inició sesión alguna vez, ya no lo está
+          // (aunque Supabase no le haya marcado el correo, p. ej. si entró por "Olvidé mi contraseña").
+          pendiente: !(u?.email_confirmed_at || u?.confirmed_at || u?.last_sign_in_at || p.ultimo_acceso),
           citas: citasPorPersona.get(p.id) ?? 0,
           color: p.color ?? null,
           ultimoAcceso: masReciente(p.ultimo_acceso, u?.last_sign_in_at),
