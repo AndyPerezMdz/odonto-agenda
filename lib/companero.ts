@@ -9,6 +9,7 @@ export type EstadoCompanero = {
     email: string | null;
     pendiente: boolean; // invitado pero aún no acepta
     citas: number;
+    invitacion?: boolean; // ya tenía cuenta en otra agenda: está pendiente de aceptar el cambio
   } | null;
 };
 
@@ -34,7 +35,12 @@ export async function estadoCompanero(db: ReturnType<typeof createAdminClient>, 
     .limit(1);
   if (error) throw new Error(error.message);
   const p = perfiles?.[0];
-  if (!p) return { companero: null };
+  if (!p) {
+    // ¿Invitamos a alguien que ya tiene cuenta y aún no acepta cambiarse?
+    const { data: inv } = await db.from("invitaciones").select("id,email").eq("agenda_id", agendaId).eq("rol", "companero").maybeSingle();
+    if (inv) return { companero: { id: `inv:${inv.id}`, nombre: inv.email, email: inv.email, pendiente: true, citas: 0, invitacion: true } };
+    return { companero: null };
+  }
 
   const [{ data: u }, { count }] = await Promise.all([
     db.auth.admin.getUserById(p.id),

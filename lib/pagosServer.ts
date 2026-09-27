@@ -46,7 +46,7 @@ export async function correosSuperadmin(db: Db) {
   return (usuarios?.users ?? []).filter((u) => ids.has(u.id) && u.email).map((u) => u.email!);
 }
 
-const envolver = (titulo: string, cuerpo: string, boton?: { texto: string; url: string }) => `<!doctype html><html lang="es"><body style="margin:0;background:#f6f5f2;">
+export const envolver = (titulo: string, cuerpo: string, boton?: { texto: string; url: string }) => `<!doctype html><html lang="es"><body style="margin:0;background:#f6f5f2;">
   <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1c1b19;">
     <div style="background:#fff;border:1px solid #e4e2dc;border-radius:16px;padding:24px;">
       <p style="margin:0 0 4px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#2f5d50;font-weight:bold;">Agenda de clínicas</p>

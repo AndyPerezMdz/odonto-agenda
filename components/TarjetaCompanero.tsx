@@ -78,7 +78,7 @@ export function FormInvitar({ onEnviado, emailInicial = "", textoBoton = "Enviar
         </button>
       </div>
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
-      <p className="mt-2 text-xs text-muted">Le llegará un correo para crear su contraseña. Que revise Spam si no lo ve.</p>
+      <p className="mt-2 text-xs text-muted">Le llegará un correo para crear su contraseña (si ya tiene cuenta, para aceptar cambiarse a tu agenda). Que revise Spam si no lo ve.</p>
     </form>
   );
 }
@@ -133,7 +133,7 @@ export default function TarjetaCompanero({ onCambio }: { onCambio: () => void })
             <div className="mr-auto min-w-0">
               <p className="truncate font-medium">{c.pendiente ? c.email : c.nombre}</p>
               <p className="truncate text-sm text-muted">
-                {c.pendiente ? "Invitación enviada · aún no crea su cuenta" : `${c.email} · ${c.citas} cita${c.citas === 1 ? "" : "s"}`}
+                {c.invitacion ? "Ya tiene cuenta · falta que acepte cambiarse a tu agenda" : c.pendiente ? "Invitación enviada · aún no crea su cuenta" : `${c.email} · ${c.citas} cita${c.citas === 1 ? "" : "s"}`}
               </p>
             </div>
             {c.pendiente && (
@@ -161,7 +161,7 @@ export default function TarjetaCompanero({ onCambio }: { onCambio: () => void })
           {confirmando && (
             <div className="mt-3 rounded-lg bg-[#fbecea] p-3 text-sm text-[#7a1f1a] dark:bg-[#3a1d1b] dark:text-[#f1b5b0]">
               {c.pendiente ? (
-                <p className="mb-3">Se cancelará la invitación y el enlace que le llegó dejará de funcionar.</p>
+                <p className="mb-3">Se cancelará la invitación{c.invitacion ? "." : " y el enlace que le llegó dejará de funcionar."}</p>
               ) : (
                 <p className="mb-3">
                   Se borrará la cuenta de <b>{c.nombre}</b> y <b>sus {c.citas} cita{c.citas === 1 ? "" : "s"}</b>. Esto no se puede deshacer.

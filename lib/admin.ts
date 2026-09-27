@@ -24,6 +24,10 @@ export type AgendaAdmin = {
   created_at: string;
   pagado_hasta: string | null;
   precio_mensual: number;
+  prueba_hasta: string | null;
+  codigo: string | null;
+  enPrueba: boolean;
+  invitacionPendiente: string | null; // correo invitado que ya tenía cuenta y no ha aceptado
   miembros: Miembro[];
   citas: number;
   pagos: PagoAdmin[];
@@ -55,13 +59,14 @@ export async function listarAgendas(db: Db): Promise<{ agendas: AgendaAdmin[]; a
     { data: avisos },
   ] =
     await Promise.all([
-      db.from("agendas").select("id,nombre,notas,created_at,pagado_hasta,precio_mensual").order("created_at"),
+      db.from("agendas").select("id,nombre,notas,created_at,pagado_hasta,precio_mensual,prueba_hasta,codigo").order("created_at"),
       db.from("perfiles").select("id,nombre,rol,agenda_id").not("agenda_id", "is", null),
       db.from("citas").select("owner_id,agenda_id"),
       db.auth.admin.listUsers({ perPage: 1000 }),
       db.from("pagos").select("id,agenda_id,monto,meses,metodo,referencia,cubre_desde,cubre_hasta,created_at").order("created_at", { ascending: false }).order("cubre_hasta", { ascending: false }),
       db.from("avisos_pago").select("id,agenda_id,monto,referencia,reportado_por,created_at").eq("estado", "pendiente").order("created_at"),
     ]);
+  const { data: invitaciones } = await db.from("invitaciones").select("agenda_id,email");
   const err = e1 ?? e2 ?? e3 ?? e4;
   if (err) throw new Error(err.message);
 
@@ -79,6 +84,8 @@ export async function listarAgendas(db: Db): Promise<{ agendas: AgendaAdmin[]; a
   const lista = (agendas ?? []).map((a) => ({
     ...a,
     precio_mensual: Number(a.precio_mensual),
+    enPrueba: !!a.prueba_hasta && a.pagado_hasta !== null && !(pagos ?? []).some((p) => p.agenda_id === a.id),
+    invitacionPendiente: (invitaciones ?? []).find((i) => i.agenda_id === a.id)?.email ?? null,
     citas: citasPorAgenda.get(a.id) ?? 0,
     pagos: (pagos ?? [])
       .filter((p) => p.agenda_id === a.id)

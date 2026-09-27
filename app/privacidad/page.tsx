@@ -37,6 +37,7 @@ export default function PrivacidadPage() {
         <li>Mostrar la agenda compartida entre tú y tu compañero/a.</li>
         <li>Enviarte recordatorios de citas y avisos de tu cuenta (invitaciones, cambio de contraseña, pagos y vencimientos).</li>
         <li>Administrar tu suscripción y confirmar tus pagos.</li>
+        <li>Controlar el mes gratis (uno por persona) y registrar si llegaste con el código de alguien que te recomendó.</li>
         <li>Darte soporte cuando lo pidas.</li>
       </ul>
       <p>No usamos tus datos para publicidad ni para enviarte promociones, y no los vendemos ni rentamos a nadie.</p>
@@ -69,6 +70,7 @@ export default function PrivacidadPage() {
         <li>Mientras tu cuenta esté activa.</li>
         <li>Cuando el dueño/a quita a un compañero/a, se borran su cuenta y sus citas.</li>
         <li>Si cancelas el servicio, borramos la agenda y sus datos en un máximo de {L.diasBorrado} días.</li>
+        <li>Lo único que conservamos después es tu <b>correo</b> junto con la fecha en que usaste tu mes gratis, para que sea uno por persona. Si quieres que lo borremos, pídelo como se indica abajo.</li>
       </ul>
 
       <h2>9. Tus derechos (ARCO) y cómo ejercerlos</h2>

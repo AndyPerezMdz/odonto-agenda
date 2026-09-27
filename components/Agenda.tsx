@@ -21,6 +21,7 @@ import TarjetaCita from "@/components/TarjetaCita";
 import BuscarPaciente from "@/components/BuscarPaciente";
 import InstalarApp, { VentanaInstalar } from "@/components/InstalarApp";
 import Novedades from "@/components/Novedades";
+import InvitacionPendiente from "@/components/InvitacionPendiente";
 import { APP_VERSION, pendientes } from "@/lib/novedades";
 
 const CLAVE_VISTA = "vista-agenda";
@@ -44,6 +45,7 @@ export default function Agenda({ userId }: { userId: string }) {
   const [novedades, setNovedades] = useState<null | "nuevas" | "todas">(null);
   const [verInstalar, setVerInstalar] = useState(false);
   const [cuatriAbierto, setCuatriAbierto] = useState<boolean | null>(null);
+  const [invitacionAbierta, setInvitacionAbierta] = useState<boolean | null>(null);
   const [buscando, setBuscando] = useState(false);
   const [vista, setVista] = useState<"mes" | "lista">("mes");
 
@@ -86,10 +88,11 @@ export default function Agenda({ userId }: { userId: string }) {
   useEffect(() => {
     if (!yo || !yo.acepto_terminos_at || !sinLeer) return;
     if (yo.rol === "owner" && cuatriAbierto !== false) return;
+    if (invitacionAbierta !== false) return;
     let pospuesta = false;
     try { pospuesta = sessionStorage.getItem(CLAVE_DESPUES) === "1"; } catch {}
     if (!pospuesta) setNovedades("nuevas");
-  }, [yo, sinLeer, cuatriAbierto, CLAVE_DESPUES]);
+  }, [yo, sinLeer, cuatriAbierto, invitacionAbierta, CLAVE_DESPUES]);
 
   function cerrarNovedades() {
     // Si no le dio "¡Entendido!", no vuelve a saltar en esta visita: queda el puntito para leerla después
@@ -427,6 +430,8 @@ export default function Agenda({ userId }: { userId: string }) {
       {yo?.acepto_terminos_at && yo.rol === "owner" && (
         <CuatriModal yo={yo} onVisible={setCuatriAbierto} onCambio={() => { recargarCatalogos(); recargarCitas(); }} />
       )}
+
+      {yo?.acepto_terminos_at && <InvitacionPendiente onVisible={setInvitacionAbierta} />}
 
       {novedades && yo && (
         <Novedades

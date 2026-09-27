@@ -3,6 +3,7 @@ import { duenoEnSesion } from "@/lib/companero";
 import { notificarAvisoPago } from "@/lib/pagosServer";
 import { urlSitio } from "@/lib/recordatorios";
 import { codigoAgenda } from "@/lib/pagos";
+import { agendaEnPrueba } from "@/lib/pruebas";
 
 export const dynamic = "force-dynamic";
 
@@ -13,16 +14,19 @@ export async function GET() {
   const s = await duenoEnSesion();
   if (!s) return soloDueno();
 
-  const [{ data: agenda }, { data: config }, { data: pagos }, { data: avisos }] = await Promise.all([
-    s.db.from("agendas").select("id,nombre,pagado_hasta,precio_mensual").eq("id", s.agendaId).single(),
+  const [{ data: agenda }, { data: config }, { data: pagos }, { data: avisos }, enPrueba] = await Promise.all([
+    s.db.from("agendas").select("id,nombre,pagado_hasta,precio_mensual,prueba_hasta,codigo").eq("id", s.agendaId).single(),
     s.db.from("configuracion").select("valor").eq("clave", "pago").maybeSingle(),
     s.db.from("pagos").select("id,monto,meses,metodo,cubre_desde,cubre_hasta,created_at").eq("agenda_id", s.agendaId).order("created_at", { ascending: false }).limit(6),
     s.db.from("avisos_pago").select("id,created_at,estado").eq("agenda_id", s.agendaId).order("created_at", { ascending: false }).limit(1),
+    agendaEnPrueba(s.db, s.agendaId),
   ]);
   if (!agenda) return NextResponse.json({ error: "Agenda no encontrada." }, { status: 404 });
 
   return NextResponse.json({
     pagadoHasta: agenda.pagado_hasta,
+    enPrueba,
+    codigoCreador: agenda.codigo ?? null,
     precio: Number(agenda.precio_mensual),
     codigo: codigoAgenda(agenda.id),
     banco: config?.valor ?? {},

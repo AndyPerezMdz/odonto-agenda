@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { AgendaAdmin, AvisoAdmin, Miembro } from "@/lib/admin";
+import type { CodigoAdmin } from "@/app/api/admin/codigos/route";
 import { estadoPago, pesos, codigoAgenda, sumarDias } from "@/lib/pagos";
 import { fechaLarga, hoyISO } from "@/lib/fechas";
 
@@ -27,7 +28,7 @@ export default function PanelAdmin({ email }: { email: string }) {
   const [avisos, setAvisos] = useState<AvisoAdmin[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  const [pestana, setPestana] = useState<"agendas" | "nueva" | "ajustes">("agendas");
+  const [pestana, setPestana] = useState<"agendas" | "nueva" | "codigos" | "ajustes">("agendas");
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [abierta, setAbierta] = useState<string | null>(null);
@@ -122,6 +123,7 @@ export default function PanelAdmin({ email }: { email: string }) {
           [
             ["agendas", `Agendas${agendas ? ` (${agendas.length})` : ""}`],
             ["nueva", "+ Nueva"],
+            ["codigos", "Códigos"],
             ["ajustes", "Datos de pago"],
           ] as const
         ).map(([id, t]) => (
@@ -146,6 +148,8 @@ export default function PanelAdmin({ email }: { email: string }) {
       )}
 
       {pestana === "ajustes" && <DatosBancarios onAviso={setAviso} />}
+
+      {pestana === "codigos" && <Codigos onAviso={setAviso} />}
 
       {pestana === "agendas" && (
         <>
@@ -231,11 +235,12 @@ function FilaAgenda({
           <span className="min-w-0 flex-1">
             <span className="block truncate font-semibold">{agenda.nombre}</span>
             <span className="block truncate text-xs text-muted">
-              {dueno ? dueno.email : "Sin dueño"}
+              {dueno ? dueno.email : agenda.invitacionPendiente ? `Invitación a ${agenda.invitacionPendiente}` : "Sin dueño"}
               {compa ? ` · ${compa.nombre}` : ""} · {agenda.citas} cita{agenda.citas === 1 ? "" : "s"}
+              {agenda.codigo ? ` · código ${agenda.codigo}` : ""}
             </span>
           </span>
-          <span className={`self-start rounded-full px-2.5 py-0.5 text-xs font-medium sm:self-auto ${ins.c}`}>{ins.t}</span>
+          <span className={`self-start rounded-full px-2.5 py-0.5 text-xs font-medium sm:self-auto ${ins.c}`}>{agenda.enPrueba ? ins.t.replace("Pagada hasta", "Mes gratis hasta") : ins.t}</span>
         </span>
         <svg className={`shrink-0 text-muted transition ${abierta ? "rotate-180" : ""}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>
@@ -244,26 +249,60 @@ function FilaAgenda({
   );
 }
 
+type Chequeo = { valido: boolean; pruebaUsada?: boolean; usadaEl?: string | null; agenda?: string | null; tieneCuenta?: boolean };
+
 function NuevaAgenda({ onCreada }: { onCreada: (msg: string) => void }) {
   const [nombre, setNombre] = useState("");
   const [correo, setCorreo] = useState("");
   const [notas, setNotas] = useState("");
-  const [inicio, setInicio] = useState("pagado");
+  const [inicio, setInicio] = useState("prueba");
   const [precio, setPrecio] = useState(200);
+  const [codigo, setCodigo] = useState("");
+  const [codigos, setCodigos] = useState<CodigoAdmin[]>([]);
+  const [chequeo, setChequeo] = useState<Chequeo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/codigos", { cache: "no-store" }).then((r) => r.json()).then((d) => setCodigos((d.codigos ?? []).filter((c: CodigoAdmin) => c.activo))).catch(() => {});
+  }, []);
+
+  // Al escribir el correo: ¿ya usó su mes gratis? ¿ya tiene cuenta?
+  useEffect(() => {
+    const email = correo.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setChequeo(null);
+    const t = setTimeout(async () => {
+      const d: Chequeo = await fetch(`/api/admin/pruebas?email=${encodeURIComponent(email)}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({ valido: false }));
+      setChequeo(d);
+      if (d.pruebaUsada) setInicio((i) => (i === "prueba" ? "pagado" : i));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [correo]);
+
+  const codigoSel = codigos.find((c) => c.codigo === codigo.trim().toUpperCase());
 
   async function crear(e: React.FormEvent) {
     e.preventDefault();
     setEnviando(true);
     setError(null);
-    const err = await api("/api/admin/agendas", "POST", { nombre, emailDueno: correo, notas, inicio, precio });
+    const res = await fetch("/api/admin/agendas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nombre, emailDueno: correo, notas, inicio, precio, codigo }),
+    });
+    const d = await res.json().catch(() => ({}));
     setEnviando(false);
-    if (err) return setError(err);
-    onCreada(`Agenda “${nombre || "Agenda de clínicas"}” creada. Invitación enviada a ${correo}.`);
+    if (!res.ok) return setError(d.error ?? `Error ${res.status}`);
+    onCreada(
+      d.existente
+        ? `Agenda “${nombre || "Agenda de clínicas"}” creada. ${correo} ya tenía cuenta: verá la invitación al entrar a su agenda.`
+        : `Agenda “${nombre || "Agenda de clínicas"}” creada. Invitación enviada a ${correo}.`
+    );
     setNombre("");
     setCorreo("");
     setNotas("");
+    setCodigo("");
+    setInicio("prueba");
   }
 
   return (
@@ -279,11 +318,31 @@ function NuevaAgenda({ onCreada }: { onCreada: (msg: string) => void }) {
           <span className="mb-1 block text-sm font-medium">Correo del dueño</span>
           <input type="email" required className="campo" placeholder="cliente@correo.com" value={correo} onChange={(e) => setCorreo(e.target.value)} />
         </label>
+
+        {chequeo?.valido && (chequeo.pruebaUsada || chequeo.tieneCuenta) && (
+          <div className="rounded-xl bg-[#fdf6e3] p-3 text-sm text-[#5c4712] sm:col-span-2 dark:bg-[#2a2415] dark:text-[#ecd9a4]">
+            {chequeo.pruebaUsada && (
+              <p>
+                <b>Ya usó su mes gratis</b>
+                {chequeo.usadaEl && <> el {new Date(chequeo.usadaEl).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}</>}
+                {chequeo.agenda && <> en “{chequeo.agenda}”</>}. Esta agenda tiene que empezar pagada (o de cortesía).
+              </p>
+            )}
+            {chequeo.tieneCuenta && (
+              <p className={chequeo.pruebaUsada ? "mt-1" : ""}>
+                <b>Ya tiene cuenta.</b> Verá la invitación al entrar a su agenda; si acepta, su agenda actual se borra y pasa a ésta.
+              </p>
+            )}
+          </div>
+        )}
+
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Inicio</span>
           <select className="campo" value={inicio} onChange={(e) => setInicio(e.target.value)}>
+            <option value="prueba" disabled={!!chequeo?.pruebaUsada}>
+              Mes gratis{codigoSel ? ` + ${codigoSel.meses_extra} por código` : ""}{chequeo?.pruebaUsada ? " (ya lo usó)" : ""}
+            </option>
             <option value="pagado">Ya pagó el primer mes</option>
-            <option value="prueba">Prueba gratis de 1 mes</option>
             <option value="cortesia">Cortesía (sin vencimiento)</option>
           </select>
         </label>
@@ -291,9 +350,27 @@ function NuevaAgenda({ onCreada }: { onCreada: (msg: string) => void }) {
           <span className="mb-1 block text-sm font-medium">Precio mensual (MXN)</span>
           <input type="number" min={0} className="campo" value={precio} onChange={(e) => setPrecio(Number(e.target.value))} />
         </label>
-        <label className="block sm:col-span-2">
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">Código de creador <span className="font-normal text-muted">(opcional)</span></span>
+          <input className="campo uppercase placeholder:normal-case" list="codigos-activos" placeholder="Ej. JENRRY" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
+          <datalist id="codigos-activos">
+            {codigos.map((c) => (
+              <option key={c.codigo} value={c.codigo}>{c.creador}</option>
+            ))}
+          </datalist>
+          {codigo.trim() && (
+            <span className="mt-1 block text-xs text-muted">
+              {codigoSel
+                ? inicio === "prueba"
+                  ? `De ${codigoSel.creador}: +${codigoSel.meses_extra} mes${codigoSel.meses_extra === 1 ? "" : "es"} gratis.`
+                  : `De ${codigoSel.creador}. Se registra, pero sin meses extra (sólo aplican con mes gratis).`
+                : "No hay un código activo con ese nombre."}
+            </span>
+          )}
+        </label>
+        <label className="block">
           <span className="mb-1 block text-sm font-medium">Notas internas <span className="font-normal text-muted">(sólo tú las ves)</span></span>
-          <input className="campo" placeholder="Ej. Vendida a Ana y Luis, 3er semestre, pagó $200" value={notas} onChange={(e) => setNotas(e.target.value)} />
+          <input className="campo" placeholder="Ej. Ana y Luis, 3er semestre" value={notas} onChange={(e) => setNotas(e.target.value)} />
         </label>
       </div>
       {error && <p className="mt-3 text-sm text-danger">{error}</p>}
@@ -301,6 +378,91 @@ function NuevaAgenda({ onCreada }: { onCreada: (msg: string) => void }) {
         <button className="btn btn-primario" disabled={enviando}>{enviando ? "Creando…" : "Crear agenda e invitar"}</button>
       </div>
     </form>
+  );
+}
+
+function Codigos({ onAviso }: { onAviso: (m: string) => void }) {
+  const [lista, setLista] = useState<CodigoAdmin[] | null>(null);
+  const [codigo, setCodigo] = useState("");
+  const [creador, setCreador] = useState("");
+  const [meses, setMeses] = useState(1);
+  const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  const cargar = useCallback(async () => {
+    const d = await fetch("/api/admin/codigos", { cache: "no-store" }).then((r) => r.json()).catch(() => ({}));
+    setLista(d.codigos ?? []);
+  }, []);
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  async function crear(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviando(true);
+    setError(null);
+    const err = await api("/api/admin/codigos", "POST", { codigo, creador, meses_extra: meses });
+    setEnviando(false);
+    if (err) return setError(err);
+    onAviso(`Código ${codigo.trim().toUpperCase()} creado.`);
+    setCodigo("");
+    setCreador("");
+    setMeses(1);
+    cargar();
+  }
+
+  async function alternar(c: CodigoAdmin) {
+    const err = await api("/api/admin/codigos", "PATCH", { codigo: c.codigo, activo: !c.activo });
+    if (err) return setError(err);
+    cargar();
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <form onSubmit={crear} className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
+        <h2 className="font-semibold">Nuevo código de creador</h2>
+        <p className="mb-4 mt-0.5 text-sm text-muted">
+          Quien lo use al crear su cuenta recibe meses gratis extra (sólo si su agenda empieza con mes gratis). Aquí ves cuántos llegan por cada creador.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-[1fr_1.4fr_auto]">
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium">Código</span>
+            <input required className="campo uppercase placeholder:normal-case" placeholder="JENRRY" value={codigo} onChange={(e) => setCodigo(e.target.value.replace(/\s+/g, ""))} />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium">De quién es</span>
+            <input required className="campo" placeholder="Jenrry · @suinstagram" value={creador} onChange={(e) => setCreador(e.target.value)} />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium">Meses extra</span>
+            <select className="campo" value={meses} onChange={(e) => setMeses(Number(e.target.value))}>
+              {[1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+        </div>
+        {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+        <div className="mt-4 flex justify-end">
+          <button className="btn btn-primario" disabled={enviando}>{enviando ? "Creando…" : "Crear código"}</button>
+        </div>
+      </form>
+
+      <section className="overflow-hidden rounded-2xl border border-line bg-panel">
+        {!lista && <p className="p-4 text-sm text-muted">Cargando…</p>}
+        {lista?.length === 0 && <p className="p-6 text-center text-sm text-muted">Aún no hay códigos.</p>}
+        {lista?.map((c, i) => (
+          <div key={c.codigo} className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 ${i ? "border-t border-line" : ""} ${c.activo ? "" : "opacity-50"}`}>
+            <span className="min-w-0 flex-1">
+              <span className="block font-mono font-semibold">{c.codigo}</span>
+              <span className="block truncate text-xs text-muted">{c.creador} · +{c.meses_extra} mes{c.meses_extra === 1 ? "" : "es"}</span>
+            </span>
+            <span className="text-sm tabular-nums">
+              <b>{c.agendas}</b> <span className="text-muted">agenda{c.agendas === 1 ? "" : "s"} ·</span> <b>{c.pagando}</b> <span className="text-muted">pagando</span>
+            </span>
+            <button className="btn btn-sec py-1 text-xs" onClick={() => alternar(c)}>{c.activo ? "Desactivar" : "Activar"}</button>
+          </div>
+        ))}
+      </section>
+    </div>
   );
 }
 

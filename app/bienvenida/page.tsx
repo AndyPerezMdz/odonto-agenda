@@ -17,6 +17,8 @@ export default function BienvenidaPage() {
   const [cargando, setCargando] = useState(false);
   const [esDueno, setEsDueno] = useState(false);
   const [acepto, setAcepto] = useState(false);
+  const [codigo, setCodigo] = useState("");
+  const [listo, setListo] = useState(false); // contraseña ya guardada; sólo falló el código
 
   useEffect(() => {
     const supabase = createClient();
@@ -48,6 +50,17 @@ export default function BienvenidaPage() {
       return setError("No se pudo guardar: " + error.message);
     }
     if (u.user) await supabase.from("perfiles").update({ nombre: nombre.trim(), acepto_terminos_at: new Date().toISOString(), version_vista: APP_VERSION }).eq("id", u.user.id);
+
+    // Código de creador (opcional, sólo dueños): meses extra de mes gratis
+    if (esDueno && codigo.trim()) {
+      const res = await fetch("/api/codigo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo }) });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setCargando(false);
+        setListo(true);
+        return setError(`Tu cuenta quedó lista, pero el código no se aplicó: ${d.error ?? "inténtalo después en Personalizar → Suscripción."}`);
+      }
+    }
     router.replace("/");
     router.refresh();
   }
@@ -71,6 +84,16 @@ export default function BienvenidaPage() {
         <label className="mb-1 block text-sm font-medium" htmlFor="pw2">Repítela</label>
         <input id="pw2" type="password" autoComplete="new-password" required className="campo mb-5" value={confirmar} onChange={(e) => setConfirmar(e.target.value)} />
 
+        {esDueno && (
+          <>
+            <label className="mb-1 block text-sm font-medium" htmlFor="codigo">
+              Código de creador <span className="font-normal text-muted">(opcional)</span>
+            </label>
+            <input id="codigo" className="campo mb-1 uppercase placeholder:normal-case" value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder="Si alguien te recomendó, pon su código" />
+            <p className="mb-5 text-xs text-muted">Te da meses gratis extra.</p>
+          </>
+        )}
+
         <label className="mb-5 flex items-start gap-2 text-sm text-muted">
           <input type="checkbox" className="mt-1" checked={acepto} onChange={(e) => setAcepto(e.target.checked)} />
           <span>
@@ -81,9 +104,15 @@ export default function BienvenidaPage() {
         </label>
 
         {error && <p className="mb-4 text-sm text-danger">{error}</p>}
-        <button type="submit" className="btn btn-primario w-full" disabled={cargando}>
-          {cargando ? "Guardando…" : "Entrar a la agenda"}
-        </button>
+        {listo ? (
+          <button type="button" className="btn btn-primario w-full" onClick={() => { router.replace("/"); router.refresh(); }}>
+            Entrar a la agenda
+          </button>
+        ) : (
+          <button type="submit" className="btn btn-primario w-full" disabled={cargando}>
+            {cargando ? "Guardando…" : "Entrar a la agenda"}
+          </button>
+        )}
       </form>
     </AuthCard>
   );

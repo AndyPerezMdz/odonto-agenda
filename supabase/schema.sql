@@ -293,6 +293,44 @@ create policy metas_propias on public.metas
 grant select, insert, update, delete on public.metas to authenticated;
 
 -- ---------------------------------------------------------------------
+-- MES GRATIS: una prueba por PERSONA (por correo), sea dueña o compañera.
+-- No depende de la cuenta: si la cuenta se borra, el registro se queda.
+-- ---------------------------------------------------------------------
+create table if not exists public.pruebas (
+  email        text primary key,          -- en minúsculas
+  agenda_id    uuid,                      -- dónde la gastó (sin FK a propósito: sobrevive al borrado)
+  usada_at     timestamptz,               -- NULL = la tiene disponible
+  devuelta_at  timestamptz                -- ya se le devolvió una vez; no hay segunda
+);
+alter table public.pruebas enable row level security; -- sin políticas: sólo el servidor la toca
+
+-- Hasta cuándo va el mes gratis de la agenda (NULL = nunca fue de prueba)
+alter table public.agendas add column if not exists prueba_hasta date;
+
+-- CÓDIGOS DE CREADOR: meses extra de prueba para quien llega con un código
+create table if not exists public.codigos (
+  codigo      text primary key check (codigo = upper(codigo) and codigo ~ '^[A-Z0-9_-]{3,30}$'),
+  creador     text not null,
+  meses_extra int  not null default 1 check (meses_extra between 1 and 12),
+  activo      boolean not null default true,
+  created_at  timestamptz not null default now()
+);
+alter table public.codigos enable row level security; -- sin políticas: sólo el servidor
+alter table public.agendas add column if not exists codigo text references public.codigos (codigo) on update cascade on delete set null;
+
+-- INVITACIONES a personas que YA tienen cuenta (para cambiarse de agenda)
+create table if not exists public.invitaciones (
+  id          uuid primary key default gen_random_uuid(),
+  agenda_id   uuid not null references public.agendas (id) on delete cascade,
+  email       text not null,
+  rol         text not null default 'companero' check (rol in ('owner', 'companero')),
+  created_at  timestamptz not null default now()
+);
+create unique index if not exists invitaciones_una_por_agenda_rol on public.invitaciones (agenda_id, rol);
+create index if not exists invitaciones_email_idx on public.invitaciones (email);
+alter table public.invitaciones enable row level security; -- sin políticas: sólo el servidor
+
+-- ---------------------------------------------------------------------
 -- RLS — cada quien ve SÓLO lo de su agenda. Nadie anónimo ve nada.
 -- ---------------------------------------------------------------------
 alter table public.agendas  enable row level security;

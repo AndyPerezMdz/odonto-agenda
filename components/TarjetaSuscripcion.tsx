@@ -6,6 +6,8 @@ import { fechaLarga, hoyISO } from "@/lib/fechas";
 
 type Datos = {
   pagadoHasta: string | null;
+  enPrueba: boolean;
+  codigoCreador: string | null;
   precio: number;
   codigo: string;
   banco: { banco?: string; clabe?: string; titular?: string };
@@ -92,7 +94,7 @@ export default function TarjetaSuscripcion() {
     estado.tipo === "cortesia"
       ? { t: "Sin vencimiento", c: "bg-accent-soft text-accent" }
       : estado.tipo === "activa"
-        ? { t: `Activa hasta el ${fechaLarga(estado.vence)}`, c: "bg-accent-soft text-accent" }
+        ? { t: `${datos.enPrueba ? "Mes gratis" : "Activa"} hasta el ${fechaLarga(estado.vence)}`, c: "bg-accent-soft text-accent" }
         : estado.tipo === "por_vencer"
           ? { t: estado.dias === 0 ? "Vence hoy" : `Vence en ${estado.dias} día${estado.dias === 1 ? "" : "s"}`, c: "bg-[#fdf6e3] text-[#5c4712] dark:bg-[#2a2415] dark:text-[#ecd9a4]" }
           : estado.tipo === "gracia"
@@ -112,6 +114,8 @@ export default function TarjetaSuscripcion() {
         </div>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${insignia.c}`}>{insignia.t}</span>
       </div>
+
+      {datos.enPrueba && <CanjearCodigo aplicado={datos.codigoCreador} onCanjeado={cargar} />}
 
       {estado.tipo !== "cortesia" && (
         <>
@@ -187,5 +191,52 @@ export default function TarjetaSuscripcion() {
         </>
       )}
     </section>
+  );
+}
+
+/** Durante el mes gratis: "¿Tienes un código de creador?" → meses extra. */
+export function CanjearCodigo({ aplicado, onCanjeado }: { aplicado: string | null; onCanjeado: () => void }) {
+  const [codigo, setCodigo] = useState("");
+  const [abierto, setAbierto] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
+
+  if (aplicado) {
+    return (
+      <p className="mb-4 rounded-xl bg-accent-soft px-3 py-2 text-sm text-accent">
+        Código <b>{aplicado}</b> aplicado a tu mes gratis.
+      </p>
+    );
+  }
+
+  async function canjear(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviando(true);
+    setMsg(null);
+    const res = await fetch("/api/codigo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo }) });
+    const d = await res.json().catch(() => ({}));
+    setEnviando(false);
+    if (!res.ok) return setMsg({ ok: false, t: d.error ?? "No se pudo aplicar." });
+    setMsg({ ok: true, t: `¡Listo! Tienes ${d.meses} mes${d.meses === 1 ? "" : "es"} gratis extra, cortesía de ${d.creador}.` });
+    onCanjeado();
+  }
+
+  if (!abierto) {
+    return (
+      <button type="button" onClick={() => setAbierto(true)} className="mb-4 text-sm font-medium text-accent hover:underline">
+        ¿Tienes un código de creador?
+      </button>
+    );
+  }
+  return (
+    <form onSubmit={canjear} className="mb-4 rounded-xl border border-line p-3">
+      <label className="mb-1 block text-sm font-medium">Código de creador</label>
+      <div className="flex gap-2">
+        <input className="campo uppercase placeholder:normal-case" value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder="Ej. JENRRY" autoFocus />
+        <button className="btn btn-primario shrink-0" disabled={enviando || !codigo.trim()}>{enviando ? "…" : "Aplicar"}</button>
+      </div>
+      {msg && <p className={`mt-2 text-sm ${msg.ok ? "text-accent" : "text-danger"}`}>{msg.t}</p>}
+      <p className="mt-2 text-xs text-muted">Te da meses gratis extra. Sólo se puede usar uno, durante tu mes gratis.</p>
+    </form>
   );
 }
