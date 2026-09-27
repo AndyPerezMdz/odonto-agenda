@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 const noExiste = () => NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
-export type CodigoAdmin = { codigo: string; creador: string; meses_extra: number; activo: boolean; created_at: string; agendas: number; pagando: number };
+export type CodigoAdmin = { codigo: string; creador: string; meses_extra: number; activo: boolean; created_at: string; agendas: number; pagando: number; enPrueba: number };
 
 // GET → códigos con cuántas agendas llegaron por cada uno y cuántas ya pagan
 export async function GET() {
@@ -13,14 +13,20 @@ export async function GET() {
   if (!s) return noExiste();
   const [{ data: codigos, error }, { data: agendas }, { data: pagos }] = await Promise.all([
     s.db.from("codigos").select("codigo,creador,meses_extra,activo,created_at").order("created_at", { ascending: false }),
-    s.db.from("agendas").select("id,codigo").not("codigo", "is", null),
+    s.db.from("agendas").select("id,codigo,prueba_hasta,pagado_hasta").not("codigo", "is", null),
     s.db.from("pagos").select("agenda_id"),
   ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const pagaron = new Set((pagos ?? []).map((p) => p.agenda_id));
+  const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Merida" });
   const lista: CodigoAdmin[] = (codigos ?? []).map((c) => {
     const suyas = (agendas ?? []).filter((a) => a.codigo === c.codigo);
-    return { ...c, agendas: suyas.length, pagando: suyas.filter((a) => pagaron.has(a.id)).length };
+    return {
+      ...c,
+      agendas: suyas.length,
+      pagando: suyas.filter((a) => pagaron.has(a.id)).length,
+      enPrueba: suyas.filter((a) => a.prueba_hasta && a.pagado_hasta && a.pagado_hasta >= hoy && !pagaron.has(a.id)).length,
+    };
   });
   return NextResponse.json({ codigos: lista });
 }

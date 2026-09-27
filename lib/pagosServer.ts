@@ -196,3 +196,56 @@ export async function notificarPagoNoReflejado(
 }
 
 const p_sitio = (sitio: string) => (sitio ? { texto: "Ver datos de pago", url: `${sitio}/personalizar#suscripcion` } : undefined);
+
+/* ------------------------------------------------------------------ */
+/* Recordatorios que mandas a mano desde tu panel ("Hoy te toca")      */
+/* ------------------------------------------------------------------ */
+
+export type TipoRecordatorio = "pago" | "prueba" | "inactiva";
+
+/** Un correo al dueño/a. Máximo uno por tipo al día (si le picas dos veces, Resend lo ignora). */
+export async function recordatorioManual(db: Db, agendaId: string, tipo: TipoRecordatorio, sitio: string) {
+  const d = await duenoDeAgenda(db, agendaId);
+  if (!d) return "Esta agenda no tiene dueño/a con correo.";
+  const { data: a } = await db.from("agendas").select("pagado_hasta,precio_mensual").eq("id", agendaId).single();
+  const monto = pesos(Number(a?.precio_mensual ?? d.agenda.precio_mensual));
+  const hasta = a?.pagado_hasta ? fechaLarga(a.pagado_hasta) : null;
+  const comoPagar = `<p style="margin:0;color:#4a4843;">Transfiere <b>${monto}</b> con el concepto <b>${codigoAgenda(agendaId)}</b>. Los datos están en <b>Personalizar → Suscripción</b>; al terminar, presiona <b>“Ya pagué”</b>.</p>`;
+
+  const t = {
+    pago: {
+      asunto: "Tu agenda está pendiente de pago",
+      cuerpo: `Hola, ${esc(d.nombre)}. Tu suscripción de <b>${esc(d.agenda.nombre)}</b> ${hasta ? `venció el <b>${hasta}</b>` : "está pendiente"}. Tus citas siguen guardadas; para seguir agendando sólo falta renovar.`,
+      boton: { texto: "Ver cómo pagar", url: `${sitio}/personalizar#suscripcion` },
+      pagar: true,
+    },
+    prueba: {
+      asunto: hasta ? `Tu mes gratis termina el ${hasta}` : "Tu mes gratis está por terminar",
+      cuerpo: `Hola, ${esc(d.nombre)}. Esperamos que <b>${esc(d.agenda.nombre)}</b> te esté ahorrando estrés. Tu mes gratis termina ${hasta ? `el <b>${hasta}</b>` : "pronto"}; si quieres seguir usándola, el precio es de <b>${monto} al mes</b> por agenda (tú y tu compañero/a).`,
+      boton: { texto: "Ver cómo pagar", url: `${sitio}/personalizar#suscripcion` },
+      pagar: true,
+    },
+    inactiva: {
+      asunto: "¿Todo bien con tu agenda?",
+      cuerpo: `Hola, ${esc(d.nombre)}. Notamos que hace rato no entras a <b>${esc(d.agenda.nombre)}</b>. Ya puedes confirmar citas por WhatsApp, guardar tu banco de pacientes y ver quién te debe material. Si algo no te funciona, responde a este correo y lo arreglamos.`,
+      boton: { texto: "Abrir la agenda", url: sitio || "" },
+      pagar: false,
+    },
+  }[tipo];
+
+  const html = envolver(
+    t.asunto,
+    `<p style="margin:0 0 12px;color:#4a4843;">${t.cuerpo}</p>${t.pagar ? comoPagar : ""}`,
+    sitio ? t.boton : undefined
+  );
+  const texto = `${t.asunto}\n${t.cuerpo.replace(/<[^>]+>/g, "")}${t.pagar ? `\nTransfiere ${monto} con el concepto ${codigoAgenda(agendaId)}. Datos en Personalizar → Suscripción.` : ""}`;
+  await enviarConResend({
+    para: d.email,
+    asunto: t.asunto,
+    html,
+    texto,
+    responderA: await correosSuperadmin(db),
+    idempotencia: `manual-${tipo}-${agendaId}-${fechaEnZona(0)}`,
+  });
+  return null;
+}

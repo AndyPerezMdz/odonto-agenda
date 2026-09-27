@@ -85,6 +85,18 @@ export default function Agenda({ userId }: { userId: string }) {
   const sinLeer = !!yo && pendientes(yo.version_vista).length > 0;
   const CLAVE_DESPUES = `novedades-despues-${APP_VERSION}`;
 
+  // Último acceso (para el panel del admin): una vez por hora como mucho, sin esperar respuesta
+  useEffect(() => {
+    if (!userId) return;
+    const clave = `ultimo-acceso-${userId}`;
+    try {
+      const antes = Number(localStorage.getItem(clave) ?? 0);
+      if (Date.now() - antes < 3600000) return;
+      localStorage.setItem(clave, String(Date.now()));
+    } catch {}
+    supabase.from("perfiles").update({ ultimo_acceso: new Date().toISOString() }).eq("id", userId).then(() => {});
+  }, [supabase, userId]);
+
   // Novedades: se abren solas una vez por actualización (después de términos y de la pregunta del cuatri)
   useEffect(() => {
     if (!yo || !yo.acepto_terminos_at || !sinLeer) return;

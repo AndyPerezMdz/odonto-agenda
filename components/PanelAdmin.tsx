@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { AgendaAdmin, AvisoAdmin, Miembro } from "@/lib/admin";
+import type { AgendaAdmin, AvisoAdmin, Miembro, ResumenAdmin } from "@/lib/admin";
+import { Saludo, Numeros, Totales, HoyTeToca, Ingresos, PorCodigo, hace, diasSinEntrar, enPruebaViva, pagando, DIAS_FANTASMA } from "@/components/TableroAdmin";
 import type { CodigoAdmin } from "@/app/api/admin/codigos/route";
 import { estadoPago, pesos, codigoAgenda, sumarDias } from "@/lib/pagos";
 import { fechaLarga, hoyISO } from "@/lib/fechas";
@@ -26,6 +27,7 @@ export default function PanelAdmin({ email }: { email: string }) {
   const router = useRouter();
   const [agendas, setAgendas] = useState<AgendaAdmin[] | null>(null);
   const [avisos, setAvisos] = useState<AvisoAdmin[]>([]);
+  const [resumen, setResumen] = useState<ResumenAdmin | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [pestana, setPestana] = useState<"agendas" | "nueva" | "codigos" | "ajustes">("agendas");
@@ -39,6 +41,7 @@ export default function PanelAdmin({ email }: { email: string }) {
     if (res.ok) {
       setAgendas(data.agendas);
       setAvisos(data.avisos ?? []);
+      setResumen(data.resumen ?? null);
       setError(null);
     } else setError(data.error ?? "No se pudo cargar.");
   }, []);
@@ -59,62 +62,67 @@ export default function PanelAdmin({ email }: { email: string }) {
     router.refresh();
   }
 
-  const usuarios = agendas?.reduce((n, a) => n + a.miembros.filter((m) => !m.pendiente).length, 0) ?? 0;
-  const citas = agendas?.reduce((n, a) => n + a.citas, 0) ?? 0;
-  const hoy = hoyISO();
-  const ingreso =
-    agendas?.reduce((n, a) => {
-      const e = estadoPago(a.pagado_hasta, hoy);
-      return e.tipo === "cortesia" || e.tipo === "vencida" ? n : n + a.precio_mensual;
-    }, 0) ?? 0;
+  function verAgenda(id: string) {
+    setPestana("agendas");
+    setFiltro("todas");
+    setBusca("");
+    setAbierta(id);
+    setTimeout(() => document.getElementById(`agenda-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  }
 
   const q = busca.trim().toLowerCase();
   const visibles = (agendas ?? []).filter(
     (a) =>
-      (filtro === "todas" || grupoPago(a.pagado_hasta) === filtro) &&
+      (filtro === "todas" || grupoPago(a) === filtro) &&
       (!q || a.nombre.toLowerCase().includes(q) || a.miembros.some((m) => `${m.email} ${m.nombre}`.toLowerCase().includes(q)))
   );
 
   return (
-    <div className="mx-auto max-w-4xl px-3 py-4 sm:px-6 sm:py-6">
+    <div className="mx-auto max-w-5xl px-3 py-4 sm:px-6 sm:py-6">
       <header className="mb-6 flex flex-wrap items-center gap-3">
         <div className="mr-auto">
           <p className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-ink px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-panel">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             Sólo tú ves esto
           </p>
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Panel de administración</h1>
-          <p className="text-sm text-muted">{email}</p>
+          <Saludo />
         </div>
+        <span className="hidden text-sm text-muted sm:inline">{email}</span>
         <button onClick={salir} className="btn btn-sec">Salir</button>
       </header>
 
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          ["Agendas", agendas?.length ?? "—"],
-          ["Usuarios activos", agendas ? usuarios : "—"],
-          ["Citas en total", agendas ? citas : "—"],
-          ["Ingreso mensual", agendas ? pesos(ingreso) : "—"],
-        ].map(([t, v]) => (
-          <div key={t} className="rounded-2xl border border-line bg-panel p-4">
-            <p className="text-xs text-muted">{t}</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">{v}</p>
-          </div>
-        ))}
-      </div>
+      {agendas && resumen ? (
+        <div className="mb-6">
+          <Numeros agendas={agendas} resumen={resumen} />
+          <Totales agendas={agendas} />
+        </div>
+      ) : (
+        !error && <p className="mb-6 text-sm text-muted">Cargando…</p>
+      )}
 
-      {aviso && <p className="mb-4 rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent">{aviso}</p>}
+      {aviso && <p className="sticky top-2 z-20 mb-4 rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent shadow-sm">{aviso}</p>}
       {error && <p className="mb-4 text-sm text-danger">{error}</p>}
 
-      {avisos.length > 0 && (
-        <AvisosPago
-          avisos={avisos}
-          agendas={agendas ?? []}
-          onCambio={(msg) => {
-            setAviso(msg);
-            recargar();
-          }}
-        />
+      {agendas && resumen && (
+        <div className="mb-6 grid items-start gap-4 lg:grid-cols-[1.35fr_1fr]">
+          <div className="flex min-w-0 flex-col gap-4">
+            {avisos.length > 0 && (
+              <AvisosPago
+                avisos={avisos}
+                agendas={agendas}
+                onCambio={(msg) => {
+                  setAviso(msg);
+                  recargar();
+                }}
+              />
+            )}
+            <HoyTeToca agendas={agendas} avisosPendientes={avisos.length} onVer={verAgenda} onAviso={setAviso} />
+          </div>
+          <div className="flex min-w-0 flex-col gap-4">
+            <Ingresos resumen={resumen} />
+            <PorCodigo agendas={agendas} resumen={resumen} onVerTodos={() => setPestana("codigos")} />
+          </div>
+        </div>
       )}
 
       {/* Pestañas */}
@@ -162,7 +170,7 @@ export default function PanelAdmin({ email }: { email: string }) {
             />
             <div className="flex flex-wrap gap-1.5">
               {FILTROS.map(([id, t]) => {
-                const n = agendas?.filter((a) => grupoPago(a.pagado_hasta) === id).length ?? 0;
+                const n = agendas?.filter((a) => grupoPago(a) === id).length ?? 0;
                 if (id !== "todas" && n === 0) return null;
                 return (
                   <button
@@ -210,14 +218,16 @@ export default function PanelAdmin({ email }: { email: string }) {
 const FILTROS = [
   ["todas", "Todas"],
   ["atencion", "Por vencer / vencidas"],
+  ["prueba", "Mes gratis"],
   ["activa", "Al corriente"],
   ["cortesia", "Cortesía"],
 ] as const;
 type Filtro = (typeof FILTROS)[number][0];
 
-function grupoPago(pagadoHasta: string | null): Filtro {
-  const t = estadoPago(pagadoHasta, hoyISO()).tipo;
+function grupoPago(a: AgendaAdmin): Filtro {
+  const t = estadoPago(a.pagado_hasta, hoyISO()).tipo;
   if (t === "cortesia") return "cortesia";
+  if (a.enPrueba && (t === "activa" || t === "por_vencer")) return "prueba";
   if (t === "activa") return "activa";
   return "atencion";
 }
@@ -225,20 +235,39 @@ function grupoPago(pagadoHasta: string | null): Filtro {
 function FilaAgenda({
   agenda, primera, abierta, onToggle, onCambio, onAviso,
 }: { agenda: AgendaAdmin; primera: boolean; abierta: boolean; onToggle: () => void; onCambio: () => void; onAviso: (m: string) => void }) {
+  const hoy = hoyISO();
   const ins = insigniaPago(agenda.pagado_hasta);
   const dueno = agenda.miembros.find((m) => m.rol === "owner");
   const compa = agenda.miembros.find((m) => m.rol !== "owner");
+  const sinDueno = !dueno && !agenda.invitacionPendiente;
+  const dias = diasSinEntrar(agenda);
+  const fantasma = (pagando(agenda, hoy) || enPruebaViva(agenda, hoy)) && dias != null && dias >= DIAS_FANTASMA;
   return (
-    <div className={primera ? "" : "border-t border-line"}>
+    <div id={`agenda-${agenda.id}`} className={`scroll-mt-4 ${primera ? "" : "border-t border-line"}`}>
       <button onClick={onToggle} className={`flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-panel-2 ${abierta ? "bg-panel-2" : ""}`}>
+        <span className="flex shrink-0 -space-x-1.5" aria-hidden>
+          {agenda.miembros.length ? (
+            agenda.miembros.map((m) => (
+              <span key={m.id} className="h-6 w-6 rounded-full border-2 border-panel" style={{ background: m.color ?? "#9a968d" }} title={m.nombre} />
+            ))
+          ) : (
+            <span className="grid h-6 w-6 place-items-center rounded-full border-2 border-dashed border-line text-[10px] text-muted">?</span>
+          )}
+        </span>
         <span className="flex min-w-0 flex-1 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-4">
           <span className="min-w-0 flex-1">
             <span className="block truncate font-semibold">{agenda.nombre}</span>
             <span className="block truncate text-xs text-muted">
-              {dueno ? dueno.email : agenda.invitacionPendiente ? `Invitación a ${agenda.invitacionPendiente}` : "Sin dueño"}
+              {dueno ? dueno.email : agenda.invitacionPendiente ? `Invitación a ${agenda.invitacionPendiente}` : <b className="font-semibold text-danger">Sin dueño</b>}
               {compa ? ` · ${compa.nombre}` : ""} · {agenda.citas} cita{agenda.citas === 1 ? "" : "s"}
               {agenda.codigo ? ` · código ${agenda.codigo}` : ""}
             </span>
+            {!sinDueno && (
+              <span className={`block text-xs ${fantasma ? "font-medium text-danger" : "text-muted"}`}>
+                {hace(agenda.ultimoAcceso)[0].toUpperCase() + hace(agenda.ultimoAcceso).slice(1)}
+                {agenda.citasSemana > 0 && <span className="text-accent"> · {agenda.citasSemana} cita{agenda.citasSemana === 1 ? "" : "s"} esta semana</span>}
+              </span>
+            )}
           </span>
           <span className={`self-start rounded-full px-2.5 py-0.5 text-xs font-medium sm:self-auto ${ins.c}`}>{agenda.enPrueba ? ins.t.replace("Pagada hasta", "Mes gratis hasta") : ins.t}</span>
         </span>
@@ -456,7 +485,8 @@ function Codigos({ onAviso }: { onAviso: (m: string) => void }) {
               <span className="block truncate text-xs text-muted">{c.creador} · +{c.meses_extra} mes{c.meses_extra === 1 ? "" : "es"}</span>
             </span>
             <span className="text-sm tabular-nums">
-              <b>{c.agendas}</b> <span className="text-muted">agenda{c.agendas === 1 ? "" : "s"} ·</span> <b>{c.pagando}</b> <span className="text-muted">pagando</span>
+              <b>{c.agendas}</b> <span className="text-muted">agenda{c.agendas === 1 ? "" : "s"} ·</span> <b>{c.enPrueba}</b> <span className="text-muted">en mes gratis ·</span> <b>{c.pagando}</b> <span className="text-muted">pagando</span>
+              {c.agendas > 0 && <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">{Math.round((c.pagando / c.agendas) * 100)}% paga</span>}
             </span>
             <button className="btn btn-sec py-1 text-xs" onClick={() => alternar(c)}>{c.activo ? "Desactivar" : "Activar"}</button>
           </div>
@@ -587,7 +617,7 @@ function FilaMiembro({ m, trabajando, onHacerDueno, onReenviar }: { m: Miembro; 
       <div className="mr-auto min-w-0">
         <p className="truncate text-sm font-medium">{m.pendiente ? m.email : m.nombre}</p>
         <p className="truncate text-xs text-muted">
-          {m.pendiente ? "Invitación pendiente" : `${m.email} · ${m.citas} cita${m.citas === 1 ? "" : "s"}`}
+          {m.pendiente ? "Invitación pendiente" : `${m.email} · ${m.citas} cita${m.citas === 1 ? "" : "s"} · ${hace(m.ultimoAcceso)}`}
         </p>
       </div>
       {esDueno && m.pendiente && (
