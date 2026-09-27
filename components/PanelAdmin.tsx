@@ -561,7 +561,7 @@ function TarjetaAgenda({ agenda, onCambio, onAviso }: { agenda: AgendaAdmin; onC
             m={m}
             trabajando={trabajando}
             onHacerDueno={() => accion(() => api(`/api/admin/agendas/${agenda.id}/dueno`, "POST", { userId: m.id }), `${m.nombre} ahora es el dueño.`)}
-            onReenviar={() => accion(() => api(`/api/admin/agendas/${agenda.id}/dueno`, "POST", { email: m.email }), `Invitación reenviada a ${m.email}.`)}
+            onReenviar={() => accion(() => api(`/api/admin/agendas/${agenda.id}/reenviar`, "POST", { userId: m.id }), `Invitación reenviada a ${m.email}.`)}
           />
         ))}
         {agenda.miembros.length === 0 && <li className="px-3 py-3 text-sm text-muted">Sin miembros.</li>}
@@ -620,7 +620,7 @@ function FilaMiembro({ m, trabajando, onHacerDueno, onReenviar }: { m: Miembro; 
           {m.pendiente ? "Invitación pendiente" : `${m.email} · ${m.citas} cita${m.citas === 1 ? "" : "s"} · ${hace(m.ultimoAcceso)}`}
         </p>
       </div>
-      {esDueno && m.pendiente && (
+      {m.pendiente && (
         <button className="btn btn-sec py-1 text-xs" disabled={trabajando} onClick={onReenviar}>Reenviar invitación</button>
       )}
       {!esDueno && !m.pendiente && (

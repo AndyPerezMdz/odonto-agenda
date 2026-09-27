@@ -154,6 +154,7 @@ type Pendiente = {
   agenda: AgendaAdmin;
   whatsapp?: string;
   correo?: "pago" | "prueba" | "inactiva";
+  reenviar?: string; // id del miembro sin activar
 };
 
 const NIVEL: Record<Nivel, { punto: string; orden: number }> = {
@@ -221,7 +222,11 @@ function pendientesDe(agendas: AgendaAdmin[]): Pendiente[] {
       lista.push({ id: `inv-${a.id}`, nivel: "ojo", agenda: a, titulo: "Invitación sin aceptar", detalle: a.invitacionPendiente });
     }
     for (const m of a.miembros.filter((m) => m.pendiente)) {
-      lista.push({ id: `conf-${m.id}`, nivel: "ojo", agenda: a, titulo: `${m.nombre} no ha confirmado su correo`, detalle: m.email ?? "" });
+      lista.push({
+        id: `conf-${m.id}`, nivel: "ojo", agenda: a, reenviar: m.id,
+        titulo: `${m.email ?? m.nombre} no ha activado su cuenta`,
+        detalle: "Si su enlace caducó, reenvíale la invitación.",
+      });
     }
   }
   return lista.sort((x, y) => NIVEL[x.nivel].orden - NIVEL[y.nivel].orden);
@@ -234,6 +239,18 @@ export function HoyTeToca({
   const [enviando, setEnviando] = useState<string | null>(null);
   const [todos, setTodos] = useState(false);
   const visibles = todos ? lista : lista.slice(0, 6);
+
+  async function reenviar(p: Pendiente) {
+    setEnviando(p.id);
+    const res = await fetch(`/api/admin/agendas/${p.agenda.id}/reenviar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: p.reenviar }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setEnviando(null);
+    onAviso(res.ok ? "Invitación reenviada." : d.error ?? "No se pudo reenviar.");
+  }
 
   async function correo(p: Pendiente) {
     setEnviando(p.id);
@@ -289,7 +306,12 @@ export function HoyTeToca({
                     {enviando === p.id ? "…" : "Correo"}
                   </button>
                 )}
-                {!p.whatsapp && !p.correo && (
+                {p.reenviar && (
+                  <button disabled={enviando === p.id} onClick={() => reenviar(p)} className="rounded-full border border-line px-2.5 py-1 text-xs font-medium hover:bg-panel-2">
+                    {enviando === p.id ? "…" : "Reenviar"}
+                  </button>
+                )}
+                {!p.whatsapp && !p.correo && !p.reenviar && (
                   <button onClick={() => onVer(p.agenda.id)} className="rounded-full border border-line px-2.5 py-1 text-xs font-medium hover:bg-panel-2">Ver</button>
                 )}
               </span>

@@ -37,7 +37,7 @@ export default function LoginPage() {
     if (err === "navegador") {
       setError("Abre el enlace del correo en el mismo navegador donde lo pediste, o pide uno nuevo desde este dispositivo.");
     } else if (err === "enlace" || h.get("error_code") || h.get("error")) {
-      setError("El enlace ya caducó o ya se usó. Pide uno nuevo.");
+      setError("El enlace ya caducó o ya se usó. Si era tu invitación, pídele a quien te invitó que te la reenvíe; si ya tienes cuenta, usa “¿Olvidaste tu contraseña?”.");
     }
   }, []);
 
