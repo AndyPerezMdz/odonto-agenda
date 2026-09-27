@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCatalogos, useCitas } from "@/lib/useDatos";
+import { useCatalogos, useCitas, useHorarios, usePacientes } from "@/lib/useDatos";
+import { bloquesDelDia, huecos } from "@/lib/horario";
 import { prefs, type Cita } from "@/lib/types";
 import {
-  aISO, deISO, diasDelMes, esFinDeSemana, fechaLarga, hhmm, hoyISO,
+  aISO, deISO, diasDelMes, esFinDeSemana, fechaLarga, hhmm, hoyISO, sumarMinutos,
   MESES, DIAS_CORTOS_LUNES, DIAS_CORTOS_DOMINGO,
 } from "@/lib/fechas";
 import CitaModal from "@/components/CitaModal";
@@ -120,6 +121,19 @@ export default function Agenda({ userId }: { userId: string }) {
   const columnas = p.ocultarFinDeSemana ? 5 : 7;
 
   const { citas, recargar: recargarCitas } = useCitas(aISO(dias[0]), aISO(dias[dias.length - 1]));
+  const { horarios } = useHorarios();
+  const { pacientes } = usePacientes();
+  const duenoFiltro = filtro === "todos" ? undefined : filtro;
+
+  // "+ Cita" en un hueco libre del horario de clínica
+  function citaEnHueco(fecha: string, inicio: string, fin: string) {
+    const f = sumarMinutos(inicio, p.duracionMin);
+    setModal({
+      cita: null,
+      fecha,
+      plantilla: { id: "", owner_id: userId, paciente: "", fecha, hora_inicio: inicio, hora_fin: f < fin ? f : fin, clinica_id: null, materia_id: null, notas: null },
+    });
+  }
 
   const perfilPorId = useMemo(() => new Map(perfiles.map((x) => [x.id, x])), [perfiles]);
   const clinicaPorId = useMemo(() => new Map(clinicas.map((x) => [x.id, x])), [clinicas]);
@@ -195,6 +209,12 @@ export default function Agenda({ userId }: { userId: string }) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           <span className="hidden sm:inline">Buscar</span>
         </button>
+        <span className="hidden sm:contents">
+          <Link href="/pacientes" className="btn btn-sec" title="Banco de pacientes">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.4 3.2-5.5 6.5-5.5s5.9 2.1 6.5 5.5"/><path d="M19 8v6M16 11h6"/></svg>
+            Pacientes
+          </Link>
+        </span>
         <Link href="/avance" className="btn btn-sec" title="Mi avance por materia">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
           <span className="hidden sm:inline">Mi avance</span>
@@ -234,6 +254,7 @@ export default function Agenda({ userId }: { userId: string }) {
                   Novedades
                   {sinLeer && <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-medium text-panel">Nuevo</span>}
                 </button>
+                <Link href="/pacientes" className="block px-4 py-2.5 hover:bg-panel-2">Banco de pacientes</Link>
                 <Link href="/personalizar" className="block px-4 py-2.5 hover:bg-panel-2">Personalizar</Link>
                 <button onClick={() => { setMenu(false); setVerInstalar(true); }} className="block w-full px-4 py-2.5 text-left hover:bg-panel-2">Instalar como app</button>
                 <a href={MANUAL_URL} target="_blank" rel="noopener noreferrer" className="block px-4 py-2.5 hover:bg-panel-2">Manual</a>
@@ -304,6 +325,15 @@ export default function Agenda({ userId }: { userId: string }) {
                 />
               )}
               onNueva={soloLectura ? undefined : (iso) => setModal({ cita: null, fecha: iso })}
+              extra={(iso) =>
+                bloquesDelDia(horarios, iso, duenoFiltro).map((b) => (
+                  <p key={b.id} className="mb-1.5 flex items-center gap-2 text-xs text-muted">
+                    <span className="h-2 w-2 rounded-sm border" style={{ borderColor: perfilPorId.get(b.owner_id)?.color }} />
+                    {b.clinica_id ? clinicaPorId.get(b.clinica_id)?.numero : b.etiqueta ?? "Clínica"} · {hhmm(b.hora_inicio)}–{hhmm(b.hora_fin)}
+                    {b.owner_id !== userId && ` · ${perfilPorId.get(b.owner_id)?.nombre}`}
+                  </p>
+                ))
+              }
             />
           )}
 
@@ -340,8 +370,22 @@ export default function Agenda({ userId }: { userId: string }) {
                     )}
                   </div>
 
+                  {/* Horario fijo de clínica */}
+                  {delMes && bloquesDelDia(horarios, iso, duenoFiltro).map((b) => (
+                    <span
+                      key={b.id}
+                      className="hidden truncate pl-1 text-[10px] leading-tight text-muted sm:block"
+                      style={{ borderLeft: `2px dashed ${perfilPorId.get(b.owner_id)?.color ?? "#888"}` }}
+                    >
+                      {hhmm(b.hora_inicio)}–{hhmm(b.hora_fin)} {b.clinica_id ? clinicaPorId.get(b.clinica_id)?.numero : b.etiqueta ?? "Clínica"}
+                    </span>
+                  ))}
+
                   {/* Móvil: puntitos */}
                   <div className="flex flex-wrap gap-0.5 sm:hidden">
+                    {delMes && bloquesDelDia(horarios, iso, duenoFiltro).map((b) => (
+                      <span key={b.id} className="h-1.5 w-1.5 rounded-sm border" style={{ borderColor: perfilPorId.get(b.owner_id)?.color }} />
+                    ))}
                     {lista.filter((c) => c.estado !== "cancelo").slice(0, 6).map((c) => (
                       <span key={c.id} className="h-1.5 w-1.5 rounded-full" style={{ background: perfilPorId.get(c.owner_id)?.color }} />
                     ))}
@@ -382,6 +426,38 @@ export default function Agenda({ userId }: { userId: string }) {
               + Cita
             </button>
           </div>
+
+          {bloquesDelDia(horarios, seleccionado, duenoFiltro).length > 0 && (
+            <div className="mb-3 rounded-xl bg-panel-2 p-3 text-sm">
+              {bloquesDelDia(horarios, seleccionado, duenoFiltro).map((b) => {
+                const libres = b.owner_id === userId && seleccionado >= hoyStr && !soloLectura ? huecos(b, citas, seleccionado) : [];
+                return (
+                  <div key={b.id} className="mb-1 last:mb-0">
+                    <p className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-sm border" style={{ borderColor: perfilPorId.get(b.owner_id)?.color }} />
+                      <span className="font-medium">{b.clinica_id ? clinicaPorId.get(b.clinica_id)?.numero : b.etiqueta ?? "Clínica"}</span>
+                      <span className="tabular-nums text-muted">{hhmm(b.hora_inicio)}–{hhmm(b.hora_fin)}</span>
+                      <span className="ml-auto text-xs text-muted">{b.owner_id === userId ? "Tú" : perfilPorId.get(b.owner_id)?.nombre}</span>
+                    </p>
+                    {libres.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1.5 pl-4">
+                        {libres.map((h) => (
+                          <button
+                            key={h.inicio}
+                            onClick={() => citaEnHueco(seleccionado, h.inicio, h.fin)}
+                            className="rounded-full border border-dashed border-accent px-2 py-0.5 text-xs font-medium text-accent hover:bg-accent-soft"
+                            title="Agendar en este hueco"
+                          >
+                            Libre {h.inicio}–{h.fin} +
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {citasDelDia.length === 0 ? (
             <div className="rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted">
@@ -466,6 +542,7 @@ export default function Agenda({ userId }: { userId: string }) {
           cita={modal.cita}
           fechaInicial={modal.fecha}
           plantilla={modal.plantilla}
+          pacientes={pacientes ?? []}
           onOtraSesion={(c) => setModal({ cita: null, fecha: sumarDias(c.fecha, 7), plantilla: c })}
           perfiles={perfiles}
           clinicas={clinicas}
@@ -503,8 +580,9 @@ function Chip({
 }
 
 function VistaLista({
-  dias, porDia, hoy, render, onNueva,
+  dias, porDia, hoy, render, onNueva, extra,
 }: {
+  extra?: (iso: string) => React.ReactNode;
   dias: string[];
   porDia: Map<string, Cita[]>;
   hoy: string;
@@ -541,6 +619,7 @@ function VistaLista({
               <button className="ml-auto text-xs font-medium text-accent hover:underline" onClick={() => onNueva(iso)}>+ Cita</button>
             )}
           </div>
+          {extra?.(iso)}
           <div className="flex flex-col gap-2">{(porDia.get(iso) ?? []).map(render)}</div>
         </section>
       ))}

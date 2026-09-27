@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Cita, Clinica, Materia, Perfil } from "@/lib/types";
+import type { Cita, Clinica, Horario, Materia, Paciente, Perfil } from "@/lib/types";
 
-export const CAMPOS_CITA = "id,owner_id,paciente,fecha,hora_inicio,hora_fin,clinica_id,materia_id,notas,estado";
+export const CAMPOS_CITA = "id,owner_id,paciente,fecha,hora_inicio,hora_fin,clinica_id,materia_id,notas,estado,telefono,cobro,cobrado";
 
 /** Perfiles + catálogos, con recarga en tiempo real. */
 export function useCatalogos() {
@@ -20,7 +20,7 @@ export function useCatalogos() {
     const [p, c, m, a] = await Promise.all([
       supabase.from("perfiles").select("id,nombre,color,preferencias,rol,periodo_confirmado,acepto_terminos_at,version_vista").order("created_at"),
       supabase.from("clinicas").select("id,numero,descripcion,activo").order("numero"),
-      supabase.from("materias").select("id,nombre,color,activo").order("nombre"),
+      supabase.from("materias").select("id,nombre,color,activo,material").order("nombre"),
       supabase.from("agendas").select("nombre,pagado_hasta").maybeSingle(),
     ]);
     if (p.data) setPerfiles(p.data as Perfil[]);
@@ -76,4 +76,32 @@ export function useCitas(desde: string, hasta: string) {
   }, [supabase, recargar, desde]);
 
   return { citas, cargando, recargar };
+}
+
+/** Horario fijo de clínicas de los dos (bloques semanales). */
+export function useHorarios() {
+  const supabase = useMemo(() => createClient(), []);
+  const [horarios, setHorarios] = useState<Horario[]>([]);
+  const recargar = useCallback(async () => {
+    const { data } = await supabase.from("horarios").select("id,owner_id,dia_semana,hora_inicio,hora_fin,clinica_id,etiqueta").order("dia_semana").order("hora_inicio");
+    if (data) setHorarios(data as Horario[]);
+  }, [supabase]);
+  useEffect(() => {
+    recargar();
+  }, [recargar]);
+  return { horarios, recargar };
+}
+
+/** Banco de pacientes (los de los dos; cada quien edita los suyos). */
+export function usePacientes() {
+  const supabase = useMemo(() => createClient(), []);
+  const [pacientes, setPacientes] = useState<Paciente[] | null>(null);
+  const recargar = useCallback(async () => {
+    const { data } = await supabase.from("pacientes").select("id,owner_id,nombre,telefono,materia_id,notas,estado,created_at").order("created_at", { ascending: false });
+    setPacientes((data as Paciente[]) ?? []);
+  }, [supabase]);
+  useEffect(() => {
+    recargar();
+  }, [recargar]);
+  return { pacientes, recargar };
 }

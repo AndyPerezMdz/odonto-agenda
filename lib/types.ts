@@ -32,6 +32,30 @@ export type Materia = {
   nombre: string;
   color: string;
   activo: boolean;
+  material?: string | null; // qué llevar, una cosa por renglón
+};
+
+export type EstadoPaciente = "pendiente" | "contactado" | "agendado" | "descartado";
+
+export type Paciente = {
+  id: string;
+  owner_id: string;
+  nombre: string;
+  telefono: string | null;
+  materia_id: string | null;
+  notas: string | null;
+  estado: EstadoPaciente;
+  created_at: string;
+};
+
+export type Horario = {
+  id: string;
+  owner_id: string;
+  dia_semana: number; // 0 = domingo
+  hora_inicio: string;
+  hora_fin: string;
+  clinica_id: string | null;
+  etiqueta: string | null;
 };
 
 export type EstadoCita = "asistio" | "falto" | "cancelo";
@@ -47,6 +71,9 @@ export type Cita = {
   materia_id: string | null;
   notas: string | null;
   estado?: EstadoCita | null; // null = pendiente
+  telefono?: string | null;
+  cobro?: number | null; // lo que se le cobra al paciente (material)
+  cobrado?: boolean;
 };
 
 export const PREFERENCIAS_DEFAULT: Required<Preferencias> = {

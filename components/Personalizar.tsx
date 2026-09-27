@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useCatalogos } from "@/lib/useDatos";
+import { useCatalogos, useHorarios } from "@/lib/useDatos";
+import MiHorario from "@/components/MiHorario";
 import { prefs, type Preferencias } from "@/lib/types";
 import { TEMAS, MARCADORES, aplicarTema, type MarcadorId } from "@/lib/tema";
 import MarcadorHoy from "@/components/MarcadorHoy";
@@ -14,6 +15,7 @@ const PALETA = ["#2f5d50", "#6366f1", "#db2777", "#ea580c", "#0891b2", "#65a30d"
 export default function Personalizar({ userId }: { userId: string }) {
   const { supabase, perfiles, clinicas, materias, recargar } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
+  const { horarios, recargar: recargarHorarios } = useHorarios();
   const esDueno = yo?.rol === "owner";
   const [pestana, setPestana] = useState<"yo" | "agenda" | "suscripcion">("yo");
 
@@ -66,8 +68,9 @@ export default function Personalizar({ userId }: { userId: string }) {
       </nav>
 
       {/* Las pestañas se ocultan (no se desmontan) para no perder lo que llevas escrito */}
-      <div className={pestana === "yo" ? "" : "hidden"}>
+      <div className={`flex flex-col gap-5 ${pestana === "yo" ? "" : "hidden"}`}>
         {yo && <MiPerfil key={yo.id} supabase={supabase} yo={yo} onGuardado={recargar} />}
+        <MiHorario supabase={supabase} userId={userId} horarios={horarios} clinicas={clinicas} onCambio={recargarHorarios} />
       </div>
 
       {esDueno && (
@@ -93,15 +96,16 @@ export default function Personalizar({ userId }: { userId: string }) {
 
         <Catalogo
           titulo="Materias"
-          descripcion="Cada materia puede tener su color para distinguirla en las citas."
+          descripcion="Cada materia puede tener su color y su lista de material (qué llevar a sus citas)."
           placeholder="Ej. Prostodoncia"
           conColor
-          items={materias.map((m) => ({ id: m.id, nombre: m.nombre, activo: m.activo, color: m.color }))}
+          items={materias.map((m) => ({ id: m.id, nombre: m.nombre, activo: m.activo, color: m.color, material: m.material }))}
           onAgregar={(nombre) =>
             supabase.from("materias").insert({ nombre, color: PALETA[materias.length % PALETA.length] })
           }
           onRenombrar={(id, nombre) => supabase.from("materias").update({ nombre }).eq("id", id)}
           onColor={(id, color) => supabase.from("materias").update({ color }).eq("id", id)}
+          onMaterial={(id, material) => supabase.from("materias").update({ material }).eq("id", id)}
           onToggle={(id, activo) => supabase.from("materias").update({ activo }).eq("id", id)}
           onBorrar={(id) => supabase.from("materias").delete().eq("id", id)}
           onCambio={recargar}
@@ -342,11 +346,11 @@ function Interruptor({ label, valor, onChange }: { label: string; valor: boolean
   );
 }
 
-type Item = { id: string; nombre: string; activo: boolean; color?: string };
+type Item = { id: string; nombre: string; activo: boolean; color?: string; material?: string | null };
 
 function Catalogo({
   titulo, descripcion, placeholder, items, conColor,
-  onAgregar, onRenombrar, onToggle, onBorrar, onColor, onCambio,
+  onAgregar, onRenombrar, onToggle, onBorrar, onColor, onMaterial, onCambio,
 }: {
   titulo: string;
   descripcion: string;
@@ -358,8 +362,10 @@ function Catalogo({
   onToggle: (id: string, activo: boolean) => Resultado;
   onBorrar: (id: string) => Resultado;
   onColor?: (id: string, color: string) => Resultado;
+  onMaterial?: (id: string, material: string | null) => Resultado;
   onCambio: () => void;
 }) {
+  const [material, setMaterial] = useState<{ id: string; texto: string } | null>(null);
   const [nuevo, setNuevo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [editando, setEditando] = useState<{ id: string; nombre: string } | null>(null);
@@ -400,7 +406,8 @@ function Catalogo({
       ) : (
         <ul className="divide-y divide-line rounded-xl border border-line">
           {items.map((it) => (
-            <li key={it.id} className={`flex items-center gap-2 px-3 py-2 ${it.activo ? "" : "opacity-50"}`}>
+            <li key={it.id} className={`px-3 py-2 ${it.activo ? "" : "opacity-50"}`}>
+             <div className="flex items-center gap-2">
               {conColor && onColor && (
                 <input
                   type="color"
@@ -434,7 +441,37 @@ function Catalogo({
               >
                 {it.activo ? "Ocultar" : "Mostrar"}
               </button>
+              {onMaterial && (
+                <button
+                  className={`btn btn-sec shrink-0 px-2 py-1 text-xs ${it.material?.trim() ? "text-accent" : ""}`}
+                  onClick={() => setMaterial(material?.id === it.id ? null : { id: it.id, texto: it.material ?? "" })}
+                  title="Qué llevar a las citas de esta materia"
+                >
+                  Material{it.material?.trim() ? ` · ${it.material.split("\n").filter((x) => x.trim()).length}` : ""}
+                </button>
+              )}
               <BotonBorrar onConfirmar={() => correr(onBorrar(it.id))} />
+             </div>
+              {onMaterial && material?.id === it.id && (
+                <div className="mt-2">
+                  <textarea
+                    className="campo min-h-[90px] text-sm"
+                    autoFocus
+                    value={material.texto}
+                    onChange={(e) => setMaterial({ ...material, texto: e.target.value })}
+                    placeholder={"Una cosa por renglón:\nKit de endodoncia\nRadiografías\nAislamiento"}
+                  />
+                  <div className="mt-1.5 flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted">Sale en cada cita de {it.nombre} y en tu recordatorio. Es compartido con tu compa.</span>
+                    <button
+                      className="btn btn-primario shrink-0 px-3 py-1 text-xs"
+                      onClick={async () => (await correr(onMaterial(it.id, material.texto.trim() || null))) && setMaterial(null)}
+                    >
+                      Guardar
+                    </button>
+                  </div>
+                </div>
+              )}
             </li>
           ))}
         </ul>

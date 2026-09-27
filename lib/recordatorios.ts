@@ -50,7 +50,7 @@ export async function enviarRecordatorios(opts: { soloUsuario?: string; prueba?:
         .order("fecha")
         .order("hora_inicio"),
       db.from("clinicas").select("id,numero,descripcion,activo"),
-      db.from("materias").select("id,nombre,color,activo"),
+      db.from("materias").select("id,nombre,color,activo,material"),
       db.auth.admin.listUsers({ perPage: 1000 }),
       // Citas de la última semana que nadie marcó (asistió / faltó): para "Mi avance"
       db
@@ -183,6 +183,7 @@ function armarCorreo({
           <span style="float:right;color:#6d6a63;">${hhmm(c.hora_inicio)}–${hhmm(c.hora_fin)}</span></div>
         ${etiquetas ? `<div style="margin-top:8px;font-size:12px;">${etiquetas}</div>` : ""}
         ${c.notas ? `<div style="margin-top:6px;font-size:13px;color:#6d6a63;">${esc(c.notas)}</div>` : ""}
+        ${materia?.material?.trim() ? `<div style="margin-top:6px;font-size:13px;color:#4a4843;"><b>Lleva:</b> ${esc(materia.material.split("\n").map((x) => x.trim()).filter(Boolean).join(" · "))}</div>` : ""}
       </td></tr><tr><td style="height:8px;"></td></tr>`;
   };
 
@@ -234,7 +235,9 @@ function armarCorreo({
         const extra = [c.clinica_id && clinicaPorId.get(c.clinica_id)?.numero, c.materia_id && materiaPorId.get(c.materia_id)?.nombre]
           .filter(Boolean)
           .join(" · ");
-        return `- ${hhmm(c.hora_inicio)}–${hhmm(c.hora_fin)} ${c.paciente}${extra ? ` (${extra})` : ""}`;
+        const m = c.materia_id ? materiaPorId.get(c.materia_id) : null;
+        const lleva = m?.material?.trim() ? `\n    Lleva: ${m.material.split("\n").map((x) => x.trim()).filter(Boolean).join(", ")}` : "";
+        return `- ${hhmm(c.hora_inicio)}–${hhmm(c.hora_fin)} ${c.paciente}${extra ? ` (${extra})` : ""}${lleva}`;
       }),
     ]),
     ...(pendientes.length

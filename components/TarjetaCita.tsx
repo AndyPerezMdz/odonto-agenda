@@ -5,6 +5,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Cita, Clinica, EstadoCita, Materia, Perfil } from "@/lib/types";
 import { hhmm } from "@/lib/fechas";
 import { estadoDe } from "@/lib/estados";
+import { enlaceWhatsApp, mensajeConfirmar, IcoWhatsApp } from "@/lib/whatsapp";
+import { pesos } from "@/lib/pagos";
 
 type Props = {
   cita: Cita;
@@ -25,6 +27,7 @@ export default function TarjetaCita({ cita: c, userId, hoy, dueno, clinica, mate
   const est = estadoDe(c.estado);
   const cancelada = c.estado === "cancelo";
   const puedeMarcar = !soloLectura && c.owner_id === userId && !c.estado && c.fecha <= hoy;
+  const wa = c.owner_id === userId && !cancelada && c.fecha >= hoy ? enlaceWhatsApp(c.telefono, mensajeConfirmar(c, clinica?.numero)) : null;
 
   async function marcar(estado: EstadoCita) {
     setMarcando(true);
@@ -53,10 +56,24 @@ export default function TarjetaCita({ cita: c, userId, hoy, dueno, clinica, mate
             </span>
           )}
           {c.estado && <span className={`rounded-md px-1.5 py-0.5 font-medium ${est.clase}`}>{est.corto}</span>}
+          {c.cobro != null && c.cobro > 0 && c.owner_id === userId && (
+            <span className={`rounded-md px-1.5 py-0.5 font-medium ${c.cobrado ? "bg-panel-2 text-muted" : "bg-[#fdf6e3] text-[#5c4712] dark:bg-[#2a2415] dark:text-[#ecd9a4]"}`}>
+              {c.cobrado ? `${pesos(c.cobro)} cobrado` : `${pesos(c.cobro)} por cobrar`}
+            </span>
+          )}
           <span className="ml-auto text-muted">{dueno?.id === userId ? "Tú" : dueno?.nombre}</span>
         </div>
         {c.notas && <p className="mt-1.5 line-clamp-2 text-xs text-muted">{c.notas}</p>}
       </button>
+      {wa && (
+        <div className="flex items-center gap-1.5 border-t border-line px-3 py-2 text-xs">
+          <span className="mr-auto text-muted">¿Ya le confirmaste?</span>
+          <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full bg-[#25D366] px-2.5 py-1 font-medium text-white">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d={IcoWhatsApp} /></svg>
+            WhatsApp
+          </a>
+        </div>
+      )}
       {puedeMarcar && (
         <div className="flex items-center gap-1.5 border-t border-line px-3 py-2 text-xs">
           <span className="mr-auto text-muted">¿Llegó?</span>

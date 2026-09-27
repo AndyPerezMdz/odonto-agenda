@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useCatalogos, useCitas } from "@/lib/useDatos";
+import { useCatalogos, useCitas, usePacientes } from "@/lib/useDatos";
 import { prefs, type Cita, type Materia } from "@/lib/types";
 import { aplicarTema } from "@/lib/tema";
 import { deISO, fechaLarga, hhmm, hoyISO } from "@/lib/fechas";
 import { rangoDe } from "@/lib/cuatrimestre";
-import { sumarDias } from "@/lib/pagos";
+import { pesos, sumarDias } from "@/lib/pagos";
 
 // "Mi avance": cuántos casos lleva cada quien por materia en el cuatrimestre, contra la meta.
 export default function Avance({ userId }: { userId: string }) {
@@ -18,6 +18,7 @@ export default function Avance({ userId }: { userId: string }) {
   const rango = rangoDe(deISO(fechaRef));
   const { citas, recargar } = useCitas(todo ? "2000-01-01" : rango.desde, todo ? "2100-12-31" : rango.hasta);
   const [metas, setMetas] = useState<Map<string, number>>(new Map());
+  const { pacientes } = usePacientes();
 
   // Metas: cada quien tiene las suyas (clave = persona:materia)
   const cargarMetas = useCallback(async () => {
@@ -50,18 +51,29 @@ export default function Avance({ userId }: { userId: string }) {
     return lista.map(({ materia, citas }) => ({
       materia,
       meta: materia ? metas.get(`${persona}:${materia.id}`) ?? null : null,
+      enBanco: (pacientes ?? []).filter((x) => x.owner_id === persona && (x.materia_id ?? "") === (materia?.id ?? "") && (x.estado === "pendiente" || x.estado === "contactado")).length,
       pacientes: citas.filter((c) => c.estado === "asistio").sort((a, b) => a.fecha.localeCompare(b.fecha)),
       asistio: citas.filter((c) => c.estado === "asistio").length,
       falto: citas.filter((c) => c.estado === "falto").length,
       agendadas: citas.filter((c) => !c.estado && c.fecha >= hoy).length,
       sinMarcar: citas.filter((c) => !c.estado && c.fecha < hoy).length,
     }));
-  }, [mias, materias, hoy, metas, persona]);
+  }, [mias, materias, hoy, metas, persona, pacientes]);
 
   const total = filas.reduce((n, f) => n + f.asistio, 0);
   const faltas = filas.reduce((n, f) => n + f.falto, 0);
   const asistencia = total + faltas > 0 ? Math.round((total / (total + faltas)) * 100) : null;
   const pendientesDeMarcar = mias.filter((c) => !c.estado && c.fecha < hoy);
+  // Cobros de material (sólo los tuyos: es tu dinero)
+  const conCobro = mias.filter((c) => (c.cobro ?? 0) > 0 && c.estado !== "cancelo");
+  const cobrado = conCobro.filter((c) => c.cobrado).reduce((n, c) => n + Number(c.cobro), 0);
+  const porCobrar = conCobro.filter((c) => !c.cobrado);
+  const totalPorCobrar = porCobrar.reduce((n, c) => n + Number(c.cobro), 0);
+
+  async function marcarCobrado(id: string) {
+    await supabase.from("citas").update({ cobrado: true }).eq("id", id);
+    recargar();
+  }
   const quien = perfiles.find((p) => p.id === persona);
 
   async function marcar(id: string, estado: "asistio" | "falto") {
@@ -154,6 +166,32 @@ export default function Avance({ userId }: { userId: string }) {
         </section>
       )}
 
+      {esMio && conCobro.length > 0 && (
+        <section className="no-imprimir mb-5 rounded-2xl border border-line bg-panel p-4 sm:p-5">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="font-semibold">Cobros a pacientes</h3>
+            <span className="text-sm tabular-nums">
+              <b>{pesos(cobrado)}</b> <span className="text-muted">cobrado ·</span>{" "}
+              <b className={totalPorCobrar ? "text-[#8a6a12] dark:text-[#ecd9a4]" : ""}>{pesos(totalPorCobrar)}</b> <span className="text-muted">por cobrar</span>
+            </span>
+          </div>
+          {porCobrar.length === 0 ? (
+            <p className="text-sm text-muted">Nadie te debe nada.</p>
+          ) : (
+            <ul className="divide-y divide-line rounded-xl border border-line text-sm">
+              {porCobrar.map((c) => (
+                <li key={c.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
+                  <span className="font-medium">{c.paciente}</span>
+                  <span className="text-xs text-muted first-letter:uppercase">{fechaLarga(c.fecha)}</span>
+                  <span className="ml-auto font-medium tabular-nums">{pesos(Number(c.cobro))}</span>
+                  <button onClick={() => marcarCobrado(c.id)} className="rounded-full border border-line px-2.5 py-1 text-xs font-medium hover:bg-[#e6f4ea] hover:text-[#1e6b3a]">Ya me pagó</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
       <section className="no-imprimir rounded-2xl border border-line bg-panel p-4 sm:p-5">
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="font-semibold">{esMio ? "Tus casos por materia" : `Casos de ${quien?.nombre ?? ""}`}</h3>
@@ -207,8 +245,9 @@ export default function Avance({ userId }: { userId: string }) {
 }
 
 function FilaMateria({
-  materia, meta, asistio, falto, agendadas, sinMarcar, editable, onMeta,
+  materia, meta, asistio, falto, agendadas, sinMarcar, enBanco, editable, onMeta,
 }: {
+  enBanco: number;
   materia: Materia | null;
   meta: number | null;
   editable: boolean;
@@ -280,6 +319,12 @@ function FilaMateria({
         {falto > 0 && ` · ${falto} falta${falto === 1 ? "" : "s"}`}
         {sinMarcar > 0 && ` · ${sinMarcar} sin marcar`}
         {meta && !cumplida && ` · te faltan ${meta - asistio}`}
+        {editable && enBanco > 0 && (
+          <>
+            {" · "}
+            <Link href="/pacientes" className="text-accent hover:underline">{enBanco} en tu banco de pacientes</Link>
+          </>
+        )}
       </p>
     </li>
   );

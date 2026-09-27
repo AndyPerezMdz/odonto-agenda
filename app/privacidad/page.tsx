@@ -46,7 +46,8 @@ export default function PrivacidadPage() {
       <p>
         Tú decides qué datos de tus pacientes capturas y eres responsable de ellos frente a tus pacientes. Nosotros los tratamos
         únicamente <b>por tu cuenta y para darte el servicio</b> (guardarlos, mostrártelos y enviarte recordatorios); no los usamos
-        para ningún otro fin.
+        para ningún otro fin. Si guardas el <b>teléfono</b> de un paciente, es sólo para que tú lo contactes por WhatsApp desde tu
+        celular: la plataforma no le envía mensajes. Antes de anotarlo, pídele permiso.
       </p>
 
       <h2>6. Con quién compartimos datos</h2>

@@ -293,6 +293,67 @@ create policy metas_propias on public.metas
 grant select, insert, update, delete on public.metas to authenticated;
 
 -- ---------------------------------------------------------------------
+-- VERSIÓN 1.6: WhatsApp, cobros, material, banco de pacientes y horario de clínicas
+-- ---------------------------------------------------------------------
+-- Teléfono del paciente (para confirmar por WhatsApp) y cobro de material
+alter table public.citas add column if not exists telefono text;
+alter table public.citas add column if not exists cobro numeric(10,2);
+alter table public.citas add column if not exists cobrado boolean not null default false;
+alter table public.citas drop constraint if exists citas_cobro_valido;
+alter table public.citas add constraint citas_cobro_valido check (cobro is null or cobro >= 0);
+
+-- Qué llevar a cada cita de esa materia (una cosa por renglón)
+alter table public.materias add column if not exists material text;
+
+-- BANCO DE PACIENTES: gente por conseguir o en espera, por materia
+create table if not exists public.pacientes (
+  id          uuid primary key default gen_random_uuid(),
+  agenda_id   uuid not null default public.mi_agenda() references public.agendas (id) on delete cascade,
+  owner_id    uuid not null default auth.uid() references public.perfiles (id) on delete cascade,
+  nombre      text not null check (length(trim(nombre)) > 0),
+  telefono    text,
+  materia_id  uuid references public.materias (id) on delete set null,
+  notas       text,
+  estado      text not null default 'pendiente' check (estado in ('pendiente', 'contactado', 'agendado', 'descartado')),
+  created_at  timestamptz not null default now()
+);
+create index if not exists pacientes_agenda_idx on public.pacientes (agenda_id, owner_id);
+
+-- HORARIO FIJO: "los martes de 8 a 12 tengo Clínica 1"
+create table if not exists public.horarios (
+  id          uuid primary key default gen_random_uuid(),
+  agenda_id   uuid not null default public.mi_agenda() references public.agendas (id) on delete cascade,
+  owner_id    uuid not null default auth.uid() references public.perfiles (id) on delete cascade,
+  dia_semana  int  not null check (dia_semana between 0 and 6), -- 0 = domingo
+  hora_inicio time not null,
+  hora_fin    time not null,
+  clinica_id  uuid references public.clinicas (id) on delete set null,
+  etiqueta    text,
+  constraint horarios_horas_validas check (hora_fin > hora_inicio)
+);
+create index if not exists horarios_agenda_idx on public.horarios (agenda_id);
+
+alter table public.pacientes enable row level security;
+alter table public.horarios  enable row level security;
+
+-- Los dos ven los de la agenda; cada quien edita sólo los suyos (y con la agenda activa)
+drop policy if exists pacientes_select on public.pacientes;
+create policy pacientes_select on public.pacientes for select to authenticated using (agenda_id = (select public.mi_agenda()));
+drop policy if exists pacientes_propios on public.pacientes;
+create policy pacientes_propios on public.pacientes for all to authenticated
+  using (owner_id = (select auth.uid()) and (select public.agenda_activa()))
+  with check (owner_id = (select auth.uid()) and agenda_id = (select public.mi_agenda()));
+
+drop policy if exists horarios_select on public.horarios;
+create policy horarios_select on public.horarios for select to authenticated using (agenda_id = (select public.mi_agenda()));
+drop policy if exists horarios_propios on public.horarios;
+create policy horarios_propios on public.horarios for all to authenticated
+  using (owner_id = (select auth.uid()))
+  with check (owner_id = (select auth.uid()) and agenda_id = (select public.mi_agenda()));
+
+grant select, insert, update, delete on public.pacientes, public.horarios to authenticated;
+
+-- ---------------------------------------------------------------------
 -- MES GRATIS: una prueba por PERSONA (por correo), sea dueña o compañera.
 -- No depende de la cuenta: si la cuenta se borra, el registro se queda.
 -- ---------------------------------------------------------------------

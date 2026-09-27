@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Cita, Clinica, EstadoCita, Materia, Perfil, Preferencias } from "@/lib/types";
+import type { Cita, Clinica, EstadoCita, Materia, Paciente, Perfil, Preferencias } from "@/lib/types";
+import { enlaceWhatsApp, mensajeConfirmar, IcoWhatsApp } from "@/lib/whatsapp";
 import { fechaLarga, hhmm, sumarMinutos } from "@/lib/fechas";
 import { sumarDias } from "@/lib/pagos";
 import { ESTADOS } from "@/lib/estados";
@@ -19,12 +20,14 @@ type Props = {
   soloLectura?: boolean;
   plantilla?: Cita; // "Otra sesión": nueva cita con los datos de otra
   onOtraSesion?: (c: Cita) => void;
+  pacientes?: Paciente[]; // banco de pacientes (para autocompletar nombre y teléfono)
+  pacienteOrigen?: string; // si se agenda desde el banco: se marca como "agendado"
   onClose: () => void;
   onGuardado: (fecha: string) => void;
 };
 
 export default function CitaModal({
-  supabase, userId, cita, fechaInicial, perfiles, clinicas, materias, preferencias, soloLectura = false, plantilla, onOtraSesion, onClose, onGuardado,
+  supabase, userId, cita, fechaInicial, perfiles, clinicas, materias, preferencias, soloLectura = false, plantilla, onOtraSesion, pacientes = [], pacienteOrigen, onClose, onGuardado,
 }: Props) {
   const base = cita ?? plantilla ?? null;
   const esNueva = !cita;
@@ -40,6 +43,21 @@ export default function CitaModal({
   const [clinicaId, setClinicaId] = useState(base?.clinica_id ?? "");
   const [materiaId, setMateriaId] = useState(base?.materia_id ?? "");
   const [notas, setNotas] = useState(cita?.notas ?? "");
+  const [telefono, setTelefono] = useState(base?.telefono ?? "");
+  const [cobro, setCobro] = useState(cita?.cobro != null ? String(cita.cobro) : "");
+  const [cobrado, setCobrado] = useState(!!cita?.cobrado);
+  const materiaSel = materias.find((m) => m.id === materiaId);
+  const misPacientes = pacientes.filter((p) => p.owner_id === userId && p.estado !== "descartado");
+
+  // Al escribir un nombre que está en tu banco de pacientes, trae su teléfono y materia
+  function cambiarPaciente(v: string) {
+    setPaciente(v);
+    const p = misPacientes.find((x) => x.nombre.toLowerCase() === v.trim().toLowerCase());
+    if (p) {
+      if (p.telefono && !telefono) setTelefono(p.telefono);
+      if (p.materia_id && !materiaId) setMateriaId(p.materia_id);
+    }
+  }
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [confirmarBorrar, setConfirmarBorrar] = useState(false);
@@ -57,7 +75,11 @@ export default function CitaModal({
   // Al mover la hora de inicio en una cita nueva, arrastra la hora de fin
   function cambiarInicio(v: string) {
     setInicio(v);
-    if (esNueva && !plantilla && v) setFin(sumarMinutos(v, preferencias.duracionMin));
+    if (!esNueva || !v) return;
+    // Sin plantilla: duración de tus preferencias. Con plantilla (otra sesión, banco, hueco): conserva la que traía.
+    const min = (h: string) => { const [a, b] = h.split(":").map(Number); return a * 60 + b; };
+    const dur = plantilla && inicio && fin ? min(fin) - min(inicio) : 0;
+    setFin(sumarMinutos(v, dur > 0 ? dur : preferencias.duracionMin));
   }
 
   // En catálogos, mostrar activos + el que ya tenga la cita (aunque esté inactivo)
@@ -79,6 +101,9 @@ export default function CitaModal({
       clinica_id: clinicaId || null,
       materia_id: materiaId || null,
       notas: notas.trim() || null,
+      telefono: telefono.trim() || null,
+      cobro: cobro.trim() ? Math.max(0, Number(cobro)) : null,
+      cobrado: cobro.trim() ? cobrado : false,
     };
 
     // Nueva y repetida: una por semana. Si alguna choca con otra cita, se salta y se avisa.
@@ -96,6 +121,7 @@ export default function CitaModal({
         }
       }
       setGuardando(false);
+      if (pacienteOrigen && ok > 0) await supabase.from("pacientes").update({ estado: "agendado" }).eq("id", pacienteOrigen);
       if (choques.length === 0) return onGuardado(fecha);
       return setResumen({ ok, choques });
     }
@@ -113,6 +139,7 @@ export default function CitaModal({
       else setError("No se pudo guardar: " + error.message);
       return;
     }
+    if (esNueva && pacienteOrigen) await supabase.from("pacientes").update({ estado: "agendado" }).eq("id", pacienteOrigen);
     onGuardado(fecha);
   }
 
@@ -136,7 +163,7 @@ export default function CitaModal({
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">
-            {esNueva ? (plantilla ? "Siguiente sesión" : "Nueva cita") : esMia ? "Editar cita" : "Detalle de cita"}
+            {esNueva ? (plantilla?.paciente && !pacienteOrigen ? "Siguiente sesión" : "Nueva cita") : esMia ? "Editar cita" : "Detalle de cita"}
           </h2>
           <button type="button" onClick={onClose} className="btn btn-sec px-2.5 py-1" aria-label="Cerrar">✕</button>
         </div>
@@ -175,8 +202,28 @@ export default function CitaModal({
         )}
 
         <fieldset disabled={!esMia || guardando} className="grid grid-cols-2 gap-3">
-          <Campo label="Paciente" className="col-span-2">
-            <input className="campo" value={paciente} onChange={(e) => setPaciente(e.target.value)} autoFocus={esNueva} required />
+          <Campo label="Paciente">
+            <input className="campo" list="banco-pacientes" value={paciente} onChange={(e) => cambiarPaciente(e.target.value)} autoFocus={esNueva} required />
+            <datalist id="banco-pacientes">
+              {misPacientes.map((p) => <option key={p.id} value={p.nombre} />)}
+            </datalist>
+          </Campo>
+          <Campo label="Teléfono (opcional)">
+            <div className="flex gap-1.5">
+              <input type="tel" inputMode="tel" className="campo min-w-0" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="999 123 4567" />
+              {esMia && !esNueva && enlaceWhatsApp(telefono, "") && (
+                <a
+                  href={enlaceWhatsApp(telefono, mensajeConfirmar({ paciente, fecha, hora_inicio: inicio }, clinicas.find((c) => c.id === clinicaId)?.numero)) ?? "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn shrink-0 bg-[#25D366] px-2.5 text-white"
+                  title="Confirmar la cita por WhatsApp"
+                  aria-label="Confirmar por WhatsApp"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d={IcoWhatsApp} /></svg>
+                </a>
+              )}
+            </div>
           </Campo>
 
           <Campo label="Fecha" className="col-span-2">
@@ -206,6 +253,28 @@ export default function CitaModal({
               ))}
             </select>
           </Campo>
+
+          {materiaSel?.material?.trim() && (
+            <div className="col-span-2 rounded-xl bg-panel-2 p-3 text-sm">
+              <p className="mb-1 font-medium">Qué llevar a {materiaSel.nombre}</p>
+              <ul className="list-disc pl-5 text-muted">
+                {materiaSel.material.split("\n").map((x) => x.trim()).filter(Boolean).map((x) => <li key={x}>{x}</li>)}
+              </ul>
+            </div>
+          )}
+
+          <Campo label="Cobro al paciente (opcional)">
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted">$</span>
+              <input type="number" min={0} step="1" inputMode="decimal" className="campo" value={cobro} onChange={(e) => setCobro(e.target.value)} placeholder="0" />
+            </div>
+          </Campo>
+          <div className="flex items-end pb-2.5">
+            <label className={`flex items-center gap-2 text-sm ${cobro.trim() ? "" : "opacity-40"}`}>
+              <input type="checkbox" checked={cobrado} disabled={!cobro.trim()} onChange={(e) => setCobrado(e.target.checked)} />
+              Ya me pagó
+            </label>
+          </div>
 
           <Campo label="Notas (opcional)" className="col-span-2">
             <textarea
