@@ -263,6 +263,9 @@ export default function CitaModal({
             </div>
           )}
 
+          {/* El cobro es asunto de cada quien: en citas ajenas no se muestra */}
+          {(esNueva || cita?.owner_id === userId) && (
+            <>
           <Campo label="Cobro al paciente (opcional)">
             <div className="flex items-center gap-1.5">
               <span className="text-muted">$</span>
@@ -275,6 +278,8 @@ export default function CitaModal({
               Ya me pagó
             </label>
           </div>
+            </>
+          )}
 
           <Campo label="Notas (opcional)" className="col-span-2">
             <textarea

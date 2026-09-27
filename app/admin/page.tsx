@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { superadminEnSesion } from "@/lib/admin";
 import PanelAdmin from "@/components/PanelAdmin";
+import SoloNavegador from "@/components/SoloNavegador";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Panel", robots: { index: false, follow: false } };
@@ -10,5 +11,9 @@ export const metadata: Metadata = { title: "Panel", robots: { index: false, foll
 export default async function AdminPage() {
   const s = await superadminEnSesion();
   if (!s) notFound();
-  return <PanelAdmin email={s.user.email ?? ""} />;
+  return (
+    <SoloNavegador>
+      <PanelAdmin email={s.user.email ?? ""} />
+    </SoloNavegador>
+  );
 }

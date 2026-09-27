@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { esSuperadmin } from "@/lib/admin";
 import Agenda from "@/components/Agenda";
 import AuthCard from "@/components/AuthCard";
+import SoloNavegador from "@/components/SoloNavegador";
 
 export const dynamic = "force-dynamic";
 
@@ -28,5 +29,9 @@ export default async function Home() {
     );
   }
 
-  return <Agenda userId={user.id} />;
+  return (
+    <SoloNavegador>
+      <Agenda userId={user.id} />
+    </SoloNavegador>
+  );
 }
