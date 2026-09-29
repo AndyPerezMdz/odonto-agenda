@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Cita, Clinica, Horario, Materia, Paciente, Perfil } from "@/lib/types";
 
@@ -15,6 +15,7 @@ export function useCatalogos() {
   const [nombreAgenda, setNombreAgenda] = useState<string>("");
   const [pagadoHasta, setPagadoHasta] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
+  const idCanal = useId(); // cada instancia con su propio canal (si no, Supabase reusa uno ya suscrito y truena)
 
   const recargar = useCallback(async () => {
     const [p, c, m, a] = await Promise.all([
@@ -34,14 +35,14 @@ export function useCatalogos() {
   useEffect(() => {
     recargar();
     const canal = supabase
-      .channel("catalogos")
+      .channel(`catalogos-${idCanal}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "clinicas" }, recargar)
       .on("postgres_changes", { event: "*", schema: "public", table: "materias" }, recargar)
       .subscribe();
     return () => {
       supabase.removeChannel(canal);
     };
-  }, [supabase, recargar]);
+  }, [supabase, recargar, idCanal]);
 
   return { supabase, perfiles, clinicas, materias, nombreAgenda, pagadoHasta, cargando, recargar };
 }
@@ -51,6 +52,7 @@ export function useCitas(desde: string, hasta: string) {
   const supabase = useMemo(() => createClient(), []);
   const [citas, setCitas] = useState<Cita[]>([]);
   const [cargando, setCargando] = useState(true);
+  const idCanal = useId();
 
   const recargar = useCallback(async () => {
     const { data } = await supabase
@@ -67,13 +69,13 @@ export function useCitas(desde: string, hasta: string) {
   useEffect(() => {
     recargar();
     const canal = supabase
-      .channel(`citas-${desde}`)
+      .channel(`citas-${desde}-${idCanal}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "citas" }, recargar)
       .subscribe();
     return () => {
       supabase.removeChannel(canal);
     };
-  }, [supabase, recargar, desde]);
+  }, [supabase, recargar, desde, idCanal]);
 
   return { citas, cargando, recargar };
 }
