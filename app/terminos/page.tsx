@@ -43,7 +43,6 @@ export default function TerminosPage() {
         <li><b>Mes gratis:</b> uno por persona, seas dueño/a o compañero/a. Si entras a una agenda que está en su mes gratis, usas el tuyo. A una agenda pagada puedes entrar sin gastarlo. Si dejas una agenda en su mes gratis para entrar a una pagada dentro de los primeros 7 días, te lo devolvemos (sólo una vez).</li>
         <li><b>Códigos de creador:</b> dan meses gratis extra, sólo durante el mes gratis de una agenda nueva, y sólo uno por agenda.</li>
         <li>Si ya usaste tu mes gratis y creas una agenda nueva, empieza sin él: la ves, pero para agendar primero se paga el mes.</li>
-        <li><b>Tu link de citas (premium):</b> es opcional, se paga aparte, <b>por persona</b> y por mes (el precio aparece en <b>Personalizar → Mi link</b>). Se paga igual, por transferencia y “Ya pagué”. Si no se renueva, el link deja de recibir citas; las que ya estaban se quedan en tu agenda. Tú eres responsable de atender o reprogramar a quien reserve.</li>
         <li>Si el precio cambia, te avisaremos con al menos 30 días de anticipación.</li>
       </ul>
 

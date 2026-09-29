@@ -74,7 +74,8 @@ export type Cita = {
   telefono?: string | null;
   cobro?: number | null; // lo que se le cobra al paciente (material)
   cobrado?: boolean;
-  origen?: "link" | null; // "link" = la reservó el paciente desde el link de citas
+  folio?: string | null; // del ticket del tratamiento (se piden los últimos 5 dígitos)
+  historia?: string | null; // No. de historia clínica del paciente
 };
 
 export const PREFERENCIAS_DEFAULT: Required<Preferencias> = {

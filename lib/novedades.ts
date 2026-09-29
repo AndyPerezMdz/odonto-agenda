@@ -12,7 +12,8 @@ export const NOVEDADES: Version[] = [
     fecha: "septiembre 2026",
     items: [
       { icono: "enlace", titulo: "Invita con un link", texto: "¿Tu compañero/a no recibe correos? Copia tu link en Personalizar → Agenda y mándaselo por WhatsApp: se registra y entra directo." },
-      { icono: "citas", titulo: "Tu link de citas (premium)", texto: "Tus pacientes eligen un horario libre desde tu link y la cita cae sola en tu agenda. Lo activas en Personalizar → Mi link." },
+      { icono: "folio", titulo: "Folio e historia clínica", texto: "Guarda el folio de cada tratamiento y el No. de historia de tu paciente. El folio lo puedes poner después de atender, desde la misma cita." },
+      { icono: "pacientes", titulo: "Mis pacientes", texto: "En Pacientes ves a todos los que has atendido, con su historia y sus folios por materia. Y en el PDF de Mi avance ya salen para tus maestros." },
     ],
   },
   {
@@ -70,6 +71,6 @@ export const ICONOS = {
   cobro: "M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
   reloj: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
   enlace: "M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7",
-  citas: "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 14v4M10 16h4",
+  folio: "M4 4h16v16l-3-2-3 2-3-2-3 2-4-2zM8 9h8M8 13h5",
   estrella: "m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z",
 };

@@ -48,13 +48,9 @@ export default function PrivacidadPage() {
         Tú decides qué datos de tus pacientes capturas y eres responsable de ellos frente a tus pacientes. Nosotros los tratamos
         únicamente <b>por tu cuenta y para darte el servicio</b> (guardarlos, mostrártelos y enviarte recordatorios); no los usamos
         para ningún otro fin. Si guardas el <b>teléfono</b> de un paciente, es sólo para que tú lo contactes por WhatsApp desde tu
-        celular: la plataforma no le envía mensajes. Antes de anotarlo, pídele permiso.
-      </p>
-      <p>
-        <b>Si reservas una cita desde el link de una estudiante</b> (“Tu link de citas”): guardamos tu nombre, tu teléfono, la fecha
-        y hora que elegiste y, si lo indicas, el tipo de tratamiento que buscas (de una lista general, sin síntomas ni diagnósticos).
-        Esos datos los ve <b>sólo esa estudiante</b> (y su compañero/a de agenda, como el resto de sus citas), para contactarte y
-        atenderte en la clínica. No los usamos para nada más. Para corregirlos o borrarlos, pídeselo a la estudiante o escríbenos.
+        celular: la plataforma no le envía mensajes. Antes de anotarlo, pídele permiso. El <b>No. de historia clínica</b> y el
+        <b> folio</b> del tratamiento son sólo números de control para que los tengas a la mano; el expediente clínico se queda
+        en tu facultad, no aquí.
       </p>
 
       <h2>6. Con quién compartimos datos</h2>

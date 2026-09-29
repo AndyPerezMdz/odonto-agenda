@@ -595,7 +595,7 @@ create policy configuracion_select on public.configuracion
   for select to authenticated using (clave = 'pago');
 
 -- =====================================================================
--- 1.7 · REGISTRO LIBRE, LINK PARA EL COMPAÑERO Y "TU LINK DE CITAS" (PREMIUM)
+-- 1.7 · REGISTRO LIBRE, LINK PARA EL COMPAÑERO, FOLIO E HISTORIA CLÍNICA
 -- =====================================================================
 
 -- Mes gratis: en Gmail, "pepi.to+2@gmail.com" y "pepito@gmail.com" son el mismo buzón.
@@ -625,54 +625,25 @@ create table if not exists public.enlaces_union (
 );
 alter table public.enlaces_union enable row level security; -- sólo el servidor lo lee/escribe
 
--- Premium "Tu link de citas": por persona
-alter table public.perfiles add column if not exists premium_hasta date;
-alter table public.perfiles add column if not exists slug text;
-alter table public.perfiles add column if not exists link_activo boolean not null default false;
-create unique index if not exists perfiles_slug_idx on public.perfiles (lower(slug)) where slug is not null;
-
--- Nadie se regala premium desde la app: premium_hasta sólo lo cambia el servidor
-create or replace function public.proteger_rol()
-returns trigger
-language plpgsql
-set search_path = ''
-as $$
-begin
-  if current_user = 'authenticated'
-     and (new.rol is distinct from old.rol or new.agenda_id is distinct from old.agenda_id
-          or new.premium_hasta is distinct from old.premium_hasta) then
-    raise exception 'No puedes cambiar tu rol, tu agenda ni tu premium.';
-  end if;
-  return new;
-end;
-$$;
-
--- De dónde vino la cita (null = la capturó la alumna; 'link' = la agendó el paciente)
-alter table public.citas add column if not exists origen text;
+-- Limpieza: si alguna vez corriste la versión con "link de citas (premium)", esto la quita.
+drop table if exists public.avisos_premium;
 alter table public.citas drop constraint if exists citas_origen_valido;
-alter table public.citas add constraint citas_origen_valido check (origen is null or origen in ('link'));
+alter table public.citas drop column if exists origen;
+drop index if exists public.perfiles_slug_idx;
+alter table public.perfiles drop column if exists premium_hasta;
+alter table public.perfiles drop column if exists slug;
+alter table public.perfiles drop column if exists link_activo;
+delete from public.configuracion where clave = 'premium';
 
--- Avisos de pago del premium ("Ya pagué"), aparte de los de la agenda
-create table if not exists public.avisos_premium (
-  id         uuid primary key default gen_random_uuid(),
-  perfil_id  uuid not null references public.perfiles (id) on delete cascade,
-  monto      numeric,
-  referencia text,
-  estado     text not null default 'pendiente' check (estado in ('pendiente', 'confirmado', 'descartado')),
-  created_at timestamptz not null default now()
-);
-alter table public.avisos_premium enable row level security;
-drop policy if exists avisos_premium_select on public.avisos_premium;
-create policy avisos_premium_select on public.avisos_premium
-  for select to authenticated using (perfil_id = auth.uid());
-
--- Precio del premium (lo cambias aquí o desde el SQL Editor)
-insert into public.configuracion (clave, valor)
-values ('premium', '{"precio": 49}'::jsonb)
-on conflict (clave) do nothing;
-drop policy if exists configuracion_select on public.configuracion;
-create policy configuracion_select on public.configuracion
-  for select to authenticated using (clave in ('pago', 'premium'));
+-- Folio (del ticket de pago del tratamiento; los maestros lo piden como comprobante)
+-- y No. de historia clínica del paciente. Son números de control, no datos clínicos.
+alter table public.citas add column if not exists folio text;
+alter table public.citas add column if not exists historia text;
+alter table public.citas drop constraint if exists citas_folio_largo;
+alter table public.citas add constraint citas_folio_largo check (folio is null or length(folio) <= 20);
+alter table public.citas drop constraint if exists citas_historia_largo;
+alter table public.citas add constraint citas_historia_largo check (historia is null or length(historia) <= 30);
+create index if not exists citas_owner_paciente_idx on public.citas (owner_id, lower(paciente));
 
 -- =====================================================================
 -- Listo. Las cuentas nuevas se registran solas en /registro.

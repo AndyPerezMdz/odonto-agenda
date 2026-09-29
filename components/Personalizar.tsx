@@ -9,7 +9,6 @@ import { TEMAS, MARCADORES, aplicarTema, type MarcadorId } from "@/lib/tema";
 import MarcadorHoy from "@/components/MarcadorHoy";
 import TarjetaCompanero from "@/components/TarjetaCompanero";
 import TarjetaSuscripcion from "@/components/TarjetaSuscripcion";
-import MiLinkDeCitas from "@/components/MiLinkDeCitas";
 
 const PALETA = ["#2f5d50", "#6366f1", "#db2777", "#ea580c", "#0891b2", "#65a30d", "#9333ea", "#b45309"];
 
@@ -18,20 +17,20 @@ export default function Personalizar({ userId }: { userId: string }) {
   const yo = perfiles.find((p) => p.id === userId);
   const { horarios, recargar: recargarHorarios } = useHorarios();
   const esDueno = yo?.rol === "owner";
-  const [pestana, setPestana] = useState<"yo" | "agenda" | "link" | "suscripcion">("yo");
+  const [pestana, setPestana] = useState<"yo" | "agenda" | "suscripcion">("yo");
 
   // /personalizar#suscripcion (o #agenda) abre directo esa pestaña
   useEffect(() => {
     const leer = () => {
       const h = window.location.hash.replace("#", "");
-      if (h === "suscripcion" || h === "agenda" || h === "yo" || h === "link") setPestana(h);
+      if (h === "suscripcion" || h === "agenda" || h === "yo") setPestana(h);
     };
     leer();
     window.addEventListener("hashchange", leer);
     return () => window.removeEventListener("hashchange", leer);
   }, []);
 
-  function elegir(p: "yo" | "agenda" | "link" | "suscripcion") {
+  function elegir(p: "yo" | "agenda" | "suscripcion") {
     setPestana(p);
     history.replaceState(null, "", `#${p}`);
   }
@@ -39,9 +38,8 @@ export default function Personalizar({ userId }: { userId: string }) {
   const pestanas = [
     ["yo", "Yo"],
     ["agenda", "Agenda"],
-    ["link", "Mi link"],
     ...(esDueno ? [["suscripcion", "Suscripción"]] : []),
-  ] as ["yo" | "agenda" | "link" | "suscripcion", string][];
+  ] as ["yo" | "agenda" | "suscripcion", string][];
 
   return (
     <div className="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-6">
@@ -73,10 +71,6 @@ export default function Personalizar({ userId }: { userId: string }) {
       <div className={`flex flex-col gap-5 ${pestana === "yo" ? "" : "hidden"}`}>
         {yo && <MiPerfil key={yo.id} supabase={supabase} yo={yo} onGuardado={recargar} />}
         <MiHorario supabase={supabase} userId={userId} horarios={horarios} clinicas={clinicas} onCambio={recargarHorarios} />
-      </div>
-
-      <div className={pestana === "link" ? "" : "hidden"}>
-        <MiLinkDeCitas />
       </div>
 
       {esDueno && (

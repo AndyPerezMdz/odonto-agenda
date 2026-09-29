@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
-import BancoPacientes from "@/components/BancoPacientes";
+import PaginaPacientes from "@/components/PaginaPacientes";
 import SoloNavegador from "@/components/SoloNavegador";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Banco de pacientes" };
+export const metadata: Metadata = { title: "Pacientes" };
 
 export default async function BancoPacientesPage() {
   const supabase = await createClient();
@@ -16,7 +16,7 @@ export default async function BancoPacientesPage() {
 
   return (
     <SoloNavegador>
-      <BancoPacientes userId={user.id} />
+      <PaginaPacientes userId={user.id} />
     </SoloNavegador>
   );
 }

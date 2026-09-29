@@ -19,7 +19,7 @@ const ESTADOS: { id: EstadoPaciente; t: string; c: string }[] = [
 const estadoP = (e: EstadoPaciente) => ESTADOS.find((x) => x.id === e) ?? ESTADOS[0];
 
 // Banco de pacientes: gente por conseguir o en espera, por materia. Para cuando falta un caso o se cae una cita.
-export default function BancoPacientes({ userId }: { userId: string }) {
+export default function BancoPacientes({ userId, embebido = false }: { userId: string; embebido?: boolean }) {
   const { supabase, perfiles, clinicas, materias, pagadoHasta } = useCatalogos();
   const { pacientes, recargar } = usePacientes();
   const yo = perfiles.find((p) => p.id === userId);
@@ -96,14 +96,16 @@ export default function BancoPacientes({ userId }: { userId: string }) {
   });
 
   return (
-    <div className="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-6">
-      <header className="mb-5 flex items-center gap-3">
-        <Link href="/" className="btn btn-sec px-2.5" aria-label="Volver">‹</Link>
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Banco de pacientes</h1>
-          <p className="text-sm text-muted">Gente por conseguir o en espera, para cuando te falte un caso.</p>
-        </div>
-      </header>
+    <div className={embebido ? "" : "mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-6"}>
+      {!embebido && (
+        <header className="mb-5 flex items-center gap-3">
+          <Link href="/" className="btn btn-sec px-2.5" aria-label="Volver">‹</Link>
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Banco de pacientes</h1>
+            <p className="text-sm text-muted">Gente por conseguir o en espera, para cuando te falte un caso.</p>
+          </div>
+        </header>
+      )}
 
       {aviso && <p className="mb-4 rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent">{aviso}</p>}
 

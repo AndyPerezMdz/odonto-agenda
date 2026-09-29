@@ -222,7 +222,7 @@ export default function Agenda({ userId }: { userId: string }) {
           <span className="hidden sm:inline">Buscar</span>
         </button>
         <span className="hidden sm:contents">
-          <Link href="/pacientes" className="btn btn-sec" title="Banco de pacientes">
+          <Link href="/pacientes" className="btn btn-sec" title="Mis pacientes y banco de pacientes">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.4 3.2-5.5 6.5-5.5s5.9 2.1 6.5 5.5"/><path d="M19 8v6M16 11h6"/></svg>
             Pacientes
           </Link>
@@ -266,7 +266,7 @@ export default function Agenda({ userId }: { userId: string }) {
                   Novedades
                   {sinLeer && <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-medium text-panel">Nuevo</span>}
                 </button>
-                <Link href="/pacientes" className="block px-4 py-2.5 hover:bg-panel-2">Banco de pacientes</Link>
+                <Link href="/pacientes" className="block px-4 py-2.5 hover:bg-panel-2">Pacientes</Link>
                 <Link href="/personalizar" className="block px-4 py-2.5 hover:bg-panel-2">Personalizar</Link>
                 <button onClick={() => { setMenu(false); setVerInstalar(true); }} className="block w-full px-4 py-2.5 text-left hover:bg-panel-2">Instalar como app</button>
                 <a href={MANUAL_URL} target="_blank" rel="noopener noreferrer" className="block px-4 py-2.5 hover:bg-panel-2">Manual</a>

@@ -219,17 +219,28 @@ export default function Avance({ userId }: { userId: string }) {
         {filas.filter((f) => f.asistio > 0 || f.meta).map((f) => (
           <div key={f.materia?.id ?? "sin"} style={{ marginBottom: 16, breakInside: "avoid" }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, borderBottom: "1px solid #999", paddingBottom: 2 }}>
-              {f.materia?.nombre ?? "Sin materia"} — {f.asistio}{f.meta ? ` de ${f.meta}` : ""} caso{f.asistio === 1 ? "" : "s"}
+              {f.materia?.nombre ?? "Sin materia"} — {f.asistio}{f.meta ? ` de ${f.meta}` : ""} caso{(f.meta || f.asistio) === 1 ? "" : "s"}
             </h2>
             {f.pacientes.length === 0 ? (
               <p style={{ fontSize: 12, color: "#777" }}>Sin casos atendidos.</p>
             ) : (
-              <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse", marginTop: 4 }}>
+              <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse", marginTop: 4, tableLayout: "fixed" }}>
+                <thead>
+                  <tr style={{ color: "#777", fontSize: 10, textAlign: "left" }}>
+                    <th style={{ padding: "2px 6px", width: 28 }} />
+                    <th style={{ padding: "2px 6px", fontWeight: 600, width: "38%" }}>Paciente</th>
+                    <th style={{ padding: "2px 6px", fontWeight: 600, width: "16%" }}>Historia</th>
+                    <th style={{ padding: "2px 6px", fontWeight: 600, width: "16%" }}>Folio</th>
+                    <th style={{ padding: "2px 6px", fontWeight: 600, textAlign: "right" }}>Fecha</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {f.pacientes.map((c, i) => (
                     <tr key={c.id}>
                       <td style={{ padding: "2px 6px", width: 28, color: "#777" }}>{i + 1}.</td>
                       <td style={{ padding: "2px 6px" }}>{c.paciente}</td>
+                      <td style={{ padding: "2px 6px", fontVariantNumeric: "tabular-nums" }}>{c.historia ?? "—"}</td>
+                      <td style={{ padding: "2px 6px", fontVariantNumeric: "tabular-nums" }}>{c.folio ?? "—"}</td>
                       <td style={{ padding: "2px 6px", textAlign: "right", whiteSpace: "nowrap" }}>{fechaLarga(c.fecha)}</td>
                     </tr>
                   ))}
@@ -322,7 +333,7 @@ function FilaMateria({
         {editable && enBanco > 0 && (
           <>
             {" · "}
-            <Link href="/pacientes" className="text-accent hover:underline">{enBanco} en tu banco de pacientes</Link>
+            <Link href="/pacientes#banco" className="text-accent hover:underline">{enBanco} en tu banco de pacientes</Link>
           </>
         )}
       </p>

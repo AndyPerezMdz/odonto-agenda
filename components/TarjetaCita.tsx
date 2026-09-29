@@ -24,6 +24,18 @@ type Props = {
 // Una cita en lista (panel del día, vista de lista). Si ya pasó y es tuya, deja marcar Asistió/Faltó de un toque.
 export default function TarjetaCita({ cita: c, userId, hoy, dueno, clinica, materia, supabase, soloLectura, onAbrir, onCambio }: Props) {
   const [marcando, setMarcando] = useState(false);
+  const [folio, setFolio] = useState("");
+  const pideFolio = !soloLectura && c.owner_id === userId && c.estado === "asistio" && !c.folio;
+
+  async function guardarFolio(e: React.FormEvent) {
+    e.preventDefault();
+    if (!folio.trim()) return;
+    setMarcando(true);
+    await supabase.from("citas").update({ folio: folio.trim() }).eq("id", c.id);
+    setMarcando(false);
+    setFolio("");
+    onCambio();
+  }
   const est = estadoDe(c.estado);
   const cancelada = c.estado === "cancelo";
   const puedeMarcar = !soloLectura && c.owner_id === userId && !c.estado && c.fecha <= hoy;
@@ -56,7 +68,7 @@ export default function TarjetaCita({ cita: c, userId, hoy, dueno, clinica, mate
             </span>
           )}
           {c.estado && <span className={`rounded-md px-1.5 py-0.5 font-medium ${est.clase}`}>{est.corto}</span>}
-          {c.origen === "link" && <span className="rounded-md bg-[#fdf6e3] px-1.5 py-0.5 font-medium text-[#8a6a14] dark:bg-[#2a2415] dark:text-[#ecd9a4]">Por tu link</span>}
+          {c.folio && <span className="rounded-md bg-panel-2 px-1.5 py-0.5 tabular-nums text-muted">Folio {c.folio}</span>}
           {c.cobro != null && c.cobro > 0 && c.owner_id === userId && (
             <span className={`rounded-md px-1.5 py-0.5 font-medium ${c.cobrado ? "bg-panel-2 text-muted" : "bg-[#fdf6e3] text-[#5c4712] dark:bg-[#2a2415] dark:text-[#ecd9a4]"}`}>
               {c.cobrado ? `${pesos(c.cobro)} cobrado` : `${pesos(c.cobro)} por cobrar`}
@@ -74,6 +86,21 @@ export default function TarjetaCita({ cita: c, userId, hoy, dueno, clinica, mate
             WhatsApp
           </a>
         </div>
+      )}
+      {pideFolio && (
+        <form onSubmit={guardarFolio} className="flex items-center gap-1.5 border-t border-line px-3 py-2 text-xs">
+          <span className="mr-auto text-muted">¿Folio del tratamiento?</span>
+          <input
+            className="w-24 rounded-full border border-line bg-panel px-2.5 py-1 text-center tabular-nums"
+            inputMode="numeric"
+            maxLength={20}
+            placeholder="últimos 5"
+            value={folio}
+            onChange={(e) => setFolio(e.target.value.replace(/\s/g, ""))}
+            aria-label="Folio del tratamiento"
+          />
+          <button disabled={marcando || !folio.trim()} className="rounded-full border border-line px-2.5 py-1 font-medium hover:bg-panel-2 disabled:opacity-40">Guardar</button>
+        </form>
       )}
       {puedeMarcar && (
         <div className="flex items-center gap-1.5 border-t border-line px-3 py-2 text-xs">

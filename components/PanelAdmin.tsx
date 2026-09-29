@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/client";
 import type { AgendaAdmin, AvisoAdmin, Miembro, ResumenAdmin } from "@/lib/admin";
 import { Saludo, Numeros, Totales, HoyTeToca, Ingresos, PorCodigo, hace, diasSinEntrar, enPruebaViva, pagando, DIAS_FANTASMA } from "@/components/TableroAdmin";
 import type { CodigoAdmin } from "@/app/api/admin/codigos/route";
-import type { AvisoPremium } from "@/app/api/admin/premium/route";
 import { estadoPago, pesos, codigoAgenda, sumarDias } from "@/lib/pagos";
 import { fechaLarga, hoyISO } from "@/lib/fechas";
 
@@ -117,7 +116,6 @@ export default function PanelAdmin({ email }: { email: string }) {
                 }}
               />
             )}
-            <AvisosPremium onCambio={(msg) => { setAviso(msg); recargar(); }} />
             <HoyTeToca agendas={agendas} avisosPendientes={avisos.length} onVer={verAgenda} onAviso={setAviso} />
           </div>
           <div className="flex min-w-0 flex-col gap-4">
@@ -422,7 +420,6 @@ function TarjetaAgenda({ agenda, onCambio, onAviso }: { agenda: AgendaAdmin; onC
             trabajando={trabajando}
             onHacerDueno={() => accion(() => api(`/api/admin/agendas/${agenda.id}/dueno`, "POST", { userId: m.id }), `${m.nombre} ahora es el dueño.`)}
             onReenviar={() => accion(() => api(`/api/admin/agendas/${agenda.id}/reenviar`, "POST", { userId: m.id }), `Invitación reenviada a ${m.email}.`)}
-            onPremium={() => accion(() => api("/api/admin/premium", "POST", { perfilId: m.id, meses: 1 }), `${m.nombre}: +1 mes de link de citas.`)}
           />
         ))}
         {agenda.miembros.length === 0 && <li className="px-3 py-3 text-sm text-muted">Sin miembros.</li>}
@@ -464,9 +461,8 @@ function TarjetaAgenda({ agenda, onCambio, onAviso }: { agenda: AgendaAdmin; onC
   );
 }
 
-function FilaMiembro({ m, trabajando, onHacerDueno, onReenviar, onPremium }: { m: Miembro; trabajando: boolean; onHacerDueno: () => void; onReenviar: () => void; onPremium: () => void }) {
+function FilaMiembro({ m, trabajando, onHacerDueno, onReenviar }: { m: Miembro; trabajando: boolean; onHacerDueno: () => void; onReenviar: () => void }) {
   const esDueno = m.rol === "owner";
-  const premium = !!m.premiumHasta && m.premiumHasta >= hoyISO();
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
       <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${esDueno ? "bg-accent text-panel" : "bg-panel-2 text-muted"}`}>
@@ -477,11 +473,7 @@ function FilaMiembro({ m, trabajando, onHacerDueno, onReenviar, onPremium }: { m
         <p className="truncate text-xs text-muted">
           {m.pendiente ? "Invitación pendiente" : `${m.email} · ${m.citas} cita${m.citas === 1 ? "" : "s"} · ${hace(m.ultimoAcceso)}`}
         </p>
-        {premium && <p className="text-xs font-medium text-[#8a6a14] dark:text-[#ecd9a4]">Link de citas (premium) hasta el {fechaLarga(m.premiumHasta!)}</p>}
       </div>
-      {!m.pendiente && (
-        <button className="btn btn-sec py-1 text-xs" disabled={trabajando} onClick={onPremium} title="Para pagos en efectivo o cortesías">+1 mes premium</button>
-      )}
       {m.pendiente && (
         <button className="btn btn-sec py-1 text-xs" disabled={trabajando} onClick={onReenviar}>Reenviar invitación</button>
       )}
@@ -510,58 +502,6 @@ function insigniaPago(pagadoHasta: string | null) {
     default:
       return { t: "Vencida · sólo lectura", c: "bg-[#fbecea] text-[#7a1f1a] dark:bg-[#3a1d1b] dark:text-[#f1b5b0]" };
   }
-}
-
-function AvisosPremium({ onCambio }: { onCambio: (m: string) => void }) {
-  const [avisos, setAvisos] = useState<AvisoPremium[]>([]);
-  const [trabajando, setTrabajando] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const cargar = useCallback(async () => {
-    const d = await fetch("/api/admin/premium", { cache: "no-store" }).then((r) => r.json()).catch(() => ({}));
-    setAvisos(d.avisos ?? []);
-  }, []);
-  useEffect(() => {
-    cargar();
-  }, [cargar]);
-
-  async function hacer(v: AvisoPremium, metodo: "POST" | "PATCH", ok: string) {
-    if (trabajando) return;
-    setTrabajando(v.id);
-    setError(null);
-    const err = await api("/api/admin/premium", metodo, { avisoId: v.id });
-    setTrabajando(null);
-    if (err) return setError(err);
-    onCambio(ok);
-    cargar();
-  }
-
-  if (!avisos.length) return null;
-  return (
-    <section className="rounded-2xl border-2 border-[#c99a2e] bg-panel p-4 sm:p-5">
-      <h2 className="flex items-center gap-2 font-semibold">
-        <span className="grid h-6 min-w-6 place-items-center rounded-full bg-[#c99a2e] px-1.5 text-xs text-white">{avisos.length}</span>
-        Pagos de premium por confirmar
-      </h2>
-      <p className="mb-3 mt-0.5 text-sm text-muted">Link de citas. Busca en tu banco el concepto que empieza con PR-.</p>
-      <ul className="flex flex-col gap-2">
-        {avisos.map((v) => (
-          <li key={v.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-line p-3">
-            <span className="min-w-0 flex-1 text-sm">
-              <b>{v.nombre}</b> <span className="text-muted">· concepto {v.concepto}</span>
-              <span className="block text-xs text-muted">
-                {v.agenda ?? "Sin agenda"} · {v.monto != null ? pesos(v.monto) : "—"} · {fechaLarga(v.created_at.slice(0, 10))}{v.referencia ? ` · rastreo ${v.referencia}` : ""}
-              </span>
-            </span>
-            <span className="flex gap-2">
-              <button className="btn btn-primario py-1.5 text-sm" disabled={!!trabajando} onClick={() => hacer(v, "POST", `Premium de ${v.nombre} confirmado: +1 mes.`)}>Confirmar</button>
-              <button className="btn btn-sec py-1.5 text-sm" disabled={!!trabajando} onClick={() => hacer(v, "PATCH", `Aviso de ${v.nombre} descartado.`)}>No llegó</button>
-            </span>
-          </li>
-        ))}
-      </ul>
-      {error && <p className="mt-2 text-sm text-danger">{error}</p>}
-    </section>
-  );
 }
 
 function AvisosPago({ avisos, agendas, onCambio }: { avisos: AvisoAdmin[]; agendas: AgendaAdmin[]; onCambio: (m: string) => void }) {

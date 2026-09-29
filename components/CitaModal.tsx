@@ -46,6 +46,8 @@ export default function CitaModal({
   const [telefono, setTelefono] = useState(base?.telefono ?? "");
   const [cobro, setCobro] = useState(cita?.cobro != null ? String(cita.cobro) : "");
   const [cobrado, setCobrado] = useState(!!cita?.cobrado);
+  const [folio, setFolio] = useState(cita?.folio ?? "");
+  const [historia, setHistoria] = useState(base?.historia ?? "");
   const materiaSel = materias.find((m) => m.id === materiaId);
   const misPacientes = pacientes.filter((p) => p.owner_id === userId && p.estado !== "descartado");
 
@@ -57,6 +59,22 @@ export default function CitaModal({
       if (p.telefono && !telefono) setTelefono(p.telefono);
       if (p.materia_id && !materiaId) setMateriaId(p.materia_id);
     }
+  }
+  // Si ya atendiste a este paciente, trae su No. de historia clínica (y su teléfono si no lo tienes)
+  async function buscarHistoria() {
+    const nombre = paciente.trim();
+    if (!esMia || nombre.length < 3 || (historia && telefono)) return;
+    const { data } = await supabase
+      .from("citas")
+      .select("historia,telefono")
+      .eq("owner_id", userId)
+      .ilike("paciente", nombre)
+      .order("fecha", { ascending: false })
+      .limit(10);
+    const conHistoria = data?.find((c) => c.historia);
+    const conTel = data?.find((c) => c.telefono);
+    if (!historia && conHistoria?.historia) setHistoria(conHistoria.historia);
+    if (!telefono && conTel?.telefono) setTelefono(conTel.telefono);
   }
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -104,6 +122,8 @@ export default function CitaModal({
       telefono: telefono.trim() || null,
       cobro: cobro.trim() ? Math.max(0, Number(cobro)) : null,
       cobrado: cobro.trim() ? cobrado : false,
+      folio: folio.trim() || null,
+      historia: historia.trim() || null,
     };
 
     // Nueva y repetida: una por semana. Si alguna choca con otra cita, se salta y se avisa.
@@ -112,7 +132,8 @@ export default function CitaModal({
       const choques: string[] = [];
       for (let i = 0; i < veces; i++) {
         const f = sumarDias(fecha, 7 * i);
-        const { error } = await supabase.from("citas").insert({ ...datos, fecha: f });
+        // El folio es de UN tratamiento: sólo se queda en la primera de la serie
+        const { error } = await supabase.from("citas").insert({ ...datos, fecha: f, folio: i === 0 ? datos.folio : null });
         if (!error) ok++;
         else if (error.code === "23P01") choques.push(f);
         else {
@@ -203,7 +224,7 @@ export default function CitaModal({
 
         <fieldset disabled={!esMia || guardando} className="grid grid-cols-2 gap-3">
           <Campo label="Paciente">
-            <input className="campo" list="banco-pacientes" value={paciente} onChange={(e) => cambiarPaciente(e.target.value)} autoFocus={esNueva} required />
+            <input className="campo" list="banco-pacientes" value={paciente} onChange={(e) => cambiarPaciente(e.target.value)} onBlur={buscarHistoria} autoFocus={esNueva} required />
             <datalist id="banco-pacientes">
               {misPacientes.map((p) => <option key={p.id} value={p.nombre} />)}
             </datalist>
@@ -252,6 +273,13 @@ export default function CitaModal({
                 <option key={m.id} value={m.id}>{m.nombre}</option>
               ))}
             </select>
+          </Campo>
+
+          <Campo label="No. de historia clínica">
+            <input className="campo" inputMode="numeric" maxLength={30} value={historia} onChange={(e) => setHistoria(e.target.value)} placeholder="Opcional" />
+          </Campo>
+          <Campo label="Folio del tratamiento">
+            <input className="campo" inputMode="numeric" maxLength={20} value={folio} onChange={(e) => setFolio(e.target.value.replace(/\s/g, ""))} placeholder={esNueva ? "Puedes ponerlo después" : "Últimos 5 dígitos"} />
           </Campo>
 
           {materiaSel?.material?.trim() && (
