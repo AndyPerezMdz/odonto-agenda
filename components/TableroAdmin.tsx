@@ -217,7 +217,7 @@ function pendientesDe(agendas: AgendaAdmin[]): Pendiente[] {
 
     // 3) Cuentas colgadas
     if (!dueno && !a.invitacionPendiente) {
-      lista.push({ id: `sindueno-${a.id}`, nivel: "ojo", agenda: a, titulo: "No tiene dueño/a", detalle: "Invita a alguien o bórrala." });
+      lista.push({ id: `sindueno-${a.id}`, nivel: "ojo", agenda: a, titulo: "No tiene dueño/a", detalle: "Hazle dueño a alguien o bórrala." });
     } else if (a.invitacionPendiente) {
       lista.push({ id: `inv-${a.id}`, nivel: "ojo", agenda: a, titulo: "Invitación sin aceptar", detalle: a.invitacionPendiente });
     }

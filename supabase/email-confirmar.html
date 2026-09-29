@@ -1,0 +1,15 @@
+<!-- Pega esto en: Supabase → Authentication → Emails → Templates → "Confirm signup"
+     Asunto sugerido: Tu código para la Agenda de clínicas: {{ .Token }}
+     Va SIN botón a propósito: los antivirus de algunos correos abren los links solos y los "gastan". El código no. -->
+<div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; color: #1c1b19;">
+  <h2 style="margin: 0 0 12px;">Confirma tu correo</h2>
+  <p style="margin: 0 0 20px; color: #4a4843;">
+    Escribe este código en la Agenda de clínicas para terminar de crear tu cuenta:
+  </p>
+  <p style="margin: 0 0 24px; font-size: 34px; font-weight: bold; letter-spacing: 8px; color: #2f5d50; background: #e3ece8; border-radius: 10px; padding: 14px 0; text-align: center;">
+    {{ .Token }}
+  </p>
+  <p style="margin: 0; font-size: 13px; color: #6d6a63;">
+    El código caduca en 1 hora. Si tú no creaste una cuenta, ignora este correo.
+  </p>
+</div>

@@ -1,12 +1,20 @@
 // Versión de la app y lo nuevo de cada una. Al publicar una actualización:
 // 1) sube APP_VERSION, 2) agrega su bloque ARRIBA de la lista. Cada quien la ve una vez.
 
-export const APP_VERSION = "1.6";
+export const APP_VERSION = "1.7";
 
 export type Novedad = { titulo: string; texto: string; icono: keyof typeof ICONOS };
 export type Version = { version: string; fecha: string; items: Novedad[] };
 
 export const NOVEDADES: Version[] = [
+  {
+    version: "1.7",
+    fecha: "septiembre 2026",
+    items: [
+      { icono: "enlace", titulo: "Invita con un link", texto: "¿Tu compañero/a no recibe correos? Copia tu link en Personalizar → Agenda y mándaselo por WhatsApp: se registra y entra directo." },
+      { icono: "citas", titulo: "Tu link de citas (premium)", texto: "Tus pacientes eligen un horario libre desde tu link y la cita cae sola en tu agenda. Lo activas en Personalizar → Mi link." },
+    ],
+  },
   {
     version: "1.6",
     fecha: "septiembre 2026",
@@ -61,5 +69,7 @@ export const ICONOS = {
   material: "M9 4h6M9 4a2 2 0 0 0 0 4h6a2 2 0 0 0 0-4M15 6h2a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2M9 13l2 2 4-4",
   cobro: "M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
   reloj: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
+  enlace: "M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7",
+  citas: "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 14v4M10 16h4",
   estrella: "m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z",
 };

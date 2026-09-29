@@ -1,7 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { superadminEnSesion } from "@/lib/admin";
-import { correoValido, invitarUsuario } from "@/lib/invitar";
-import { urlSitio } from "@/lib/recordatorios";
 
 export const dynamic = "force-dynamic";
 
@@ -9,13 +7,12 @@ const noExiste = () => NextResponse.json({ error: "No encontrado" }, { status: 4
 
 /**
  * POST { userId }  → convierte a ese miembro en el dueño (el dueño anterior pasa a compañero)
- * POST { email }   → invita a un dueño nuevo, o reenvía la invitación si sigue pendiente
  */
 export async function POST(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const s = await superadminEnSesion();
   if (!s) return noExiste();
   const { id: agendaId } = await ctx.params;
-  const body = (await request.json().catch(() => ({}))) as { userId?: string; email?: string };
+  const body = (await request.json().catch(() => ({}))) as { userId?: string };
 
   const { data: miembros, error } = await s.db.from("perfiles").select("id,rol").eq("agenda_id", agendaId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -35,21 +32,5 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
     return NextResponse.json({ ok: true });
   }
 
-  // --- Invitar / reenviar al dueño por correo
-  const email = body.email?.trim().toLowerCase() ?? "";
-  if (!correoValido(email)) return NextResponse.json({ error: "Correo no válido." }, { status: 400 });
-
-  if (duenoActual) {
-    const { data: u } = await s.db.auth.admin.getUserById(duenoActual.id);
-    const pendiente = !u.user?.email_confirmed_at;
-    if (!pendiente) {
-      return NextResponse.json({ error: "Esta agenda ya tiene un dueño activo. Usa “Hacer dueño” para cambiarlo." }, { status: 409 });
-    }
-    // Reenviar: se borra la invitación vieja y se manda una nueva
-    await s.db.auth.admin.deleteUser(duenoActual.id);
-  }
-
-  const r = await invitarUsuario(s.db, { email, agendaId, rol: "owner", sitio: urlSitio(request.nextUrl.origin) });
-  if (r.error) return NextResponse.json({ error: r.error }, { status: 400 });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ error: "Indica a quién hacer dueño." }, { status: 400 });
 }

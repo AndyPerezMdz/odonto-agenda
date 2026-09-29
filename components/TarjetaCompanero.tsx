@@ -85,6 +85,62 @@ export function FormInvitar({ onEnviado, emailInicial = "", textoBoton = "Enviar
 
 /* ------------------------------------------------------------------ */
 
+/** Link para que el compañero/a se registre y entre directo, sin correo de invitación. */
+export function LinkCompanero() {
+  const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState(false);
+
+  const cargar = useCallback(async (nuevo = false) => {
+    const res = await fetch("/api/companero/enlace", { method: nuevo ? "POST" : "GET", cache: "no-store" });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setUrl(d.url);
+      setError(null);
+    } else setError(d.error ?? "No se pudo crear el link.");
+  }, []);
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  async function copiar() {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      setError("No se pudo copiar; mantén presionado el link para copiarlo.");
+    }
+  }
+
+  const mensaje = url ? `¡Hola! Te invito a compartir mi Agenda de clínicas. Regístrate aquí y entras directo a mi agenda: ${url}` : "";
+  return (
+    <div className="mt-4 rounded-xl border border-dashed border-line p-3">
+      <p className="text-sm font-medium">O mándale un link por WhatsApp</p>
+      <p className="mb-3 mt-0.5 text-xs text-muted">Se registra desde ahí y entra directo a tu agenda. Sirve una sola vez.</p>
+      {error && <p className="mb-2 text-sm text-danger">{error}</p>}
+      {url && (
+        <>
+          <p className="mb-3 truncate rounded-lg bg-panel-2 px-3 py-2 font-mono text-xs text-muted" title={url}>{url}</p>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn btn-sec text-sm" onClick={copiar}>{copiado ? "¡Copiado!" : "Copiar link"}</button>
+            <a className="btn text-sm text-white" style={{ background: "#25D366" }} href={`https://wa.me/?text=${encodeURIComponent(mensaje)}`} target="_blank" rel="noopener noreferrer">
+              Mandar por WhatsApp
+            </a>
+            <button className="ml-auto text-xs text-muted hover:text-ink" onClick={() => cargar(true)} title="El link anterior deja de servir">
+              Generar otro
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
 export default function TarjetaCompanero({ onCambio }: { onCambio: () => void }) {
   const { estado, error, recargar } = useCompanero();
   const [confirmando, setConfirmando] = useState(false);
@@ -119,12 +175,15 @@ export default function TarjetaCompanero({ onCambio }: { onCambio: () => void })
       {aviso && <p className="mb-3 text-sm text-accent">{aviso}</p>}
 
       {estado && !c && (
-        <FormInvitar
-          onEnviado={(email) => {
-            setAviso(`Invitación enviada a ${email}.`);
-            recargar();
-          }}
-        />
+        <>
+          <FormInvitar
+            onEnviado={(email) => {
+              setAviso(`Invitación enviada a ${email}.`);
+              recargar();
+            }}
+          />
+          <LinkCompanero />
+        </>
       )}
 
       {c && (

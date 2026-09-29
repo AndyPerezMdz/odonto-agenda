@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { AgendaAdmin, AvisoAdmin, Miembro, ResumenAdmin } from "@/lib/admin";
 import { Saludo, Numeros, Totales, HoyTeToca, Ingresos, PorCodigo, hace, diasSinEntrar, enPruebaViva, pagando, DIAS_FANTASMA } from "@/components/TableroAdmin";
 import type { CodigoAdmin } from "@/app/api/admin/codigos/route";
+import type { AvisoPremium } from "@/app/api/admin/premium/route";
 import { estadoPago, pesos, codigoAgenda, sumarDias } from "@/lib/pagos";
 import { fechaLarga, hoyISO } from "@/lib/fechas";
 
@@ -30,7 +31,7 @@ export default function PanelAdmin({ email }: { email: string }) {
   const [resumen, setResumen] = useState<ResumenAdmin | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  const [pestana, setPestana] = useState<"agendas" | "nueva" | "codigos" | "ajustes">("agendas");
+  const [pestana, setPestana] = useState<"agendas" | "codigos" | "ajustes">("agendas");
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [abierta, setAbierta] = useState<string | null>(null);
@@ -116,6 +117,7 @@ export default function PanelAdmin({ email }: { email: string }) {
                 }}
               />
             )}
+            <AvisosPremium onCambio={(msg) => { setAviso(msg); recargar(); }} />
             <HoyTeToca agendas={agendas} avisosPendientes={avisos.length} onVer={verAgenda} onAviso={setAviso} />
           </div>
           <div className="flex min-w-0 flex-col gap-4">
@@ -130,7 +132,6 @@ export default function PanelAdmin({ email }: { email: string }) {
         {(
           [
             ["agendas", `Agendas${agendas ? ` (${agendas.length})` : ""}`],
-            ["nueva", "+ Nueva"],
             ["codigos", "Códigos"],
             ["ajustes", "Datos de pago"],
           ] as const
@@ -145,15 +146,6 @@ export default function PanelAdmin({ email }: { email: string }) {
         ))}
       </nav>
 
-      {pestana === "nueva" && (
-        <NuevaAgenda
-          onCreada={(msg) => {
-            setAviso(msg);
-            setPestana("agendas");
-            recargar();
-          }}
-        />
-      )}
 
       {pestana === "ajustes" && <DatosBancarios onAviso={setAviso} />}
 
@@ -189,7 +181,7 @@ export default function PanelAdmin({ email }: { email: string }) {
           {!agendas && !error && <p className="text-sm text-muted">Cargando…</p>}
           {agendas?.length === 0 && (
             <p className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">
-              Aún no hay agendas. Crea la primera en <b>+ Nueva agenda</b>.
+              Aún no hay agendas. Cuando alguien se registre en <b>/registro</b>, aparece aquí.
             </p>
           )}
           {agendas && agendas.length > 0 && visibles.length === 0 && (
@@ -275,138 +267,6 @@ function FilaAgenda({
       </button>
       {abierta && <TarjetaAgenda agenda={agenda} onCambio={onCambio} onAviso={onAviso} />}
     </div>
-  );
-}
-
-type Chequeo = { valido: boolean; pruebaUsada?: boolean; usadaEl?: string | null; agenda?: string | null; tieneCuenta?: boolean };
-
-function NuevaAgenda({ onCreada }: { onCreada: (msg: string) => void }) {
-  const [nombre, setNombre] = useState("");
-  const [correo, setCorreo] = useState("");
-  const [notas, setNotas] = useState("");
-  const [inicio, setInicio] = useState("prueba");
-  const [precio, setPrecio] = useState(200);
-  const [codigo, setCodigo] = useState("");
-  const [codigos, setCodigos] = useState<CodigoAdmin[]>([]);
-  const [chequeo, setChequeo] = useState<Chequeo | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/admin/codigos", { cache: "no-store" }).then((r) => r.json()).then((d) => setCodigos((d.codigos ?? []).filter((c: CodigoAdmin) => c.activo))).catch(() => {});
-  }, []);
-
-  // Al escribir el correo: ¿ya usó su mes gratis? ¿ya tiene cuenta?
-  useEffect(() => {
-    const email = correo.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setChequeo(null);
-    const t = setTimeout(async () => {
-      const d: Chequeo = await fetch(`/api/admin/pruebas?email=${encodeURIComponent(email)}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({ valido: false }));
-      setChequeo(d);
-      if (d.pruebaUsada) setInicio((i) => (i === "prueba" ? "pagado" : i));
-    }, 400);
-    return () => clearTimeout(t);
-  }, [correo]);
-
-  const codigoSel = codigos.find((c) => c.codigo === codigo.trim().toUpperCase());
-
-  async function crear(e: React.FormEvent) {
-    e.preventDefault();
-    setEnviando(true);
-    setError(null);
-    const res = await fetch("/api/admin/agendas", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nombre, emailDueno: correo, notas, inicio, precio, codigo }),
-    });
-    const d = await res.json().catch(() => ({}));
-    setEnviando(false);
-    if (!res.ok) return setError(d.error ?? `Error ${res.status}`);
-    onCreada(
-      d.existente
-        ? `Agenda “${nombre || "Agenda de clínicas"}” creada. ${correo} ya tenía cuenta: verá la invitación al entrar a su agenda.`
-        : `Agenda “${nombre || "Agenda de clínicas"}” creada. Invitación enviada a ${correo}.`
-    );
-    setNombre("");
-    setCorreo("");
-    setNotas("");
-    setCodigo("");
-    setInicio("prueba");
-  }
-
-  return (
-    <form onSubmit={crear} className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
-      <h2 className="font-semibold">Nueva agenda</h2>
-      <p className="mb-4 mt-0.5 text-sm text-muted">Para un cliente nuevo. Al dueño le llega un correo para crear su contraseña; después él invita a su compañero.</p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">Nombre de la agenda</span>
-          <input className="campo" placeholder="Agenda de clínicas" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">Correo del dueño</span>
-          <input type="email" required className="campo" placeholder="cliente@correo.com" value={correo} onChange={(e) => setCorreo(e.target.value)} />
-        </label>
-
-        {chequeo?.valido && (chequeo.pruebaUsada || chequeo.tieneCuenta) && (
-          <div className="rounded-xl bg-[#fdf6e3] p-3 text-sm text-[#5c4712] sm:col-span-2 dark:bg-[#2a2415] dark:text-[#ecd9a4]">
-            {chequeo.pruebaUsada && (
-              <p>
-                <b>Ya usó su mes gratis</b>
-                {chequeo.usadaEl && <> el {new Date(chequeo.usadaEl).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}</>}
-                {chequeo.agenda && <> en “{chequeo.agenda}”</>}. Esta agenda tiene que empezar pagada (o de cortesía).
-              </p>
-            )}
-            {chequeo.tieneCuenta && (
-              <p className={chequeo.pruebaUsada ? "mt-1" : ""}>
-                <b>Ya tiene cuenta.</b> Verá la invitación al entrar a su agenda; si acepta, su agenda actual se borra y pasa a ésta.
-              </p>
-            )}
-          </div>
-        )}
-
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">Inicio</span>
-          <select className="campo" value={inicio} onChange={(e) => setInicio(e.target.value)}>
-            <option value="prueba" disabled={!!chequeo?.pruebaUsada}>
-              Mes gratis{codigoSel ? ` + ${codigoSel.meses_extra} por código` : ""}{chequeo?.pruebaUsada ? " (ya lo usó)" : ""}
-            </option>
-            <option value="pagado">Ya pagó el primer mes</option>
-            <option value="cortesia">Cortesía (sin vencimiento)</option>
-          </select>
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">Precio mensual (MXN)</span>
-          <input type="number" min={0} className="campo" value={precio} onChange={(e) => setPrecio(Number(e.target.value))} />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">Código de creador <span className="font-normal text-muted">(opcional)</span></span>
-          <input className="campo uppercase placeholder:normal-case" list="codigos-activos" placeholder="Ej. JENRRY" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
-          <datalist id="codigos-activos">
-            {codigos.map((c) => (
-              <option key={c.codigo} value={c.codigo}>{c.creador}</option>
-            ))}
-          </datalist>
-          {codigo.trim() && (
-            <span className="mt-1 block text-xs text-muted">
-              {codigoSel
-                ? inicio === "prueba"
-                  ? `De ${codigoSel.creador}: +${codigoSel.meses_extra} mes${codigoSel.meses_extra === 1 ? "" : "es"} gratis.`
-                  : `De ${codigoSel.creador}. Se registra, pero sin meses extra (sólo aplican con mes gratis).`
-                : "No hay un código activo con ese nombre."}
-            </span>
-          )}
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">Notas internas <span className="font-normal text-muted">(sólo tú las ves)</span></span>
-          <input className="campo" placeholder="Ej. Ana y Luis, 3er semestre" value={notas} onChange={(e) => setNotas(e.target.value)} />
-        </label>
-      </div>
-      {error && <p className="mt-3 text-sm text-danger">{error}</p>}
-      <div className="mt-4 flex justify-end">
-        <button className="btn btn-primario" disabled={enviando}>{enviando ? "Creando…" : "Crear agenda e invitar"}</button>
-      </div>
-    </form>
   );
 }
 
@@ -562,6 +422,7 @@ function TarjetaAgenda({ agenda, onCambio, onAviso }: { agenda: AgendaAdmin; onC
             trabajando={trabajando}
             onHacerDueno={() => accion(() => api(`/api/admin/agendas/${agenda.id}/dueno`, "POST", { userId: m.id }), `${m.nombre} ahora es el dueño.`)}
             onReenviar={() => accion(() => api(`/api/admin/agendas/${agenda.id}/reenviar`, "POST", { userId: m.id }), `Invitación reenviada a ${m.email}.`)}
+            onPremium={() => accion(() => api("/api/admin/premium", "POST", { perfilId: m.id, meses: 1 }), `${m.nombre}: +1 mes de link de citas.`)}
           />
         ))}
         {agenda.miembros.length === 0 && <li className="px-3 py-3 text-sm text-muted">Sin miembros.</li>}
@@ -569,16 +430,12 @@ function TarjetaAgenda({ agenda, onCambio, onAviso }: { agenda: AgendaAdmin; onC
 
       {!dueno && (
         <div className="mt-3 rounded-xl bg-[#fdf6e3] p-3 text-sm text-[#5c4712] dark:bg-[#2a2415] dark:text-[#ecd9a4]">
-          <p className="mb-2 font-medium">Esta agenda no tiene dueño.</p>
-          <p className="mb-3">
+          <p className="font-medium">Esta agenda no tiene dueño.</p>
+          <p className="mt-1">
             {agenda.miembros.some((m) => !m.pendiente)
-              ? "Usa “Hacer dueño” en la persona correcta, o invita a alguien nuevo:"
-              : "Invita a quien será el dueño:"}
+              ? "Usa “Hacer dueño” en la persona correcta."
+              : "Ya nadie la usa: puedes eliminarla. Las cuentas nuevas se registran solas en /registro."}
           </p>
-          <InvitarDueno
-            onEnviar={(email) => accion(() => api(`/api/admin/agendas/${agenda.id}/dueno`, "POST", { email }), `Invitación enviada a ${email}.`)}
-            trabajando={trabajando}
-          />
         </div>
       )}
 
@@ -607,8 +464,9 @@ function TarjetaAgenda({ agenda, onCambio, onAviso }: { agenda: AgendaAdmin; onC
   );
 }
 
-function FilaMiembro({ m, trabajando, onHacerDueno, onReenviar }: { m: Miembro; trabajando: boolean; onHacerDueno: () => void; onReenviar: () => void }) {
+function FilaMiembro({ m, trabajando, onHacerDueno, onReenviar, onPremium }: { m: Miembro; trabajando: boolean; onHacerDueno: () => void; onReenviar: () => void; onPremium: () => void }) {
   const esDueno = m.rol === "owner";
+  const premium = !!m.premiumHasta && m.premiumHasta >= hoyISO();
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
       <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${esDueno ? "bg-accent text-panel" : "bg-panel-2 text-muted"}`}>
@@ -619,7 +477,11 @@ function FilaMiembro({ m, trabajando, onHacerDueno, onReenviar }: { m: Miembro; 
         <p className="truncate text-xs text-muted">
           {m.pendiente ? "Invitación pendiente" : `${m.email} · ${m.citas} cita${m.citas === 1 ? "" : "s"} · ${hace(m.ultimoAcceso)}`}
         </p>
+        {premium && <p className="text-xs font-medium text-[#8a6a14] dark:text-[#ecd9a4]">Link de citas (premium) hasta el {fechaLarga(m.premiumHasta!)}</p>}
       </div>
+      {!m.pendiente && (
+        <button className="btn btn-sec py-1 text-xs" disabled={trabajando} onClick={onPremium} title="Para pagos en efectivo o cortesías">+1 mes premium</button>
+      )}
       {m.pendiente && (
         <button className="btn btn-sec py-1 text-xs" disabled={trabajando} onClick={onReenviar}>Reenviar invitación</button>
       )}
@@ -627,22 +489,6 @@ function FilaMiembro({ m, trabajando, onHacerDueno, onReenviar }: { m: Miembro; 
         <button className="btn btn-sec py-1 text-xs" disabled={trabajando} onClick={onHacerDueno}>Hacer dueño</button>
       )}
     </li>
-  );
-}
-
-function InvitarDueno({ onEnviar, trabajando }: { onEnviar: (email: string) => void; trabajando: boolean }) {
-  const [email, setEmail] = useState("");
-  return (
-    <form
-      className="flex flex-col gap-2 sm:flex-row"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onEnviar(email.trim());
-      }}
-    >
-      <input type="email" required className="campo" placeholder="dueño@correo.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-      <button className="btn btn-primario shrink-0" disabled={trabajando}>Invitar como dueño</button>
-    </form>
   );
 }
 
@@ -664,6 +510,58 @@ function insigniaPago(pagadoHasta: string | null) {
     default:
       return { t: "Vencida · sólo lectura", c: "bg-[#fbecea] text-[#7a1f1a] dark:bg-[#3a1d1b] dark:text-[#f1b5b0]" };
   }
+}
+
+function AvisosPremium({ onCambio }: { onCambio: (m: string) => void }) {
+  const [avisos, setAvisos] = useState<AvisoPremium[]>([]);
+  const [trabajando, setTrabajando] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const cargar = useCallback(async () => {
+    const d = await fetch("/api/admin/premium", { cache: "no-store" }).then((r) => r.json()).catch(() => ({}));
+    setAvisos(d.avisos ?? []);
+  }, []);
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  async function hacer(v: AvisoPremium, metodo: "POST" | "PATCH", ok: string) {
+    if (trabajando) return;
+    setTrabajando(v.id);
+    setError(null);
+    const err = await api("/api/admin/premium", metodo, { avisoId: v.id });
+    setTrabajando(null);
+    if (err) return setError(err);
+    onCambio(ok);
+    cargar();
+  }
+
+  if (!avisos.length) return null;
+  return (
+    <section className="rounded-2xl border-2 border-[#c99a2e] bg-panel p-4 sm:p-5">
+      <h2 className="flex items-center gap-2 font-semibold">
+        <span className="grid h-6 min-w-6 place-items-center rounded-full bg-[#c99a2e] px-1.5 text-xs text-white">{avisos.length}</span>
+        Pagos de premium por confirmar
+      </h2>
+      <p className="mb-3 mt-0.5 text-sm text-muted">Link de citas. Busca en tu banco el concepto que empieza con PR-.</p>
+      <ul className="flex flex-col gap-2">
+        {avisos.map((v) => (
+          <li key={v.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-line p-3">
+            <span className="min-w-0 flex-1 text-sm">
+              <b>{v.nombre}</b> <span className="text-muted">· concepto {v.concepto}</span>
+              <span className="block text-xs text-muted">
+                {v.agenda ?? "Sin agenda"} · {v.monto != null ? pesos(v.monto) : "—"} · {fechaLarga(v.created_at.slice(0, 10))}{v.referencia ? ` · rastreo ${v.referencia}` : ""}
+              </span>
+            </span>
+            <span className="flex gap-2">
+              <button className="btn btn-primario py-1.5 text-sm" disabled={!!trabajando} onClick={() => hacer(v, "POST", `Premium de ${v.nombre} confirmado: +1 mes.`)}>Confirmar</button>
+              <button className="btn btn-sec py-1.5 text-sm" disabled={!!trabajando} onClick={() => hacer(v, "PATCH", `Aviso de ${v.nombre} descartado.`)}>No llegó</button>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+    </section>
+  );
 }
 
 function AvisosPago({ avisos, agendas, onCambio }: { avisos: AvisoAdmin[]; agendas: AgendaAdmin[]; onCambio: (m: string) => void }) {

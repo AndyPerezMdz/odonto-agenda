@@ -19,6 +19,14 @@ export type Prueba = { email: string; agenda_id: string | null; usada_at: string
 
 export const normalizar = (email: string) => email.trim().toLowerCase();
 
+/** Llave del mes gratis: en Gmail ignora puntos y "+algo" (es el mismo buzón). Igual que public.correo_prueba(). */
+export function clavePrueba(email: string) {
+  const e = normalizar(email);
+  const [local, dominio] = e.split("@");
+  if (dominio === "gmail.com" || dominio === "googlemail.com") return `${local.split("+")[0].replace(/\./g, "")}@gmail.com`;
+  return e;
+}
+
 /** Hasta cuándo dura la prueba que empieza hoy: 1 mes + los meses extra de un código. */
 export function finDePrueba(mesesExtra = 0) {
   return sumarDias(sumarMeses(fechaEnZona(0), 1 + mesesExtra), -1);
@@ -35,7 +43,7 @@ export async function agendaEnPrueba(db: Db, agendaId: string) {
 }
 
 export async function pruebaDe(db: Db, email: string): Promise<Prueba | null> {
-  const { data } = await db.from("pruebas").select("email,agenda_id,usada_at,devuelta_at").eq("email", normalizar(email)).maybeSingle();
+  const { data } = await db.from("pruebas").select("email,agenda_id,usada_at,devuelta_at").eq("email", clavePrueba(email)).maybeSingle();
   return (data as Prueba) ?? null;
 }
 
@@ -45,7 +53,7 @@ export function gastadaEnOtra(p: Prueba | null, agendaId?: string) {
 }
 
 export async function gastarPrueba(db: Db, email: string, agendaId: string) {
-  const correo = normalizar(email);
+  const correo = clavePrueba(email);
   const p = await pruebaDe(db, correo);
   if (p?.usada_at && p.agenda_id === agendaId) return; // ya contada aquí
   if (p) await db.from("pruebas").update({ usada_at: new Date().toISOString(), agenda_id: agendaId }).eq("email", correo);
@@ -61,7 +69,7 @@ export function devolucionAplica(p: Prueba | null, agendaId: string) {
 export async function devolverSiAplica(db: Db, email: string, agendaId: string) {
   const p = await pruebaDe(db, email);
   if (!devolucionAplica(p, agendaId)) return false;
-  await db.from("pruebas").update({ usada_at: null, agenda_id: null, devuelta_at: new Date().toISOString() }).eq("email", normalizar(email));
+  await db.from("pruebas").update({ usada_at: null, agenda_id: null, devuelta_at: new Date().toISOString() }).eq("email", clavePrueba(email));
   return true;
 }
 

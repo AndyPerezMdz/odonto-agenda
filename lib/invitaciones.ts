@@ -17,13 +17,14 @@ type Db = ReturnType<typeof createAdminClient>;
 
 export async function crearInvitacion(
   db: Db,
-  i: { agendaId: string; email: string; rol: "owner" | "companero"; quien: string; sitio: string }
+  i: { agendaId: string; email: string; rol: "owner" | "companero"; quien: string; sitio: string; sinCorreo?: boolean }
 ) {
   const email = normalizar(i.email);
   await db.from("invitaciones").delete().eq("agenda_id", i.agendaId).eq("rol", i.rol);
   const { error } = await db.from("invitaciones").insert({ agenda_id: i.agendaId, email, rol: i.rol });
   if (error) return { error: error.message };
 
+  if (i.sinCorreo) return { ok: true }; // llegó por link: la verá al entrar
   const { data: a } = await db.from("agendas").select("nombre").eq("id", i.agendaId).single();
   try {
     await enviarConResend({

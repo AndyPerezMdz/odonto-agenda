@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Cita, Clinica, Horario, Materia, Paciente, Perfil } from "@/lib/types";
 
-export const CAMPOS_CITA = "id,owner_id,paciente,fecha,hora_inicio,hora_fin,clinica_id,materia_id,notas,estado,telefono,cobro,cobrado";
+export const CAMPOS_CITA = "id,owner_id,paciente,fecha,hora_inicio,hora_fin,clinica_id,materia_id,notas,estado,telefono,cobro,cobrado,origen";
 
 /** Perfiles + catálogos, con recarga en tiempo real. */
 export function useCatalogos() {

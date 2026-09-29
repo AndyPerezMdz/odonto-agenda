@@ -13,6 +13,7 @@ export type Miembro = {
   citas: number;
   color: string | null;
   ultimoAcceso: string | null; // ISO: la más reciente entre abrir la agenda e iniciar sesión
+  premiumHasta: string | null;
 };
 
 export type PagoAdmin = { id: string; monto: number; meses: number; metodo: string; referencia: string | null; cubre_desde: string; cubre_hasta: string; created_at: string };
@@ -76,7 +77,7 @@ export async function listarAgendas(db: Db): Promise<{ agendas: AgendaAdmin[]; a
   ] =
     await Promise.all([
       db.from("agendas").select("id,nombre,notas,created_at,pagado_hasta,precio_mensual,prueba_hasta,codigo").order("created_at"),
-      db.from("perfiles").select("id,nombre,rol,agenda_id,color,ultimo_acceso").not("agenda_id", "is", null),
+      db.from("perfiles").select("id,nombre,rol,agenda_id,color,ultimo_acceso,premium_hasta").not("agenda_id", "is", null),
       db.from("citas").select("owner_id,agenda_id,created_at"),
       db.auth.admin.listUsers({ perPage: 1000 }),
       db.from("pagos").select("id,agenda_id,monto,meses,metodo,referencia,cubre_desde,cubre_hasta,created_at").order("created_at", { ascending: false }).order("cubre_hasta", { ascending: false }),
@@ -119,6 +120,7 @@ export async function listarAgendas(db: Db): Promise<{ agendas: AgendaAdmin[]; a
           citas: citasPorPersona.get(p.id) ?? 0,
           color: p.color ?? null,
           ultimoAcceso: masReciente(p.ultimo_acceso, u?.last_sign_in_at),
+          premiumHasta: p.premium_hasta ?? null,
         };
       })
       .sort((x, y) => (x.rol === "owner" ? -1 : y.rol === "owner" ? 1 : 0));

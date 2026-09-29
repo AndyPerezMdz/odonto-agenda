@@ -22,7 +22,7 @@ export default function TerminosPage() {
 
       <h2>2. Cuentas</h2>
       <ul>
-        <li>Sólo se entra por invitación. Cada agenda tiene un <b>dueño/a</b> y, como máximo, <b>un compañero/a</b>.</li>
+        <li>Cualquier persona puede crear su cuenta en <b>/registro</b>, confirmando su correo con un código. Quien crea una agenda es su <b>dueño/a</b> y puede tener, como máximo, <b>un compañero/a</b>, que entra por invitación (correo o link).</li>
         <li>El dueño/a decide a quién invita y puede quitar a su compañero/a; al hacerlo se borran la cuenta y las citas de esa persona.</li>
         <li>Tu contraseña es personal: no la compartas. Eres responsable de lo que se haga con tu cuenta.</li>
       </ul>
@@ -42,6 +42,8 @@ export default function TerminosPage() {
         <li>Los meses ya pagados no son reembolsables, salvo que se haya cobrado por error.</li>
         <li><b>Mes gratis:</b> uno por persona, seas dueño/a o compañero/a. Si entras a una agenda que está en su mes gratis, usas el tuyo. A una agenda pagada puedes entrar sin gastarlo. Si dejas una agenda en su mes gratis para entrar a una pagada dentro de los primeros 7 días, te lo devolvemos (sólo una vez).</li>
         <li><b>Códigos de creador:</b> dan meses gratis extra, sólo durante el mes gratis de una agenda nueva, y sólo uno por agenda.</li>
+        <li>Si ya usaste tu mes gratis y creas una agenda nueva, empieza sin él: la ves, pero para agendar primero se paga el mes.</li>
+        <li><b>Tu link de citas (premium):</b> es opcional, se paga aparte, <b>por persona</b> y por mes (el precio aparece en <b>Personalizar → Mi link</b>). Se paga igual, por transferencia y “Ya pagué”. Si no se renueva, el link deja de recibir citas; las que ya estaban se quedan en tu agenda. Tú eres responsable de atender o reprogramar a quien reserve.</li>
         <li>Si el precio cambia, te avisaremos con al menos 30 días de anticipación.</li>
       </ul>
 

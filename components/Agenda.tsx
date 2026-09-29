@@ -341,7 +341,7 @@ export default function Agenda({ userId }: { userId: string }) {
                 bloquesDelDia(horarios, iso, duenoFiltro).map((b) => (
                   <p key={b.id} className="mb-1.5 flex items-center gap-2 text-xs text-muted">
                     <span className="h-2 w-2 rounded-sm border" style={{ borderColor: perfilPorId.get(b.owner_id)?.color }} />
-                    {b.clinica_id ? clinicaPorId.get(b.clinica_id)?.numero : b.etiqueta ?? "Clínica"} · {hhmm(b.hora_inicio)}–{hhmm(b.hora_fin)}
+                    {(b.clinica_id && clinicaPorId.get(b.clinica_id)?.numero) || b.etiqueta || "Clínica"} · {hhmm(b.hora_inicio)}–{hhmm(b.hora_fin)}
                     {b.owner_id !== userId && ` · ${perfilPorId.get(b.owner_id)?.nombre}`}
                   </p>
                 ))
@@ -389,7 +389,7 @@ export default function Agenda({ userId }: { userId: string }) {
                       className="hidden truncate pl-1 text-[10px] leading-tight text-muted sm:block"
                       style={{ borderLeft: `2px dashed ${perfilPorId.get(b.owner_id)?.color ?? "#888"}` }}
                     >
-                      {hhmm(b.hora_inicio)}–{hhmm(b.hora_fin)} {b.clinica_id ? clinicaPorId.get(b.clinica_id)?.numero : b.etiqueta ?? "Clínica"}
+                      {hhmm(b.hora_inicio)}–{hhmm(b.hora_fin)} {(b.clinica_id && clinicaPorId.get(b.clinica_id)?.numero) || b.etiqueta || "Clínica"}
                     </span>
                   ))}
 
@@ -447,7 +447,7 @@ export default function Agenda({ userId }: { userId: string }) {
                   <div key={b.id} className="mb-1 last:mb-0">
                     <p className="flex items-center gap-2">
                       <span className="h-2 w-2 rounded-sm border" style={{ borderColor: perfilPorId.get(b.owner_id)?.color }} />
-                      <span className="font-medium">{b.clinica_id ? clinicaPorId.get(b.clinica_id)?.numero : b.etiqueta ?? "Clínica"}</span>
+                      <span className="font-medium">{(b.clinica_id && clinicaPorId.get(b.clinica_id)?.numero) || b.etiqueta || "Clínica"}</span>
                       <span className="tabular-nums text-muted">{hhmm(b.hora_inicio)}–{hhmm(b.hora_fin)}</span>
                       <span className="ml-auto text-xs text-muted">{b.owner_id === userId ? "Tú" : perfilPorId.get(b.owner_id)?.nombre}</span>
                     </p>

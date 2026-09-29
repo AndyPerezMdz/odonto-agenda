@@ -48,8 +48,14 @@ export default function LoginPage() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     if (error) {
-      setError("Correo o contraseña incorrectos.");
       setCargando(false);
+      if (error.code === "email_not_confirmed") {
+        // Se registró pero no puso el código: lo mandamos a confirmarlo (y le llega uno nuevo)
+        await supabase.auth.resend({ type: "signup", email: email.trim().toLowerCase() });
+        router.push(`/registro?confirmar=${encodeURIComponent(email.trim().toLowerCase())}`);
+        return;
+      }
+      setError("Correo o contraseña incorrectos.");
       return;
     }
     router.replace("/");
@@ -91,7 +97,10 @@ export default function LoginPage() {
         <button type="submit" className="btn btn-primario w-full" disabled={cargando}>
           {cargando ? "Entrando…" : "Entrar"}
         </button>
-        <p className="mt-5 text-center text-xs text-muted">
+        <p className="mt-5 text-center text-sm text-muted">
+          ¿No tienes cuenta? <Link href="/registro" className="font-medium text-accent hover:underline">Crea tu agenda</Link>
+        </p>
+        <p className="mt-3 text-center text-xs text-muted">
           <Link href="/privacidad" className="hover:text-ink">Aviso de privacidad</Link> ·{" "}
           <Link href="/terminos" className="hover:text-ink">Términos</Link> ·{" "}
           <Link href="/novedades" className="hover:text-ink">Novedades</Link>

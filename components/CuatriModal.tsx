@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Perfil } from "@/lib/types";
-import { useCompanero, quitar, FormInvitar } from "@/components/TarjetaCompanero";
+import { useCompanero, quitar, FormInvitar, LinkCompanero } from "@/components/TarjetaCompanero";
 
 type Paso = "pregunta" | "confirmarBorrar" | "invitar" | "listo";
 
@@ -93,7 +93,7 @@ export default function CuatriModal({ yo, onCambio, onVisible }: { yo: Perfil; o
         {paso === "invitar" && (
           <>
             <h2 className="mb-2 text-lg font-semibold">Invita a tu nuevo compañero/a</h2>
-            <p className="mb-4 text-sm text-muted">Escribe su correo y le mandamos la invitación para entrar a la agenda.</p>
+            <p className="mb-4 text-sm text-muted">Escribe su correo y le mandamos la invitación, o mándale el link por WhatsApp.</p>
             <FormInvitar
               onEnviado={(email) => {
                 setMensaje(`Invitación enviada a ${email}.`);
@@ -101,6 +101,7 @@ export default function CuatriModal({ yo, onCambio, onVisible }: { yo: Perfil; o
                 onCambio();
               }}
             />
+            <LinkCompanero />
             <button className="mt-4 w-full text-center text-sm text-muted hover:text-ink" onClick={() => setCerrado(true)}>
               Lo invito después (desde Personalizar)
             </button>

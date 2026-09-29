@@ -16,7 +16,7 @@ type Datos = {
   ultimoAviso: { estado: "pendiente" | "confirmado" | "descartado"; fecha: string } | null;
 };
 
-function Copiable({ etiqueta, valor, grande }: { etiqueta: string; valor: string; grande?: boolean }) {
+export function Copiable({ etiqueta, valor, grande }: { etiqueta: string; valor: string; grande?: boolean }) {
   const [copiado, setCopiado] = useState(false);
   return (
     <div className="flex items-center justify-between gap-3 border-b border-line py-2.5 last:border-0">

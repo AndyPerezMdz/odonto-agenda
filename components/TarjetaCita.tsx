@@ -56,6 +56,7 @@ export default function TarjetaCita({ cita: c, userId, hoy, dueno, clinica, mate
             </span>
           )}
           {c.estado && <span className={`rounded-md px-1.5 py-0.5 font-medium ${est.clase}`}>{est.corto}</span>}
+          {c.origen === "link" && <span className="rounded-md bg-[#fdf6e3] px-1.5 py-0.5 font-medium text-[#8a6a14] dark:bg-[#2a2415] dark:text-[#ecd9a4]">Por tu link</span>}
           {c.cobro != null && c.cobro > 0 && c.owner_id === userId && (
             <span className={`rounded-md px-1.5 py-0.5 font-medium ${c.cobrado ? "bg-panel-2 text-muted" : "bg-[#fdf6e3] text-[#5c4712] dark:bg-[#2a2415] dark:text-[#ecd9a4]"}`}>
               {c.cobrado ? `${pesos(c.cobro)} cobrado` : `${pesos(c.cobro)} por cobrar`}

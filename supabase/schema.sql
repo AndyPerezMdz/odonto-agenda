@@ -595,6 +595,88 @@ create policy configuracion_select on public.configuracion
   for select to authenticated using (clave = 'pago');
 
 -- =====================================================================
--- Listo. Después: entra a /admin con tu cuenta para asignar al dueño de
--- cada agenda o crear agendas nuevas para tus clientes.
+-- 1.7 · REGISTRO LIBRE, LINK PARA EL COMPAÑERO Y "TU LINK DE CITAS" (PREMIUM)
+-- =====================================================================
+
+-- Mes gratis: en Gmail, "pepi.to+2@gmail.com" y "pepito@gmail.com" son el mismo buzón.
+-- Se guardan normalizados para que no se pueda repetir la prueba con ese truco.
+create or replace function public.correo_prueba(e text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when split_part(lower(trim(e)), '@', 2) in ('gmail.com', 'googlemail.com')
+      then replace(split_part(split_part(lower(trim(e)), '@', 1), '+', 1), '.', '') || '@gmail.com'
+    else lower(trim(e))
+  end
+$$;
+-- Normaliza los registros que ya existían (si dos quedan iguales, se conserva el primero)
+delete from public.pruebas a using public.pruebas b
+  where a.ctid > b.ctid and public.correo_prueba(a.email) = public.correo_prueba(b.email);
+update public.pruebas set email = public.correo_prueba(email) where email <> public.correo_prueba(email);
+
+-- Link para que el compañero/a se una sin correo de invitación (uno por agenda; se renueva al usarse)
+create table if not exists public.enlaces_union (
+  agenda_id  uuid primary key references public.agendas (id) on delete cascade,
+  token      text not null unique,
+  created_at timestamptz not null default now()
+);
+alter table public.enlaces_union enable row level security; -- sólo el servidor lo lee/escribe
+
+-- Premium "Tu link de citas": por persona
+alter table public.perfiles add column if not exists premium_hasta date;
+alter table public.perfiles add column if not exists slug text;
+alter table public.perfiles add column if not exists link_activo boolean not null default false;
+create unique index if not exists perfiles_slug_idx on public.perfiles (lower(slug)) where slug is not null;
+
+-- Nadie se regala premium desde la app: premium_hasta sólo lo cambia el servidor
+create or replace function public.proteger_rol()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if current_user = 'authenticated'
+     and (new.rol is distinct from old.rol or new.agenda_id is distinct from old.agenda_id
+          or new.premium_hasta is distinct from old.premium_hasta) then
+    raise exception 'No puedes cambiar tu rol, tu agenda ni tu premium.';
+  end if;
+  return new;
+end;
+$$;
+
+-- De dónde vino la cita (null = la capturó la alumna; 'link' = la agendó el paciente)
+alter table public.citas add column if not exists origen text;
+alter table public.citas drop constraint if exists citas_origen_valido;
+alter table public.citas add constraint citas_origen_valido check (origen is null or origen in ('link'));
+
+-- Avisos de pago del premium ("Ya pagué"), aparte de los de la agenda
+create table if not exists public.avisos_premium (
+  id         uuid primary key default gen_random_uuid(),
+  perfil_id  uuid not null references public.perfiles (id) on delete cascade,
+  monto      numeric,
+  referencia text,
+  estado     text not null default 'pendiente' check (estado in ('pendiente', 'confirmado', 'descartado')),
+  created_at timestamptz not null default now()
+);
+alter table public.avisos_premium enable row level security;
+drop policy if exists avisos_premium_select on public.avisos_premium;
+create policy avisos_premium_select on public.avisos_premium
+  for select to authenticated using (perfil_id = auth.uid());
+
+-- Precio del premium (lo cambias aquí o desde el SQL Editor)
+insert into public.configuracion (clave, valor)
+values ('premium', '{"precio": 49}'::jsonb)
+on conflict (clave) do nothing;
+drop policy if exists configuracion_select on public.configuracion;
+create policy configuracion_select on public.configuracion
+  for select to authenticated using (clave in ('pago', 'premium'));
+
+-- =====================================================================
+-- Listo. Las cuentas nuevas se registran solas en /registro.
+-- En Supabase: Authentication → Sign In / Providers → Email:
+--   "Enable email signups" y "Confirm email" ENCENDIDOS.
+-- Y pega supabase/email-confirmar.html en la plantilla "Confirm signup".
 -- =====================================================================
