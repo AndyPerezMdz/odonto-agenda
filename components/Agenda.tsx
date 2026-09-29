@@ -546,7 +546,7 @@ export default function Agenda({ userId }: { userId: string }) {
 
       {/* Pie: versión, novedades e instalar (siempre a la mano) */}
       <footer className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-muted">
-        <Link href="/novedades" className="hover:text-ink">Agenda de clínicas · versión {APP_VERSION}</Link>
+        <Link href={`/novedades${uady ? "?u=uady" : ""}`} className="hover:text-ink">Agenda de clínicas · versión {APP_VERSION}</Link>
         <span aria-hidden>·</span>
         <button onClick={() => setNovedades(sinLeer ? "nuevas" : "todas")} className="inline-flex items-center gap-1 hover:text-ink">
           Novedades

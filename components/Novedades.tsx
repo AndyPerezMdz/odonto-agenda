@@ -50,7 +50,7 @@ export default function Novedades({ supabase, userId, vista, universidad, todas 
 
         <div className="overflow-y-auto p-5">
           <ListaNovedades lista={lista} conVersion={todas || lista.length > 1} />
-          <Link href="/novedades" onClick={onClose} className="mt-5 block text-center text-sm font-medium text-accent hover:underline">
+          <Link href={`/novedades${universidad === "uady" ? "?u=uady" : ""}`} onClick={onClose} className="mt-5 block text-center text-sm font-medium text-accent hover:underline">
             Ver todas las versiones →
           </Link>
         </div>

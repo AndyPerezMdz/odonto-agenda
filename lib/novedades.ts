@@ -1,5 +1,6 @@
 // Versión de la app y lo nuevo de cada una. Al publicar una actualización:
 // 1) sube APP_VERSION, 2) agrega su bloque ARRIBA de la lista. Cada quien la ve una vez.
+// 3) Si es sólo para una universidad, ponle solo: "upp" o solo: "uady". Sin "solo" le sale a las dos.
 
 export const APP_VERSION = "1.8";
 
@@ -21,6 +22,7 @@ export const NOVEDADES: Version[] = [
   {
     version: "1.7",
     fecha: "septiembre 2026",
+    solo: "upp",
     items: [
       { icono: "enlace", titulo: "Invita con un link", texto: "¿Tu compañero/a no recibe correos? Copia tu link en Personalizar → Agenda y mándaselo por WhatsApp: se registra y entra directo." },
       { icono: "folio", titulo: "Folio e historia clínica", texto: "Guarda el folio de cada tratamiento y el No. de historia de tu paciente. El folio lo puedes poner después de atender, desde la misma cita." },
@@ -30,6 +32,7 @@ export const NOVEDADES: Version[] = [
   {
     version: "1.6",
     fecha: "septiembre 2026",
+    solo: "upp",
     items: [
       { icono: "whatsapp", titulo: "Confirma por WhatsApp", texto: "Guarda el teléfono del paciente y con un toque le mandas “¿me confirmas tu cita?”, ya escrito." },
       { icono: "pacientes", titulo: "Banco de pacientes", texto: "Anota a la gente que te recomiendan, por materia. Cuando te falte un caso, ahí tienes a quién escribirle." },
@@ -41,6 +44,7 @@ export const NOVEDADES: Version[] = [
   {
     version: "1.5",
     fecha: "septiembre 2026",
+    solo: "upp",
     items: [
       { icono: "avance", titulo: "Mi avance", texto: "Cuántos casos llevas por materia contra tu meta, y la lista de pacientes atendidos en PDF." },
       { icono: "check", titulo: "¿Llegó tu paciente?", texto: "Marca cada cita como Asistió, Faltó o Canceló con un toque. Sólo cuentan las que asistieron." },
@@ -63,9 +67,14 @@ export function versionMayor(a: string, b: string) {
   return false;
 }
 
-/** Novedades que le tocan a una universidad (las generales + las suyas). */
+/**
+ * Novedades que le tocan a una universidad: las suyas + las generales (sin "solo").
+ * Cada universidad tiene su propia historia: a la UADY no le salen las de la UPP (1.5–1.7) ni al revés.
+ * Sin universidad (p. ej. alguien sin sesión) = la historia de la UPP.
+ */
 export function novedadesDe(universidad?: string | null): Version[] {
-  return NOVEDADES.filter((v) => !v.solo || v.solo === universidad);
+  const u = universidad === "uady" ? "uady" : "upp";
+  return NOVEDADES.filter((v) => !v.solo || v.solo === u);
 }
 
 /** Versiones que la persona no ha visto. Sin registro = cuenta de antes de 1.5: le tocan todas. */

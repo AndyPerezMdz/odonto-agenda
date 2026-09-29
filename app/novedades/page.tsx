@@ -3,13 +3,14 @@ import Link from "next/link";
 import ListaNovedades from "@/components/ListaNovedades";
 import { APP_VERSION, novedadesDe } from "@/lib/novedades";
 
-// Página pública: sólo las novedades generales (las de cada universidad se ven dentro de la agenda)
-const NOVEDADES = novedadesDe(null);
 
 export const metadata: Metadata = { title: "Novedades — Agenda de clínicas" };
 
 // Historial público de versiones: qué trae cada actualización (no pide sesión).
-export default function NovedadesPage() {
+// /novedades?u=uady muestra la historia de la UADY; sin ?u, la de la UPP.
+export default async function NovedadesPage({ searchParams }: { searchParams: Promise<{ u?: string }> }) {
+  const { u } = await searchParams;
+  const NOVEDADES = novedadesDe(u);
   return (
     <main className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
       <div className="mb-6 flex items-center gap-3">
@@ -17,7 +18,7 @@ export default function NovedadesPage() {
         <img src="/icon.svg" alt="" width={40} height={40} className="h-10 w-10" />
         <div>
           <p className="text-sm text-muted">Agenda de clínicas · versión {APP_VERSION}</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Novedades</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Novedades{u === "uady" ? " · UADY" : ""}</h1>
         </div>
       </div>
 
