@@ -1,5 +1,6 @@
 import "server-only";
-import { aplicarPlantilla } from "@/lib/plantillasServer";
+import { sembrarMaterias } from "@/lib/universidadesServer";
+import { esUniversidad, universidad } from "@/lib/universidades";
 import { randomBytes } from "crypto";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { APP_VERSION } from "@/lib/novedades";
@@ -50,7 +51,7 @@ type Resultado = { ok: true; agenda: "creada" | "unido" | "invitacion" | "ya"; a
 export async function completarRegistro(
   db: Db,
   user: { id: string; email?: string | null },
-  datos: { nombre?: string; codigo?: string; unir?: string; plantilla?: string; sitio: string }
+  datos: { nombre?: string; codigo?: string; unir?: string; universidad?: string; sitio: string }
 ): Promise<Resultado> {
   const email = user.email ?? "";
   if (!email) return { ok: false, error: "Tu cuenta no tiene correo." };
@@ -86,7 +87,9 @@ export async function completarRegistro(
 
   if (perfil?.agenda_id) return { ok: true, agenda: "ya" };
 
-  // --- Su propia agenda
+  // --- Su propia agenda: la universidad es obligatoria y queda fija para siempre
+  if (!esUniversidad(datos.universidad)) return { ok: false, error: "Elige tu universidad.", motivo: "universidad" };
+  const uni = universidad(datos.universidad);
   const p = await pruebaDe(db, email);
   const usada = !!p?.usada_at;
   let codigo: string | null = null;
@@ -102,7 +105,7 @@ export async function completarRegistro(
   const hasta = usada ? sumarDias(fechaEnZona(0), -(DIAS_GRACIA + 1)) : finDePrueba(mesesExtra);
   const { data: agenda, error } = await db
     .from("agendas")
-    .insert({ nombre: `Agenda de ${nombre.split(" ")[0]}`, precio_mensual: 200, pagado_hasta: hasta, prueba_hasta: usada ? null : hasta, codigo })
+    .insert({ nombre: `Agenda de ${nombre.split(" ")[0]}`, precio_mensual: 200, pagado_hasta: hasta, prueba_hasta: usada ? null : hasta, codigo, universidad: uni.id, semana_clinicas: uni.semana })
     .select("id")
     .single();
   if (error || !agenda) return { ok: false, error: error?.message ?? "No se pudo crear tu agenda." };
@@ -113,7 +116,7 @@ export async function completarRegistro(
     return { ok: false, error: e2.message };
   }
   if (!usada) await gastarPrueba(db, email, agenda.id);
-  if (datos.plantilla) await aplicarPlantilla(db, agenda.id, datos.plantilla); // calendario y materias de su uni
+  await sembrarMaterias(db, agenda.id, uni.id); // las materias de su universidad (UADY), con su duración
 
   return { ok: true, agenda: "creada", aviso: usada ? MENSAJE_SIN_PRUEBA : aviso };
 }

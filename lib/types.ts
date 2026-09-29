@@ -21,15 +21,15 @@ export type Perfil = {
   fin_clinicas?: string | null; // hasta cuándo hay clínicas este periodo (vacío = fin del periodo)
 };
 
-/** Ajustes de la agenda compartida (calendario escolar y turnos). */
+/** Ajustes de la agenda compartida. La universidad se elige al registrarse y nunca cambia. */
 export type AjustesAgenda = {
-  periodos: "cuatrimestre" | "semestre";
+  universidad: "upp" | "uady";
   semana_clinicas: number;
   turnos: "ninguno" | "hora" | "clinica" | "semana";
   turnos_inicia: string | null;
 };
 
-export const AJUSTES_DEFAULT: AjustesAgenda = { periodos: "cuatrimestre", semana_clinicas: 1, turnos: "ninguno", turnos_inicia: null };
+export const AJUSTES_DEFAULT: AjustesAgenda = { universidad: "upp", semana_clinicas: 1, turnos: "ninguno", turnos_inicia: null };
 
 export type EstadoMaterial = "listo" | "usado" | "ceye";
 export type NivelMaterial = "hay" | "poco" | "nada";

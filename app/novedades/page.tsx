@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import ListaNovedades from "@/components/ListaNovedades";
-import { APP_VERSION, NOVEDADES } from "@/lib/novedades";
+import { APP_VERSION, novedadesDe } from "@/lib/novedades";
+
+// Página pública: sólo las novedades generales (las de cada universidad se ven dentro de la agenda)
+const NOVEDADES = novedadesDe(null);
 
 export const metadata: Metadata = { title: "Novedades — Agenda de clínicas" };
 

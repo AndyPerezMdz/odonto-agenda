@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCatalogos, useHorarios } from "@/lib/useDatos";
 import MiHorario from "@/components/MiHorario";
 import AjustesCalendario from "@/components/AjustesCalendario";
-import { DURACIONES, textoDuracion } from "@/lib/plantillas";
+import { DURACIONES, esUady, textoDuracion } from "@/lib/universidades";
 import { prefs, type Preferencias } from "@/lib/types";
 import { TEMAS, MARCADORES, aplicarTema, type MarcadorId } from "@/lib/tema";
 import MarcadorHoy from "@/components/MarcadorHoy";
@@ -19,6 +19,7 @@ export default function Personalizar({ userId }: { userId: string }) {
   const yo = perfiles.find((p) => p.id === userId);
   const { horarios, recargar: recargarHorarios } = useHorarios();
   const esDueno = yo?.rol === "owner";
+  const uady = esUady(ajustes.universidad); // duración por materia, materia en el horario, turnos
   const [pestana, setPestana] = useState<"yo" | "agenda" | "suscripcion">("yo");
 
   // /personalizar#suscripcion (o #agenda) abre directo esa pestaña
@@ -72,7 +73,7 @@ export default function Personalizar({ userId }: { userId: string }) {
       {/* Las pestañas se ocultan (no se desmontan) para no perder lo que llevas escrito */}
       <div className={`flex flex-col gap-5 ${pestana === "yo" ? "" : "hidden"}`}>
         {yo && <MiPerfil key={yo.id} supabase={supabase} yo={yo} onGuardado={recargar} />}
-        <MiHorario supabase={supabase} userId={userId} horarios={horarios} clinicas={clinicas} materias={materias} onCambio={recargarHorarios} />
+        <MiHorario supabase={supabase} userId={userId} horarios={horarios} clinicas={clinicas} materias={materias} conMateria={uady} onCambio={recargarHorarios} />
       </div>
 
       {esDueno && (
@@ -84,7 +85,7 @@ export default function Personalizar({ userId }: { userId: string }) {
       <div className={`flex flex-col gap-5 ${pestana === "agenda" ? "" : "hidden"}`}>
         {esDueno && <TarjetaCompanero onCambio={recargar} />}
 
-        <AjustesCalendario ajustes={ajustes} perfiles={perfiles} userId={userId} onCambio={recargar} />
+        {uady && <AjustesCalendario ajustes={ajustes} perfiles={perfiles} userId={userId} onCambio={recargar} />}
 
         <Catalogo
           titulo="Clínicas"
@@ -100,7 +101,7 @@ export default function Personalizar({ userId }: { userId: string }) {
 
         <Catalogo
           titulo="Materias"
-          descripcion="Cada materia puede tener su color, cuánto dura una cita y su lista de material (qué llevar a sus citas)."
+          descripcion={uady ? "Cada materia puede tener su color, cuánto dura una cita y su lista de material (qué llevar a sus citas)." : "Cada materia puede tener su color y su lista de material (qué llevar a sus citas)."}
           placeholder="Ej. Prostodoncia"
           conColor
           items={materias.map((m) => ({ id: m.id, nombre: m.nombre, activo: m.activo, color: m.color, material: m.material, duracion: m.duracion_min ?? null }))}
@@ -110,7 +111,7 @@ export default function Personalizar({ userId }: { userId: string }) {
           onRenombrar={(id, nombre) => supabase.from("materias").update({ nombre }).eq("id", id)}
           onColor={(id, color) => supabase.from("materias").update({ color }).eq("id", id)}
           onMaterial={(id, material) => supabase.from("materias").update({ material }).eq("id", id)}
-          onDuracion={(id, duracion_min) => supabase.from("materias").update({ duracion_min }).eq("id", id)}
+          onDuracion={uady ? (id, duracion_min) => supabase.from("materias").update({ duracion_min }).eq("id", id) : undefined}
           onToggle={(id, activo) => supabase.from("materias").update({ activo }).eq("id", id)}
           onBorrar={(id) => supabase.from("materias").delete().eq("id", id)}
           onCambio={recargar}

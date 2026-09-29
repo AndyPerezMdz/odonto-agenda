@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AuthCard from "@/components/AuthCard";
 import { completarRegistro, leerPendiente, type ResultadoRegistro } from "@/lib/registroCliente";
+import { UNIVERSIDADES } from "@/lib/universidades";
 
 // Cuenta con sesión pero sin agenda: recién confirmó su correo (por link) o la quitaron de una agenda.
 export default function SinAgenda() {
@@ -25,7 +26,7 @@ export default function SinAgenda() {
   // Si se acaba de registrar (dejó datos pendientes), termina solo
   useEffect(() => {
     const p = leerPendiente();
-    if (p.nombre || p.unir) crear(p);
+    if (p.unir || (p.nombre && p.universidad)) crear(p);
     else setEstado("elegir");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -52,7 +53,15 @@ export default function SinAgenda() {
       titulo="Todavía no tienes agenda"
       subtitulo={r && !r.ok ? r.error : "Crea la tuya, o pídele a tu compañero/a el link para unirte a la suya."}
     >
-      <button className="btn btn-primario mb-2 w-full" onClick={() => crear({})}>Crear mi agenda</button>
+      <p className="mb-2 text-sm font-medium">Crear mi agenda de…</p>
+      <div className="mb-1 grid grid-cols-2 gap-2">
+        {UNIVERSIDADES.map((u) => (
+          <button key={u.id} className="btn btn-primario" onClick={() => crear({ ...leerPendiente(), universidad: u.id })}>
+            {u.nombre}
+          </button>
+        ))}
+      </div>
+      <p className="mb-2 text-xs text-muted">La universidad no se puede cambiar después.</p>
       <p className="mb-4 text-xs text-muted">Si ya usaste tu mes gratis, tu agenda empieza sin él: para agendar primero se paga el mes.</p>
       <form action="/auth/salir" method="post">
         <button className="btn btn-sec w-full">Cerrar sesión</button>

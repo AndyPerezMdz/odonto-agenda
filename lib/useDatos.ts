@@ -23,7 +23,7 @@ export function useCatalogos() {
       supabase.from("perfiles").select("id,nombre,color,preferencias,rol,periodo_confirmado,acepto_terminos_at,version_vista,fin_clinicas").order("created_at"),
       supabase.from("clinicas").select("id,numero,descripcion,activo").order("numero"),
       supabase.from("materias").select("id,nombre,color,activo,material,duracion_min").order("nombre"),
-      supabase.from("agendas").select("nombre,pagado_hasta,periodos,semana_clinicas,turnos,turnos_inicia").maybeSingle(),
+      supabase.from("agendas").select("nombre,pagado_hasta,universidad,semana_clinicas,turnos,turnos_inicia").maybeSingle(),
     ]);
     if (p.data) setPerfiles(p.data as Perfil[]);
     if (c.data) setClinicas(c.data as Clinica[]);

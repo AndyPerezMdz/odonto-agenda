@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import AuthCard from "@/components/AuthCard";
-import { PLANTILLAS } from "@/lib/plantillas";
+import { UNIVERSIDADES } from "@/lib/universidades";
 import { completarRegistro, guardarPendiente, leerPendiente, type ResultadoRegistro } from "@/lib/registroCliente";
 
 type Enlace = { agenda: string; dueno: string | null; ocupada: boolean };
@@ -88,11 +88,12 @@ function Registro() {
     if (!nombre.trim()) return setError("Escribe tu nombre.");
     if (password.length < 8) return setError("La contraseña debe tener al menos 8 caracteres.");
     if (password !== confirmar) return setError("Las contraseñas no coinciden.");
+    if (!unir && !uni) return setError("Elige tu universidad.");
     if (!acepto) return setError("Para continuar, acepta el Aviso de privacidad y los Términos.");
 
     setCargando(true);
     const correo = email.trim().toLowerCase();
-    guardarPendiente({ nombre: nombre.trim(), codigo: codigoCreador.trim(), unir, email: correo, plantilla: uni });
+    guardarPendiente({ nombre: nombre.trim(), codigo: codigoCreador.trim(), unir, email: correo, universidad: uni || undefined });
     const supabase = createClient();
     const { data, error } = await supabase.auth.signUp({
       email: correo,
@@ -228,12 +229,23 @@ function Registro() {
 
         {!unir && (
           <>
-            <label className="mb-1 block text-sm font-medium" htmlFor="uni">Universidad</label>
-            <select id="uni" className="campo mb-1" value={uni} onChange={(e) => setUni(e.target.value)}>
-              <option value="">Elige tu universidad…</option>
-              {PLANTILLAS.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-            </select>
-            <p className="mb-4 text-xs text-muted">{PLANTILLAS.find((p) => p.id === uni)?.detalle ?? "Para ajustar tu agenda a tus semestres o cuatrimestres. Lo puedes cambiar después."}</p>
+            <p className="mb-1 block text-sm font-medium" id="uni">Universidad</p>
+            <div className="mb-1 grid grid-cols-2 gap-2" role="radiogroup" aria-labelledby="uni">
+              {UNIVERSIDADES.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={uni === u.id}
+                  onClick={() => { setUni(u.id); setError(null); }}
+                  className={`rounded-xl border px-3 py-2.5 text-left ${uni === u.id ? "border-accent bg-accent-soft" : "border-line hover:bg-panel-2"}`}
+                >
+                  <span className={`block font-semibold ${uni === u.id ? "text-accent" : ""}`}>{u.nombre}</span>
+                  <span className="text-xs text-muted">{u.periodos === "semestre" ? "Semestres" : "Cuatrimestres"}</span>
+                </button>
+              ))}
+            </div>
+            <p className="mb-4 text-xs text-muted">Tu agenda se arma para tu universidad. <b>No se puede cambiar después.</b></p>
 
             <label className="mb-1 block text-sm font-medium" htmlFor="codigo">
               Código de creador <span className="font-normal text-muted">(opcional)</span>

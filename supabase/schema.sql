@@ -646,14 +646,48 @@ alter table public.citas add constraint citas_historia_largo check (historia is 
 create index if not exists citas_owner_paciente_idx on public.citas (owner_id, lower(paciente));
 
 -- =====================================================================
--- 1.8 · SEMESTRES, RITMO, TURNOS Y MI MATERIAL
+-- 1.8 · UNIVERSIDAD DE CADA AGENDA (UPP / UADY) Y FUNCIONES DE LA UADY
 -- =====================================================================
 
--- Calendario escolar de cada agenda: cuatrimestres (ene/may/sep) o semestres (ene–jul, ago–dic),
--- y en qué semana del periodo empiezan las clínicas (en la UADY, la 2ª).
-alter table public.agendas add column if not exists periodos text not null default 'cuatrimestre';
+-- Cada agenda es de UNA universidad, se elige al registrarse y NUNCA cambia.
+-- Las que ya existían son de la UPP (cuatrimestres, todo igual que antes).
+-- La UADY va por semestres (ago–dic, ene–jul) y tiene ritmo, turnos, Mi material y duración por materia.
+alter table public.agendas add column if not exists universidad text not null default 'upp';
+alter table public.agendas drop constraint if exists agendas_universidad_valida;
+alter table public.agendas add constraint agendas_universidad_valida check (universidad in ('upp', 'uady'));
+-- Si alguna vez corriste la versión anterior de este bloque (con "periodos"), se quita: ahora sale de la universidad
 alter table public.agendas drop constraint if exists agendas_periodos_valido;
-alter table public.agendas add constraint agendas_periodos_valido check (periodos in ('cuatrimestre', 'semestre'));
+alter table public.agendas drop column if exists periodos;
+
+create or replace function public.universidad_fija()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.universidad is distinct from old.universidad then
+    raise exception 'La universidad de una agenda no se puede cambiar.';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists agendas_universidad_fija on public.agendas;
+create trigger agendas_universidad_fija before update on public.agendas
+  for each row execute function public.universidad_fija();
+
+-- Universidad de mi agenda (para las políticas de lo que es sólo de la UADY)
+create or replace function public.mi_universidad()
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select a.universidad from public.agendas a where a.id = public.mi_agenda()
+$$;
+grant execute on function public.mi_universidad() to authenticated;
+
+-- UADY: en qué semana del semestre empiezan las clínicas (normalmente la 2ª)
 alter table public.agendas add column if not exists semana_clinicas int not null default 1;
 alter table public.agendas drop constraint if exists agendas_semana_valida;
 alter table public.agendas add constraint agendas_semana_valida check (semana_clinicas between 1 and 8);
@@ -676,7 +710,7 @@ alter table public.materias add constraint materias_duracion_valida check (durac
 -- Qué materia es cada bloque del horario (para contar las clínicas que te quedan por materia)
 alter table public.horarios add column if not exists materia_id uuid references public.materias (id) on delete set null;
 
--- MI MATERIAL: instrumental de cada quien (listo / usado / en CEyE) y consumibles de los dos (hay / poco / se acabó)
+-- MI MATERIAL (sólo UADY): instrumental de cada quien (listo / usado / en CEyE) y consumibles de los dos (hay / poco / se acabó)
 create table if not exists public.material (
   id            uuid primary key default gen_random_uuid(),
   agenda_id     uuid not null default public.mi_agenda() references public.agendas (id) on delete cascade,
@@ -699,7 +733,8 @@ drop policy if exists material_select on public.material;
 create policy material_select on public.material for select to authenticated using (agenda_id = (select public.mi_agenda()));
 drop policy if exists material_insert on public.material;
 create policy material_insert on public.material for insert to authenticated
-  with check (owner_id = (select auth.uid()) and agenda_id = (select public.mi_agenda()) and (select public.agenda_activa()));
+  with check (owner_id = (select auth.uid()) and agenda_id = (select public.mi_agenda()) and (select public.agenda_activa())
+              and (select public.mi_universidad()) = 'uady');
 drop policy if exists material_update on public.material;
 create policy material_update on public.material for update to authenticated
   using (agenda_id = (select public.mi_agenda()) and (owner_id = (select auth.uid()) or compartido) and (select public.agenda_activa()))

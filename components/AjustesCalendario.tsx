@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import type { AjustesAgenda, Perfil } from "@/lib/types";
-import { PLANTILLAS } from "@/lib/plantillas";
 
 const MODOS: { id: AjustesAgenda["turnos"]; nombre: string; detalle: string }[] = [
   { id: "ninguno", nombre: "Cada quien lo suyo", detalle: "Cada quien opera a sus propios pacientes." },
@@ -11,11 +10,10 @@ const MODOS: { id: AjustesAgenda["turnos"]; nombre: string; detalle: string }[] 
   { id: "semana", nombre: "Una semana y una semana", detalle: "Una semana opera uno y la siguiente el otro." },
 ];
 
-// Calendario escolar (cuatrimestres o semestres), semana en que arrancan clínicas y turnos de la pareja.
+// UADY: semana en que arrancan las clínicas y turnos de la pareja para operar.
 export default function AjustesCalendario({
   ajustes, perfiles, userId, onCambio,
 }: { ajustes: AjustesAgenda; perfiles: Perfil[]; userId: string; onCambio: () => void }) {
-  const [uni, setUni] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
   const [guardando, setGuardando] = useState(false);
   const hayPareja = perfiles.length >= 2;
@@ -34,57 +32,21 @@ export default function AjustesCalendario({
 
   return (
     <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
-      <h2 className="font-semibold">Calendario y turnos</h2>
-      <p className="mb-4 mt-0.5 text-sm text-muted">Con esto la agenda sabe cuántas clínicas te quedan y si vas a tiempo con tus casos. Es compartido con tu compa.</p>
+      <h2 className="font-semibold">Clínicas y turnos</h2>
+      <p className="mb-4 mt-0.5 text-sm text-muted">Tu agenda va por semestres de la UADY (agosto–diciembre y enero–julio). Con esto sabe cuántas clínicas te quedan y si vas a tiempo con tus casos. Es compartido con tu compa.</p>
 
-      <div className="mb-4 rounded-xl bg-panel-2 p-3">
-        <label className="mb-1.5 block text-sm font-medium" htmlFor="uni">Plantilla de universidad</label>
-        <div className="flex gap-2">
-          <select id="uni" className="campo" value={uni} onChange={(e) => setUni(e.target.value)}>
-            <option value="">Elige tu universidad…</option>
-            {PLANTILLAS.map((p) => <option key={p.id} value={p.id}>{p.nombre} · {p.detalle}</option>)}
-          </select>
-          <button
-            className="btn btn-primario shrink-0"
-            disabled={!uni || guardando}
-            onClick={() => guardar({ plantilla: uni }, "Plantilla aplicada. Revisa tus materias abajo.")}
-          >
-            Aplicar
-          </button>
-        </div>
-        <p className="mt-1.5 text-xs text-muted">Pone el calendario y agrega las materias de esa uni con su duración. No borra nada tuyo.</p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <p className="mb-1.5 text-sm font-medium">Tu escuela va por</p>
-          <div className="flex rounded-lg border border-line p-0.5 text-sm font-medium">
-            {(["cuatrimestre", "semestre"] as const).map((t) => (
-              <button
-                key={t}
-                disabled={guardando}
-                onClick={() => ajustes.periodos !== t && guardar({ periodos: t })}
-                className={`flex-1 rounded-md px-3 py-1.5 ${ajustes.periodos === t ? "bg-accent-soft text-accent" : "text-muted hover:text-ink"}`}
-              >
-                {t === "cuatrimestre" ? "Cuatrimestres" : "Semestres"}
-              </button>
-            ))}
-          </div>
-          <p className="mt-1 text-xs text-muted">{ajustes.periodos === "semestre" ? "Enero–julio y agosto–diciembre." : "Ene–abr, may–ago y sep–dic."}</p>
-        </div>
-        <div>
-          <label className="mb-1.5 block text-sm font-medium" htmlFor="semana">Las clínicas empiezan en la</label>
-          <select
-            id="semana"
-            className="campo"
-            value={ajustes.semana_clinicas}
-            disabled={guardando}
-            onChange={(e) => guardar({ semana_clinicas: Number(e.target.value) })}
-          >
-            {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n === 1 ? "1ª semana (desde el inicio)" : `${n}ª semana del periodo`}</option>)}
-          </select>
-          <p className="mt-1 text-xs text-muted">La primera suele ser para conseguir paciente y esterilizar.</p>
-        </div>
+      <div className="sm:max-w-sm">
+        <label className="mb-1.5 block text-sm font-medium" htmlFor="semana">Las clínicas empiezan en la</label>
+        <select
+          id="semana"
+          className="campo"
+          value={ajustes.semana_clinicas}
+          disabled={guardando}
+          onChange={(e) => guardar({ semana_clinicas: Number(e.target.value) })}
+        >
+          {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n === 1 ? "1ª semana (desde el inicio)" : `${n}ª semana del semestre`}</option>)}
+        </select>
+        <p className="mt-1 text-xs text-muted">La primera suele ser para conseguir paciente y esterilizar.</p>
       </div>
 
       <div className="mt-5 border-t border-line pt-4">

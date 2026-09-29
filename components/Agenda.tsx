@@ -9,12 +9,13 @@ import { prefs, type Cita, type Horario } from "@/lib/types";
 import { rangoDe } from "@/lib/cuatrimestre";
 import { inicioClinicas, rolDelBloque, tramosPorHora, type Turnos } from "@/lib/ritmo";
 import AvisosMaterial from "@/components/AvisosMaterial";
+import { esUady, periodosDe } from "@/lib/universidades";
 import {
   aISO, deISO, diasDelMes, esFinDeSemana, fechaLarga, hhmm, hoyISO, sumarMinutos,
   MESES, DIAS_CORTOS_LUNES, DIAS_CORTOS_DOMINGO,
 } from "@/lib/fechas";
 import CitaModal from "@/components/CitaModal";
-import { MANUAL_URL } from "@/lib/manual";
+import { manualDe } from "@/lib/manual";
 import { aplicarTema, type MarcadorId } from "@/lib/tema";
 import MarcadorHoy from "@/components/MarcadorHoy";
 import CuatriModal from "@/components/CuatriModal";
@@ -85,7 +86,7 @@ export default function Agenda({ userId }: { userId: string }) {
   const { supabase, perfiles, clinicas, materias, nombreAgenda, pagadoHasta, ajustes, recargar: recargarCatalogos } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
   const p = prefs(yo?.preferencias);
-  const sinLeer = !!yo && pendientes(yo.version_vista).length > 0;
+  const sinLeer = !!yo && pendientes(yo.version_vista, ajustes.universidad).length > 0;
   const CLAVE_DESPUES = `novedades-despues-${APP_VERSION}`;
 
   // Último acceso (para el panel del admin): una vez por hora como mucho, sin esperar respuesta
@@ -166,10 +167,11 @@ export default function Agenda({ userId }: { userId: string }) {
 
   // Turnos de la pareja: ¿a quién le toca operar en cada bloque?
   const dueno = perfiles.find((x) => x.rol === "owner")?.id ?? null;
-  const turnos: Turnos = { modo: perfiles.length >= 2 ? ajustes.turnos : "ninguno", inicia: ajustes.turnos_inicia ?? dueno };
+  const uady = esUady(ajustes.universidad); // ritmo, turnos y Mi material son sólo de la UADY
+  const turnos: Turnos = { modo: uady && perfiles.length >= 2 ? ajustes.turnos : "ninguno", inicia: ajustes.turnos_inicia ?? dueno };
   function rolDe(b: Horario, fecha: string) {
     if (turnos.modo === "ninguno") return null;
-    const r = rangoDe(deISO(fecha), ajustes.periodos);
+    const r = rangoDe(deISO(fecha), periodosDe(ajustes.universidad));
     const inicio = inicioClinicas(r.desde, ajustes.semana_clinicas);
     return rolDelBloque(turnos, b.owner_id, horarios.filter((h) => h.owner_id === b.owner_id), inicio, fecha, b);
   }
@@ -248,26 +250,26 @@ export default function Agenda({ userId }: { userId: string }) {
         )}
         <button onClick={() => setBuscando(true)} className="btn btn-sec" title="Buscar paciente">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          <span className="hidden 2xl:inline">Buscar</span>
+          <span className={uady ? "hidden 2xl:inline" : "hidden sm:inline"}>Buscar</span>
         </button>
         <span className="hidden sm:contents">
           <Link href="/pacientes" className="btn btn-sec" title="Mis pacientes y banco de pacientes">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.4 3.2-5.5 6.5-5.5s5.9 2.1 6.5 5.5"/><path d="M19 8v6M16 11h6"/></svg>
             Pacientes
           </Link>
-          <Link href="/material" className="btn btn-sec" title="Mi material y CEyE">
+          {uady && <Link href="/material" className="btn btn-sec" title="Mi material y CEyE">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M12 11v5M9.5 13.5h5"/></svg>
             Material
-          </Link>
+          </Link>}
         </span>
         <Link href="/avance" className="btn btn-sec" title="Mi avance por materia">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
           <span className="hidden sm:inline">Mi avance</span>
         </Link>
         <span className="hidden sm:contents">
-        <a href={MANUAL_URL} target="_blank" rel="noopener noreferrer" className="btn btn-sec" title="Manual de usuario">
+        <a href={manualDe(ajustes.universidad)} target="_blank" rel="noopener noreferrer" className="btn btn-sec" title="Manual de usuario">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg>
-          <span className="hidden 2xl:inline">Manual</span>
+          <span className={uady ? "hidden 2xl:inline" : ""}>Manual</span>
         </a>
         <Link href="/personalizar" className="btn btn-sec">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
@@ -300,10 +302,10 @@ export default function Agenda({ userId }: { userId: string }) {
                   {sinLeer && <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-medium text-panel">Nuevo</span>}
                 </button>
                 <Link href="/pacientes" className="block px-4 py-2.5 hover:bg-panel-2">Pacientes</Link>
-                <Link href="/material" className="block px-4 py-2.5 hover:bg-panel-2">Mi material</Link>
+                {uady && <Link href="/material" className="block px-4 py-2.5 hover:bg-panel-2">Mi material</Link>}
                 <Link href="/personalizar" className="block px-4 py-2.5 hover:bg-panel-2">Personalizar</Link>
                 <button onClick={() => { setMenu(false); setVerInstalar(true); }} className="block w-full px-4 py-2.5 text-left hover:bg-panel-2">Instalar como app</button>
-                <a href={MANUAL_URL} target="_blank" rel="noopener noreferrer" className="block px-4 py-2.5 hover:bg-panel-2">Manual</a>
+                <a href={manualDe(ajustes.universidad)} target="_blank" rel="noopener noreferrer" className="block px-4 py-2.5 hover:bg-panel-2">Manual</a>
                 <button onClick={salir} className="block w-full border-t border-line px-4 py-2.5 text-left text-danger hover:bg-panel-2">Salir</button>
               </div>
             </>
@@ -312,7 +314,7 @@ export default function Agenda({ userId }: { userId: string }) {
       </header>
 
       <BannerPago estado={pago} esDueno={yo?.rol === "owner"} />
-      <AvisosMaterial userId={userId} horarios={horarios} perfiles={perfiles} compacto />
+      {uady && <AvisosMaterial userId={userId} horarios={horarios} perfiles={perfiles} compacto />}
       <InstalarApp />
 
       <div className={`grid gap-5 ${vista === "mes" ? "lg:grid-cols-[1fr_340px]" : ""}`}>
@@ -564,6 +566,7 @@ export default function Agenda({ userId }: { userId: string }) {
           supabase={supabase}
           userId={userId}
           vista={yo.version_vista}
+          universidad={ajustes.universidad}
           todas={novedades === "todas" && !sinLeer}
           onLeido={recargarCatalogos}
           onClose={cerrarNovedades}

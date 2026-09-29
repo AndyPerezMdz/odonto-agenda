@@ -3,7 +3,7 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 import { enviarConResend, esc } from "@/lib/recordatorios";
 import { envolver } from "@/lib/pagosServer";
 import { periodoDe } from "@/lib/cuatrimestre";
-import { periodosDe } from "@/lib/plantillasServer";
+import { periodosDeAgenda } from "@/lib/universidadesServer";
 import {
   agendaEnPrueba, devolucionAplica, devolverSiAplica, gastadaEnOtra, gastarPrueba, normalizar, pruebaDe, DIAS_DEVOLUCION,
 } from "@/lib/pruebas";
@@ -154,7 +154,7 @@ export async function aceptarInvitacion(db: Db, userId: string, email: string, i
   // 1) Me muevo primero (si borrara mi agenda antes, se llevaría mi perfil en cascada)
   const { error: e1 } = await db
     .from("perfiles")
-    .update({ agenda_id: destino, rol: inv.rol, periodo_confirmado: inv.rol === "owner" ? periodoDe(new Date(), await periodosDe(db, destino)).id : null })
+    .update({ agenda_id: destino, rol: inv.rol, periodo_confirmado: inv.rol === "owner" ? periodoDe(new Date(), await periodosDeAgenda(db, destino)).id : null })
     .eq("id", userId);
   if (e1) return { error: e1.message };
 

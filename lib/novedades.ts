@@ -4,17 +4,18 @@
 export const APP_VERSION = "1.8";
 
 export type Novedad = { titulo: string; texto: string; icono: keyof typeof ICONOS };
-export type Version = { version: string; fecha: string; items: Novedad[] };
+export type Version = { version: string; fecha: string; items: Novedad[]; solo?: "upp" | "uady" }; // solo = sólo la ve esa universidad
 
 export const NOVEDADES: Version[] = [
   {
     version: "1.8",
     fecha: "octubre 2026",
+    solo: "uady",
     items: [
       { icono: "semaforo", titulo: "¿Voy atrasado/a?", texto: "Mi avance ahora te dice cuántas clínicas te quedan de cada materia y te pone un semáforo: verde, vas bien; amarillo, vas justo; rojo, a conseguir pacientes ya. Y qué clínicas siguen sin paciente." },
       { icono: "caja", titulo: "Mi material y la CEyE", texto: "Marca tu instrumental como usado o en la CEyE y te aviso si no alcanza a salir antes de tu clínica. Lo que compran entre los dos (alginato, yeso…) se marca cuando se acaba." },
       { icono: "turnos", titulo: "Turnos para operar", texto: "¿Se turnan por hora, por clínica o por semana? Ponlo en Personalizar → Agenda y cada bloque te dice si operas o asistes." },
-      { icono: "reloj", titulo: "Semestres y duración por materia", texto: "Tu agenda ya entiende semestres (ago–dic, ene–jul) y la semana en que arrancan clínicas. Cada materia puede durar lo suyo: Operatoria 3 h, Periodoncia 2 h." },
+      { icono: "reloj", titulo: "Hecha para la UADY", texto: "Va por semestres (ago–dic, ene–jul) y cuenta desde la semana en que arrancan clínicas. Cada materia dura lo suyo: Operatoria 3 h, Periodoncia 2 h." },
     ],
   },
   {
@@ -62,10 +63,16 @@ export function versionMayor(a: string, b: string) {
   return false;
 }
 
+/** Novedades que le tocan a una universidad (las generales + las suyas). */
+export function novedadesDe(universidad?: string | null): Version[] {
+  return NOVEDADES.filter((v) => !v.solo || v.solo === universidad);
+}
+
 /** Versiones que la persona no ha visto. Sin registro = cuenta de antes de 1.5: le tocan todas. */
-export function pendientes(vista: string | null | undefined): Version[] {
-  if (!vista) return NOVEDADES;
-  return NOVEDADES.filter((v) => versionMayor(v.version, vista));
+export function pendientes(vista: string | null | undefined, universidad?: string | null): Version[] {
+  const lista = novedadesDe(universidad);
+  if (!vista) return lista;
+  return lista.filter((v) => versionMayor(v.version, vista));
 }
 
 export const ICONOS = {

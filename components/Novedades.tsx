@@ -3,23 +3,24 @@
 import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import Link from "next/link";
-import { APP_VERSION, ICONOS, NOVEDADES, pendientes, type Version } from "@/lib/novedades";
+import { APP_VERSION, ICONOS, novedadesDe, pendientes, type Version } from "@/lib/novedades";
 import ListaNovedades from "@/components/ListaNovedades";
 
 type Props = {
   supabase: SupabaseClient;
   userId: string;
   vista: string | null | undefined; // última versión que ya leyó
+  universidad?: string | null; // cada universidad ve sus novedades
   todas?: boolean; // abierta a mano: muestra el historial completo
   onLeido: () => void;
   onClose: () => void;
 };
 
 // "¿Qué hay de nuevo?": aparece una vez por actualización. "Después" la deja pendiente (con puntito).
-export default function Novedades({ supabase, userId, vista, todas = false, onLeido, onClose }: Props) {
-  const lista: Version[] = todas ? NOVEDADES : pendientes(vista);
+export default function Novedades({ supabase, userId, vista, universidad, todas = false, onLeido, onClose }: Props) {
+  const lista: Version[] = todas ? novedadesDe(universidad) : pendientes(vista, universidad);
   const [guardando, setGuardando] = useState(false);
-  const yaLeida = !!vista && !pendientes(vista).length;
+  const yaLeida = !!vista && !pendientes(vista, universidad).length;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();

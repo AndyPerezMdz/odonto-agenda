@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { esUady } from "@/lib/universidades";
 import { useCatalogos, useHorarios, useMaterial } from "@/lib/useDatos";
 import { prefs, type EstadoMaterial, type Material, type NivelMaterial } from "@/lib/types";
 import { aplicarTema } from "@/lib/tema";
@@ -21,7 +23,13 @@ const NIVELES: { id: NivelMaterial; nombre: string }[] = [
 
 // Mi material: tu instrumental (listo / usado / en la CEyE) y los consumibles que compran entre los dos.
 export default function MiMaterial({ userId }: { userId: string }) {
-  const { supabase, perfiles, materias } = useCatalogos();
+  const { supabase, perfiles, materias, ajustes, cargando } = useCatalogos();
+  const router = useRouter();
+  const uady = esUady(ajustes.universidad);
+  // Mi material es sólo de la UADY
+  useEffect(() => {
+    if (!cargando && !uady) router.replace("/");
+  }, [cargando, uady, router]);
   const { horarios } = useHorarios();
   const { material, recargar } = useMaterial();
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +60,8 @@ export default function MiMaterial({ userId }: { userId: string }) {
 
   const usados = mios.filter((m) => m.estado === "usado").map((m) => m.id);
   const enCeye = mios.filter((m) => m.estado === "ceye").map((m) => m.id);
+
+  if (cargando || !uady) return null;
 
   return (
     <div className="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-6">

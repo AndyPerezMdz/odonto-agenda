@@ -7,6 +7,7 @@ import { prefs, type Cita, type Materia } from "@/lib/types";
 import { aplicarTema } from "@/lib/tema";
 import { deISO, fechaLarga, hhmm, hoyISO } from "@/lib/fechas";
 import { palabraPeriodo, rangoDe } from "@/lib/cuatrimestre";
+import { esUady, periodosDe } from "@/lib/universidades";
 import { finClinicas, inicioClinicas, ocurrencias, rolesDe, ritmoDe, type Ritmo, type Turnos } from "@/lib/ritmo";
 import { pesos, sumarDias } from "@/lib/pagos";
 
@@ -17,7 +18,9 @@ export default function Avance({ userId }: { userId: string }) {
   const [fechaRef, setFechaRef] = useState(hoyISO());
   const [persona, setPersona] = useState(userId);
   const [todo, setTodo] = useState(false);
-  const rango = rangoDe(deISO(fechaRef), ajustes.periodos);
+  const tipo = periodosDe(ajustes.universidad);
+  const uady = esUady(ajustes.universidad); // ritmo y clínicas restantes: sólo UADY
+  const rango = rangoDe(deISO(fechaRef), tipo);
   const { citas, recargar } = useCitas(todo ? "2000-01-01" : rango.desde, todo ? "2100-12-31" : rango.hasta);
   const [metas, setMetas] = useState<Map<string, number>>(new Map());
   const { pacientes } = usePacientes();
@@ -43,9 +46,9 @@ export default function Avance({ userId }: { userId: string }) {
   // Clínicas del periodo: desde la semana en que empiezan hasta tu fecha de fin (o el fin del periodo)
   const inicio = inicioClinicas(rango.desde, ajustes.semana_clinicas);
   const fin = finClinicas(quienPerfil?.fin_clinicas, rango.desde, rango.hasta);
-  const conRitmo = !todo && hoy <= fin;
+  const conRitmo = uady && !todo && hoy <= fin;
   const turnos: Turnos = {
-    modo: perfiles.length >= 2 ? ajustes.turnos : "ninguno",
+    modo: uady && perfiles.length >= 2 ? ajustes.turnos : "ninguno",
     inicia: ajustes.turnos_inicia ?? perfiles.find((p) => p.rol === "owner")?.id ?? null,
   };
   const clinicas = useMemo(() => {
@@ -136,15 +139,15 @@ export default function Avance({ userId }: { userId: string }) {
         <div className="flex rounded-lg border border-line p-0.5 text-xs font-medium">
           {[false, true].map((v) => (
             <button key={String(v)} onClick={() => setTodo(v)} className={`rounded-md px-2.5 py-1 ${todo === v ? "bg-accent-soft text-accent" : "text-muted hover:text-ink"}`}>
-              {v ? "Todo" : palabraPeriodo(ajustes.periodos, true)}
+              {v ? "Todo" : palabraPeriodo(tipo, true)}
             </button>
           ))}
         </div>
         {!todo && (
           <>
             <div className="flex items-center gap-1">
-              <button className="btn btn-sec px-2.5" onClick={() => setFechaRef(sumarDias(rango.desde, -1))} aria-label={`${palabraPeriodo(ajustes.periodos)} anterior`}>‹</button>
-              <button className="btn btn-sec px-2.5" onClick={() => setFechaRef(sumarDias(rango.hasta, 1))} aria-label={`${palabraPeriodo(ajustes.periodos)} siguiente`}>›</button>
+              <button className="btn btn-sec px-2.5" onClick={() => setFechaRef(sumarDias(rango.desde, -1))} aria-label={`${palabraPeriodo(tipo)} anterior`}>‹</button>
+              <button className="btn btn-sec px-2.5" onClick={() => setFechaRef(sumarDias(rango.hasta, 1))} aria-label={`${palabraPeriodo(tipo)} siguiente`}>›</button>
             </div>
             <h2 className="font-semibold first-letter:uppercase">{rango.nombre}</h2>
           </>
@@ -279,7 +282,7 @@ export default function Avance({ userId }: { userId: string }) {
       <div className="solo-imprimir">
         <h1 style={{ fontSize: 20, fontWeight: 700 }}>Casos atendidos — {quien?.nombre}</h1>
         <p style={{ margin: "4px 0 16px", color: "#555" }}>
-          {todo ? "Todos los registros" : `${palabraPeriodo(ajustes.periodos)} ${rango.nombre}`} · generado el {fechaLarga(hoy)}
+          {todo ? "Todos los registros" : `${palabraPeriodo(tipo)} ${rango.nombre}`} · generado el {fechaLarga(hoy)}
         </p>
         {filas.filter((f) => f.asistio > 0 || f.meta).map((f) => (
           <div key={f.materia?.id ?? "sin"} style={{ marginBottom: 16, breakInside: "avoid" }}>

@@ -8,8 +8,8 @@ import { DIAS } from "@/lib/horario";
 
 // "Los martes de 8 a 12 tengo Clínica 1": se pinta en la agenda y te enseña tus huecos libres.
 export default function MiHorario({
-  supabase, userId, horarios, clinicas, materias, onCambio,
-}: { supabase: SupabaseClient; userId: string; horarios: Horario[]; clinicas: Clinica[]; materias: Materia[]; onCambio: () => void }) {
+  supabase, userId, horarios, clinicas, materias, conMateria = false, onCambio,
+}: { supabase: SupabaseClient; userId: string; horarios: Horario[]; clinicas: Clinica[]; materias: Materia[]; conMateria?: boolean; onCambio: () => void }) {
   const mios = horarios.filter((h) => h.owner_id === userId);
   const [dia, setDia] = useState(1);
   const [inicio, setInicio] = useState("08:00");
@@ -63,7 +63,7 @@ export default function MiHorario({
               <span className="w-24 font-medium">{DIAS[h.dia_semana]}</span>
               <span className="tabular-nums">{hhmm(h.hora_inicio)}–{hhmm(h.hora_fin)}</span>
               <span className="text-muted">{[h.clinica_id && clinica.get(h.clinica_id), h.etiqueta].filter(Boolean).join(" · ")}</span>
-              <select
+              {conMateria && <select
                 className="rounded-lg border border-line bg-panel px-1.5 py-0.5 text-xs"
                 value={h.materia_id ?? ""}
                 onChange={(e) => cambiarMateria(h.id, e.target.value)}
@@ -72,14 +72,14 @@ export default function MiHorario({
               >
                 <option value="">¿Qué materia?</option>
                 {materias.filter((m) => m.activo || m.id === h.materia_id).map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-              </select>
+              </select>}
               <button onClick={() => quitar(h.id)} className="ml-auto text-xs text-danger hover:underline">Quitar</button>
             </li>
           ))}
         </ul>
       )}
 
-      {mios.length > 0 && sinMateria > 0 && materias.length > 0 && (
+      {conMateria && mios.length > 0 && sinMateria > 0 && materias.length > 0 && (
         <p className="-mt-2 mb-4 text-xs text-muted">Ponle su materia a cada bloque: así Mi avance te dice cuántas clínicas te quedan de cada una.</p>
       )}
 
@@ -94,11 +94,18 @@ export default function MiHorario({
           {clinicas.filter((c) => c.activo).map((c) => <option key={c.id} value={c.id}>{c.numero}</option>)}
         </select>
         <button className="btn btn-primario">Agregar</button>
-        <select className="campo col-span-2 sm:col-span-2" value={materiaId} onChange={(e) => setMateriaId(e.target.value)} aria-label="Materia">
-          <option value="">Materia…</option>
-          {materias.filter((m) => m.activo).map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-        </select>
-        <input className="campo col-span-2 sm:col-span-3" placeholder="Etiqueta opcional (ej. turno matutino)" value={etiqueta} onChange={(e) => setEtiqueta(e.target.value)} />
+        {conMateria && (
+          <select className="campo col-span-2 sm:col-span-2" value={materiaId} onChange={(e) => setMateriaId(e.target.value)} aria-label="Materia">
+            <option value="">Materia…</option>
+            {materias.filter((m) => m.activo).map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+          </select>
+        )}
+        <input
+          className={`campo col-span-2 ${conMateria ? "sm:col-span-3" : "sm:col-span-5"}`}
+          placeholder={conMateria ? "Etiqueta opcional (ej. turno matutino)" : "Etiqueta opcional (ej. Clínica integral, turno matutino)"}
+          value={etiqueta}
+          onChange={(e) => setEtiqueta(e.target.value)}
+        />
       </form>
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
     </section>

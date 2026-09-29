@@ -15,12 +15,12 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Tu sesión expiró. Inicia sesión de nuevo." }, { status: 401 });
   if (!user.email_confirmed_at) return NextResponse.json({ error: "Primero confirma tu correo con el código." }, { status: 403 });
 
-  const body = (await request.json().catch(() => ({}))) as { nombre?: string; codigo?: string; unir?: string; plantilla?: string };
+  const body = (await request.json().catch(() => ({}))) as { nombre?: string; codigo?: string; unir?: string; universidad?: string };
   const r = await completarRegistro(createAdminClient(), user, {
     nombre: body.nombre,
     codigo: body.codigo,
     unir: body.unir,
-    plantilla: body.plantilla,
+    universidad: body.universidad,
     sitio: urlSitio(request.nextUrl.origin),
   });
   if (!r.ok) return NextResponse.json({ error: r.error, motivo: r.motivo ?? null }, { status: 409 });

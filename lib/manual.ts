@@ -6,3 +6,10 @@ import { SUPABASE_URL } from "@/lib/supabase/env";
 export const MANUAL_URL =
   process.env.NEXT_PUBLIC_MANUAL_URL ||
   `${SUPABASE_URL}/storage/v1/object/public/manuales/Manual-Agenda-Clinicas.pdf`;
+
+// La UADY tiene su propio manual (semestres, ritmo, turnos, Mi material): Manual-Agenda-Clinicas-UADY.pdf en el mismo bucket.
+export const MANUAL_URL_UADY =
+  process.env.NEXT_PUBLIC_MANUAL_URL_UADY ||
+  `${SUPABASE_URL}/storage/v1/object/public/manuales/Manual-Agenda-Clinicas-UADY.pdf`;
+
+export const manualDe = (universidad?: string | null) => (universidad === "uady" ? MANUAL_URL_UADY : MANUAL_URL);
