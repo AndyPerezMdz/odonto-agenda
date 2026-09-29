@@ -646,6 +646,70 @@ alter table public.citas add constraint citas_historia_largo check (historia is 
 create index if not exists citas_owner_paciente_idx on public.citas (owner_id, lower(paciente));
 
 -- =====================================================================
+-- 1.8 · SEMESTRES, RITMO, TURNOS Y MI MATERIAL
+-- =====================================================================
+
+-- Calendario escolar de cada agenda: cuatrimestres (ene/may/sep) o semestres (ene–jul, ago–dic),
+-- y en qué semana del periodo empiezan las clínicas (en la UADY, la 2ª).
+alter table public.agendas add column if not exists periodos text not null default 'cuatrimestre';
+alter table public.agendas drop constraint if exists agendas_periodos_valido;
+alter table public.agendas add constraint agendas_periodos_valido check (periodos in ('cuatrimestre', 'semestre'));
+alter table public.agendas add column if not exists semana_clinicas int not null default 1;
+alter table public.agendas drop constraint if exists agendas_semana_valida;
+alter table public.agendas add constraint agendas_semana_valida check (semana_clinicas between 1 and 8);
+
+-- Turnos de la pareja: el caso le cuenta sólo al que opera.
+-- 'ninguno' | 'hora' (una hora y una hora) | 'clinica' (una clínica y una clínica) | 'semana'
+alter table public.agendas add column if not exists turnos text not null default 'ninguno';
+alter table public.agendas drop constraint if exists agendas_turnos_valido;
+alter table public.agendas add constraint agendas_turnos_valido check (turnos in ('ninguno', 'hora', 'clinica', 'semana'));
+alter table public.agendas add column if not exists turnos_inicia uuid references public.perfiles (id) on delete set null;
+
+-- Hasta cuándo hay clínicas este periodo (cada quien; si está vacío, hasta que acaba el periodo)
+alter table public.perfiles add column if not exists fin_clinicas date;
+
+-- Cuánto dura una cita de cada materia (Operatoria 3 h, Periodoncia 2 h…)
+alter table public.materias add column if not exists duracion_min int;
+alter table public.materias drop constraint if exists materias_duracion_valida;
+alter table public.materias add constraint materias_duracion_valida check (duracion_min is null or duracion_min between 15 and 600);
+
+-- Qué materia es cada bloque del horario (para contar las clínicas que te quedan por materia)
+alter table public.horarios add column if not exists materia_id uuid references public.materias (id) on delete set null;
+
+-- MI MATERIAL: instrumental de cada quien (listo / usado / en CEyE) y consumibles de los dos (hay / poco / se acabó)
+create table if not exists public.material (
+  id            uuid primary key default gen_random_uuid(),
+  agenda_id     uuid not null default public.mi_agenda() references public.agendas (id) on delete cascade,
+  owner_id      uuid not null default auth.uid() references public.perfiles (id) on delete cascade,
+  compartido    boolean not null default false,
+  nombre        text not null check (length(trim(nombre)) between 1 and 80),
+  materia_id    uuid references public.materias (id) on delete set null,
+  estado        text not null default 'listo' check (estado in ('listo', 'usado', 'ceye')),
+  en_ceye_desde timestamptz,
+  nivel         text not null default 'hay' check (nivel in ('hay', 'poco', 'nada')),
+  cambiado_por  uuid references public.perfiles (id) on delete set null,
+  updated_at    timestamptz not null default now(),
+  created_at    timestamptz not null default now()
+);
+create index if not exists material_agenda_idx on public.material (agenda_id, owner_id);
+
+alter table public.material enable row level security;
+-- Los dos ven todo; lo tuyo sólo lo editas tú y lo compartido cualquiera de los dos
+drop policy if exists material_select on public.material;
+create policy material_select on public.material for select to authenticated using (agenda_id = (select public.mi_agenda()));
+drop policy if exists material_insert on public.material;
+create policy material_insert on public.material for insert to authenticated
+  with check (owner_id = (select auth.uid()) and agenda_id = (select public.mi_agenda()) and (select public.agenda_activa()));
+drop policy if exists material_update on public.material;
+create policy material_update on public.material for update to authenticated
+  using (agenda_id = (select public.mi_agenda()) and (owner_id = (select auth.uid()) or compartido) and (select public.agenda_activa()))
+  with check (agenda_id = (select public.mi_agenda()) and (owner_id = (select auth.uid()) or compartido));
+drop policy if exists material_delete on public.material;
+create policy material_delete on public.material for delete to authenticated
+  using (agenda_id = (select public.mi_agenda()) and (owner_id = (select auth.uid()) or compartido));
+grant select, insert, update, delete on public.material to authenticated;
+
+-- =====================================================================
 -- Listo. Las cuentas nuevas se registran solas en /registro.
 -- En Supabase: Authentication → Sign In / Providers → Email:
 --   "Enable email signups" y "Confirm email" ENCENDIDOS.

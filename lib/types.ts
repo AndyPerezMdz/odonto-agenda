@@ -18,6 +18,33 @@ export type Perfil = {
   periodo_confirmado: string | null;
   acepto_terminos_at?: string | null;
   version_vista?: string | null; // última versión de novedades leída
+  fin_clinicas?: string | null; // hasta cuándo hay clínicas este periodo (vacío = fin del periodo)
+};
+
+/** Ajustes de la agenda compartida (calendario escolar y turnos). */
+export type AjustesAgenda = {
+  periodos: "cuatrimestre" | "semestre";
+  semana_clinicas: number;
+  turnos: "ninguno" | "hora" | "clinica" | "semana";
+  turnos_inicia: string | null;
+};
+
+export const AJUSTES_DEFAULT: AjustesAgenda = { periodos: "cuatrimestre", semana_clinicas: 1, turnos: "ninguno", turnos_inicia: null };
+
+export type EstadoMaterial = "listo" | "usado" | "ceye";
+export type NivelMaterial = "hay" | "poco" | "nada";
+
+export type Material = {
+  id: string;
+  owner_id: string;
+  compartido: boolean;
+  nombre: string;
+  materia_id: string | null;
+  estado: EstadoMaterial;
+  en_ceye_desde: string | null;
+  nivel: NivelMaterial;
+  cambiado_por: string | null;
+  updated_at: string;
 };
 
 export type Clinica = {
@@ -33,6 +60,7 @@ export type Materia = {
   color: string;
   activo: boolean;
   material?: string | null; // qué llevar, una cosa por renglón
+  duracion_min?: number | null; // cuánto dura una cita de esta materia
 };
 
 export type EstadoPaciente = "pendiente" | "contactado" | "agendado" | "descartado";
@@ -56,6 +84,7 @@ export type Horario = {
   hora_fin: string;
   clinica_id: string | null;
   etiqueta: string | null;
+  materia_id?: string | null; // qué materia es ese bloque
 };
 
 export type EstadoCita = "asistio" | "falto" | "cancelo";

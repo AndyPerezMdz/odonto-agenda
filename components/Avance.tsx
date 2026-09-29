@@ -2,20 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useCatalogos, useCitas, usePacientes } from "@/lib/useDatos";
+import { useCatalogos, useCitas, useHorarios, usePacientes } from "@/lib/useDatos";
 import { prefs, type Cita, type Materia } from "@/lib/types";
 import { aplicarTema } from "@/lib/tema";
 import { deISO, fechaLarga, hhmm, hoyISO } from "@/lib/fechas";
-import { rangoDe } from "@/lib/cuatrimestre";
+import { palabraPeriodo, rangoDe } from "@/lib/cuatrimestre";
+import { finClinicas, inicioClinicas, ocurrencias, rolesDe, ritmoDe, type Ritmo, type Turnos } from "@/lib/ritmo";
 import { pesos, sumarDias } from "@/lib/pagos";
 
 // "Mi avance": cuántos casos lleva cada quien por materia en el cuatrimestre, contra la meta.
 export default function Avance({ userId }: { userId: string }) {
-  const { supabase, perfiles, materias } = useCatalogos();
+  const { supabase, perfiles, materias, ajustes, recargar: recargarCatalogos } = useCatalogos();
+  const { horarios } = useHorarios();
   const [fechaRef, setFechaRef] = useState(hoyISO());
   const [persona, setPersona] = useState(userId);
   const [todo, setTodo] = useState(false);
-  const rango = rangoDe(deISO(fechaRef));
+  const rango = rangoDe(deISO(fechaRef), ajustes.periodos);
   const { citas, recargar } = useCitas(todo ? "2000-01-01" : rango.desde, todo ? "2100-12-31" : rango.hasta);
   const [metas, setMetas] = useState<Map<string, number>>(new Map());
   const { pacientes } = usePacientes();
@@ -36,6 +38,24 @@ export default function Avance({ userId }: { userId: string }) {
   }, [yo]);
 
   const esMio = persona === userId;
+  const quienPerfil = perfiles.find((p) => p.id === persona);
+
+  // Clínicas del periodo: desde la semana en que empiezan hasta tu fecha de fin (o el fin del periodo)
+  const inicio = inicioClinicas(rango.desde, ajustes.semana_clinicas);
+  const fin = finClinicas(quienPerfil?.fin_clinicas, rango.desde, rango.hasta);
+  const conRitmo = !todo && hoy <= fin;
+  const turnos: Turnos = {
+    modo: perfiles.length >= 2 ? ajustes.turnos : "ninguno",
+    inicia: ajustes.turnos_inicia ?? perfiles.find((p) => p.rol === "owner")?.id ?? null,
+  };
+  const clinicas = useMemo(() => {
+    const mios = horarios.filter((h) => h.owner_id === persona);
+    const desde = hoy > inicio ? hoy : inicio;
+    const roles = rolesDe(turnos, persona, mios, inicio, fin);
+    const todas = ocurrencias(mios, desde, fin);
+    return { total: todas.length, opera: todas.filter((o) => roles.get(`${o.fecha}|${o.bloque.id}`) !== "asiste").length, hayHorario: mios.length > 0 };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [horarios, persona, hoy, inicio, fin, turnos.modo, turnos.inicia]);
   const mias = useMemo(() => citas.filter((c) => c.owner_id === persona), [citas, persona]);
 
   const filas = useMemo(() => {
@@ -48,17 +68,28 @@ export default function Avance({ userId }: { userId: string }) {
       .filter((m) => m.activo || porMateria.has(m.id))
       .map((m) => ({ materia: m as Materia | null, citas: porMateria.get(m.id) ?? [] }));
     if (porMateria.has("")) lista.push({ materia: null, citas: porMateria.get("")! });
-    return lista.map(({ materia, citas }) => ({
+    return lista.map(({ materia, citas: deMateria }) => ({
       materia,
       meta: materia ? metas.get(`${persona}:${materia.id}`) ?? null : null,
       enBanco: (pacientes ?? []).filter((x) => x.owner_id === persona && (x.materia_id ?? "") === (materia?.id ?? "") && (x.estado === "pendiente" || x.estado === "contactado")).length,
-      pacientes: citas.filter((c) => c.estado === "asistio").sort((a, b) => a.fecha.localeCompare(b.fecha)),
-      asistio: citas.filter((c) => c.estado === "asistio").length,
-      falto: citas.filter((c) => c.estado === "falto").length,
-      agendadas: citas.filter((c) => !c.estado && c.fecha >= hoy).length,
-      sinMarcar: citas.filter((c) => !c.estado && c.fecha < hoy).length,
+      pacientes: deMateria.filter((c) => c.estado === "asistio").sort((a, b) => a.fecha.localeCompare(b.fecha)),
+      asistio: deMateria.filter((c) => c.estado === "asistio").length,
+      falto: deMateria.filter((c) => c.estado === "falto").length,
+      agendadas: deMateria.filter((c) => !c.estado && c.fecha >= hoy).length,
+      sinMarcar: deMateria.filter((c) => !c.estado && c.fecha < hoy).length,
+    })).map((f) => ({
+      ...f,
+      ritmo: conRitmo && f.materia
+        ? ritmoDe({ meta: f.meta, asistio: f.asistio, agendadas: f.agendadas, persona, materiaId: f.materia.id, horarios, citas, turnos, inicio, fin, hoy })
+        : null,
     }));
-  }, [mias, materias, hoy, metas, persona, pacientes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mias, materias, hoy, metas, persona, pacientes, conRitmo, horarios, citas, inicio, fin, turnos.modo, turnos.inicia]);
+
+  async function guardarFin(v: string) {
+    await supabase.from("perfiles").update({ fin_clinicas: v || null }).eq("id", userId);
+    recargarCatalogos();
+  }
 
   const total = filas.reduce((n, f) => n + f.asistio, 0);
   const faltas = filas.reduce((n, f) => n + f.falto, 0);
@@ -105,15 +136,15 @@ export default function Avance({ userId }: { userId: string }) {
         <div className="flex rounded-lg border border-line p-0.5 text-xs font-medium">
           {[false, true].map((v) => (
             <button key={String(v)} onClick={() => setTodo(v)} className={`rounded-md px-2.5 py-1 ${todo === v ? "bg-accent-soft text-accent" : "text-muted hover:text-ink"}`}>
-              {v ? "Todo" : "Cuatri"}
+              {v ? "Todo" : palabraPeriodo(ajustes.periodos, true)}
             </button>
           ))}
         </div>
         {!todo && (
           <>
             <div className="flex items-center gap-1">
-              <button className="btn btn-sec px-2.5" onClick={() => setFechaRef(sumarDias(rango.desde, -1))} aria-label="Cuatrimestre anterior">‹</button>
-              <button className="btn btn-sec px-2.5" onClick={() => setFechaRef(sumarDias(rango.hasta, 1))} aria-label="Cuatrimestre siguiente">›</button>
+              <button className="btn btn-sec px-2.5" onClick={() => setFechaRef(sumarDias(rango.desde, -1))} aria-label={`${palabraPeriodo(ajustes.periodos)} anterior`}>‹</button>
+              <button className="btn btn-sec px-2.5" onClick={() => setFechaRef(sumarDias(rango.hasta, 1))} aria-label={`${palabraPeriodo(ajustes.periodos)} siguiente`}>›</button>
             </div>
             <h2 className="font-semibold first-letter:uppercase">{rango.nombre}</h2>
           </>
@@ -145,6 +176,40 @@ export default function Avance({ userId }: { userId: string }) {
           </div>
         ))}
       </div>
+
+      {conRitmo && (
+        <section className="no-imprimir mb-5 rounded-2xl border border-line bg-panel p-4 sm:p-5">
+          {clinicas.hayHorario ? (
+            <p className="text-sm">
+              {esMio ? "Te quedan" : `A ${quienPerfil?.nombre ?? ""} le quedan`}{" "}
+              <b className="text-lg tabular-nums">{clinicas.total}</b> clínica{clinicas.total === 1 ? "" : "s"}
+              {turnos.modo !== "ninguno" && clinicas.opera !== clinicas.total && <> (<b>{clinicas.opera}</b> operando)</>}
+              {hoy < inicio && <span className="text-muted"> · empiezan el {fechaLarga(inicio)}</span>}
+            </p>
+          ) : (
+            <p className="text-sm text-muted">
+              {esMio ? <>Agrega tu horario de clínica en <Link href="/personalizar" className="font-medium text-accent">Personalizar</Link> y te digo cuántas clínicas te quedan.</> : `${quienPerfil?.nombre ?? ""} aún no pone su horario de clínica.`}
+            </p>
+          )}
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
+            <span>Terminan el</span>
+            {esMio ? (
+              <input
+                type="date"
+                className="rounded-md border border-line bg-panel px-1.5 py-0.5 text-xs text-ink"
+                min={rango.desde}
+                max={rango.hasta}
+                value={quienPerfil?.fin_clinicas && quienPerfil.fin_clinicas >= rango.desde && quienPerfil.fin_clinicas <= rango.hasta ? quienPerfil.fin_clinicas : ""}
+                onChange={(e) => guardarFin(e.target.value)}
+                aria-label="Último día de clínicas"
+              />
+            ) : (
+              <span className="text-ink">{fechaLarga(fin)}</span>
+            )}
+            {esMio && !(quienPerfil?.fin_clinicas && quienPerfil.fin_clinicas >= rango.desde && quienPerfil.fin_clinicas <= rango.hasta) && <span>(si no lo pones, cuento hasta el {fechaLarga(rango.hasta)})</span>}
+          </div>
+        </section>
+      )}
 
       {esMio && pendientesDeMarcar.length > 0 && (
         <section className="no-imprimir mb-5 rounded-2xl border-2 border-accent bg-panel p-4">
@@ -214,7 +279,7 @@ export default function Avance({ userId }: { userId: string }) {
       <div className="solo-imprimir">
         <h1 style={{ fontSize: 20, fontWeight: 700 }}>Casos atendidos — {quien?.nombre}</h1>
         <p style={{ margin: "4px 0 16px", color: "#555" }}>
-          {todo ? "Todos los registros" : `Cuatrimestre ${rango.nombre}`} · generado el {fechaLarga(hoy)}
+          {todo ? "Todos los registros" : `${palabraPeriodo(ajustes.periodos)} ${rango.nombre}`} · generado el {fechaLarga(hoy)}
         </p>
         {filas.filter((f) => f.asistio > 0 || f.meta).map((f) => (
           <div key={f.materia?.id ?? "sin"} style={{ marginBottom: 16, breakInside: "avoid" }}>
@@ -255,9 +320,24 @@ export default function Avance({ userId }: { userId: string }) {
   );
 }
 
+const SEMAFORO: Record<Ritmo["semaforo"], string> = {
+  cumplida: "#2f5d50",
+  verde: "#1e8e3e",
+  amarillo: "#d4a106",
+  rojo: "#d93025",
+  sinmeta: "#9ca3af",
+  sinhorario: "#9ca3af",
+};
+
+const diaCorto = (iso: string) => {
+  const d = deISO(iso);
+  return `${["dom", "lun", "mar", "mié", "jue", "vie", "sáb"][d.getDay()]} ${d.getDate()}`;
+};
+
 function FilaMateria({
-  materia, meta, asistio, falto, agendadas, sinMarcar, enBanco, editable, onMeta,
+  materia, meta, asistio, falto, agendadas, sinMarcar, enBanco, editable, onMeta, ritmo,
 }: {
+  ritmo: Ritmo | null;
   enBanco: number;
   materia: Materia | null;
   meta: number | null;
@@ -337,6 +417,30 @@ function FilaMateria({
           </>
         )}
       </p>
+      {ritmo && (
+        <div className="mt-2 rounded-xl bg-panel-2 px-3 py-2 text-xs">
+          <p className="flex items-start gap-2">
+            <span className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: SEMAFORO[ritmo.semaforo] }} aria-hidden />
+            <span>
+              {ritmo.restantes > 0 && ritmo.semaforo !== "sinmeta" && (
+                <b>{ritmo.restantes} clínica{ritmo.restantes === 1 ? "" : "s"} de {materia?.nombre} · </b>
+              )}
+              {ritmo.mensaje}
+            </span>
+          </p>
+          {editable && ritmo.libres.length > 0 && ritmo.semaforo !== "cumplida" && (
+            <p className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-[18px]">
+              <span className="text-muted">Sin paciente:</span>
+              {ritmo.libres.slice(0, 4).map((f) => (
+                <Link key={f} href={`/?dia=${f}`} className="rounded-full border border-dashed border-accent px-2 py-0.5 font-medium text-accent hover:bg-accent-soft">
+                  {diaCorto(f)}
+                </Link>
+              ))}
+              {ritmo.libres.length > 4 && <span className="text-muted">+{ritmo.libres.length - 4}</span>}
+            </p>
+          )}
+        </div>
+      )}
     </li>
   );
 }

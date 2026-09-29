@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useCatalogos, useHorarios } from "@/lib/useDatos";
 import MiHorario from "@/components/MiHorario";
+import AjustesCalendario from "@/components/AjustesCalendario";
+import { DURACIONES, textoDuracion } from "@/lib/plantillas";
 import { prefs, type Preferencias } from "@/lib/types";
 import { TEMAS, MARCADORES, aplicarTema, type MarcadorId } from "@/lib/tema";
 import MarcadorHoy from "@/components/MarcadorHoy";
@@ -13,7 +15,7 @@ import TarjetaSuscripcion from "@/components/TarjetaSuscripcion";
 const PALETA = ["#2f5d50", "#6366f1", "#db2777", "#ea580c", "#0891b2", "#65a30d", "#9333ea", "#b45309"];
 
 export default function Personalizar({ userId }: { userId: string }) {
-  const { supabase, perfiles, clinicas, materias, recargar } = useCatalogos();
+  const { supabase, perfiles, clinicas, materias, ajustes, recargar } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
   const { horarios, recargar: recargarHorarios } = useHorarios();
   const esDueno = yo?.rol === "owner";
@@ -70,7 +72,7 @@ export default function Personalizar({ userId }: { userId: string }) {
       {/* Las pestañas se ocultan (no se desmontan) para no perder lo que llevas escrito */}
       <div className={`flex flex-col gap-5 ${pestana === "yo" ? "" : "hidden"}`}>
         {yo && <MiPerfil key={yo.id} supabase={supabase} yo={yo} onGuardado={recargar} />}
-        <MiHorario supabase={supabase} userId={userId} horarios={horarios} clinicas={clinicas} onCambio={recargarHorarios} />
+        <MiHorario supabase={supabase} userId={userId} horarios={horarios} clinicas={clinicas} materias={materias} onCambio={recargarHorarios} />
       </div>
 
       {esDueno && (
@@ -81,6 +83,8 @@ export default function Personalizar({ userId }: { userId: string }) {
 
       <div className={`flex flex-col gap-5 ${pestana === "agenda" ? "" : "hidden"}`}>
         {esDueno && <TarjetaCompanero onCambio={recargar} />}
+
+        <AjustesCalendario ajustes={ajustes} perfiles={perfiles} userId={userId} onCambio={recargar} />
 
         <Catalogo
           titulo="Clínicas"
@@ -96,16 +100,17 @@ export default function Personalizar({ userId }: { userId: string }) {
 
         <Catalogo
           titulo="Materias"
-          descripcion="Cada materia puede tener su color y su lista de material (qué llevar a sus citas)."
+          descripcion="Cada materia puede tener su color, cuánto dura una cita y su lista de material (qué llevar a sus citas)."
           placeholder="Ej. Prostodoncia"
           conColor
-          items={materias.map((m) => ({ id: m.id, nombre: m.nombre, activo: m.activo, color: m.color, material: m.material }))}
+          items={materias.map((m) => ({ id: m.id, nombre: m.nombre, activo: m.activo, color: m.color, material: m.material, duracion: m.duracion_min ?? null }))}
           onAgregar={(nombre) =>
             supabase.from("materias").insert({ nombre, color: PALETA[materias.length % PALETA.length] })
           }
           onRenombrar={(id, nombre) => supabase.from("materias").update({ nombre }).eq("id", id)}
           onColor={(id, color) => supabase.from("materias").update({ color }).eq("id", id)}
           onMaterial={(id, material) => supabase.from("materias").update({ material }).eq("id", id)}
+          onDuracion={(id, duracion_min) => supabase.from("materias").update({ duracion_min }).eq("id", id)}
           onToggle={(id, activo) => supabase.from("materias").update({ activo }).eq("id", id)}
           onBorrar={(id) => supabase.from("materias").delete().eq("id", id)}
           onCambio={recargar}
@@ -346,12 +351,13 @@ function Interruptor({ label, valor, onChange }: { label: string; valor: boolean
   );
 }
 
-type Item = { id: string; nombre: string; activo: boolean; color?: string; material?: string | null };
+type Item = { id: string; nombre: string; activo: boolean; color?: string; material?: string | null; duracion?: number | null };
 
 function Catalogo({
   titulo, descripcion, placeholder, items, conColor,
-  onAgregar, onRenombrar, onToggle, onBorrar, onColor, onMaterial, onCambio,
+  onAgregar, onRenombrar, onToggle, onBorrar, onColor, onMaterial, onDuracion, onCambio,
 }: {
+  onDuracion?: (id: string, min: number | null) => Resultado;
   titulo: string;
   descripcion: string;
   placeholder: string;
@@ -441,6 +447,18 @@ function Catalogo({
               >
                 {it.activo ? "Ocultar" : "Mostrar"}
               </button>
+              {onDuracion && (
+                <select
+                  className="w-[5.5rem] shrink-0 rounded-lg border border-line bg-panel px-1.5 py-1 text-xs"
+                  value={it.duracion ?? ""}
+                  onChange={(e) => correr(onDuracion(it.id, e.target.value ? Number(e.target.value) : null))}
+                  title="Cuánto dura una cita de esta materia"
+                  aria-label={`Duración de ${it.nombre}`}
+                >
+                  <option value="">Dura…</option>
+                  {[...new Set([...DURACIONES, ...(it.duracion ? [it.duracion] : [])])].sort((a, b) => a - b).map((d) => <option key={d} value={d}>{textoDuracion(d)}</option>)}
+                </select>
+              )}
               {onMaterial && (
                 <button
                   className={`btn btn-sec shrink-0 px-2 py-1 text-xs ${it.material?.trim() ? "text-accent" : ""}`}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import AuthCard from "@/components/AuthCard";
+import { PLANTILLAS } from "@/lib/plantillas";
 import { completarRegistro, guardarPendiente, leerPendiente, type ResultadoRegistro } from "@/lib/registroCliente";
 
 type Enlace = { agenda: string; dueno: string | null; ocupada: boolean };
@@ -32,6 +33,7 @@ function Registro() {
   const [password, setPassword] = useState("");
   const [confirmar, setConfirmar] = useState("");
   const [codigoCreador, setCodigoCreador] = useState("");
+  const [uni, setUni] = useState("");
   const [acepto, setAcepto] = useState(false);
   const [otp, setOtp] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -90,7 +92,7 @@ function Registro() {
 
     setCargando(true);
     const correo = email.trim().toLowerCase();
-    guardarPendiente({ nombre: nombre.trim(), codigo: codigoCreador.trim(), unir, email: correo });
+    guardarPendiente({ nombre: nombre.trim(), codigo: codigoCreador.trim(), unir, email: correo, plantilla: uni });
     const supabase = createClient();
     const { data, error } = await supabase.auth.signUp({
       email: correo,
@@ -226,6 +228,13 @@ function Registro() {
 
         {!unir && (
           <>
+            <label className="mb-1 block text-sm font-medium" htmlFor="uni">Universidad</label>
+            <select id="uni" className="campo mb-1" value={uni} onChange={(e) => setUni(e.target.value)}>
+              <option value="">Elige tu universidad…</option>
+              {PLANTILLAS.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+            </select>
+            <p className="mb-4 text-xs text-muted">{PLANTILLAS.find((p) => p.id === uni)?.detalle ?? "Para ajustar tu agenda a tus semestres o cuatrimestres. Lo puedes cambiar después."}</p>
+
             <label className="mb-1 block text-sm font-medium" htmlFor="codigo">
               Código de creador <span className="font-normal text-muted">(opcional)</span>
             </label>

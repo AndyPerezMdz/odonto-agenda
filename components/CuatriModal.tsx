@@ -6,7 +6,7 @@ import { useCompanero, quitar, FormInvitar, LinkCompanero } from "@/components/T
 
 type Paso = "pregunta" | "confirmarBorrar" | "invitar" | "listo";
 
-// Al iniciar cada cuatrimestre le pregunta al dueño si sigue el mismo compañero.
+// Al iniciar cada cuatrimestre (o semestre) le pregunta al dueño si sigue el mismo compañero.
 export default function CuatriModal({ yo, onCambio, onVisible }: { yo: Perfil; onCambio: () => void; onVisible?: (v: boolean) => void }) {
   const { estado } = useCompanero();
   const [paso, setPaso] = useState<Paso>("pregunta");
@@ -51,13 +51,13 @@ export default function CuatriModal({ yo, onCambio, onVisible }: { yo: Perfil; o
       <div className="w-full max-w-md rounded-t-2xl border border-line bg-panel p-6 shadow-xl sm:rounded-2xl">
         {estado && (
           <p className="mb-2 inline-block rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent">
-            Cuatrimestre {estado.periodo.nombre}
+            {estado.periodo.palabra === "semestre" ? "Semestre" : "Cuatrimestre"} {estado.periodo.nombre}
           </p>
         )}
 
         {paso === "pregunta" && c && (
           <>
-            <h2 className="mb-2 text-lg font-semibold">¡Empezó un nuevo cuatrimestre!</h2>
+            <h2 className="mb-2 text-lg font-semibold">¡Empezó un nuevo {estado?.periodo.palabra ?? "cuatrimestre"}!</h2>
             <p className="mb-5 text-sm text-muted">
               ¿<b className="text-ink">{c.nombre}</b> sigue siendo tu compañero/a de clínica?
             </p>

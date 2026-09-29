@@ -57,7 +57,7 @@ export default function CitaModal({
     const p = misPacientes.find((x) => x.nombre.toLowerCase() === v.trim().toLowerCase());
     if (p) {
       if (p.telefono && !telefono) setTelefono(p.telefono);
-      if (p.materia_id && !materiaId) setMateriaId(p.materia_id);
+      if (p.materia_id && !materiaId) cambiarMateria(p.materia_id);
     }
   }
   // Si ya atendiste a este paciente, trae su No. de historia clínica (y su teléfono si no lo tienes)
@@ -95,9 +95,17 @@ export default function CitaModal({
     setInicio(v);
     if (!esNueva || !v) return;
     // Sin plantilla: duración de tus preferencias. Con plantilla (otra sesión, banco, hueco): conserva la que traía.
+    // La duración de la materia (si tiene) manda sobre todo lo demás.
     const min = (h: string) => { const [a, b] = h.split(":").map(Number); return a * 60 + b; };
-    const dur = plantilla && inicio && fin ? min(fin) - min(inicio) : 0;
+    const dur = materiaSel?.duracion_min ?? (plantilla && inicio && fin ? min(fin) - min(inicio) : 0);
     setFin(sumarMinutos(v, dur > 0 ? dur : preferencias.duracionMin));
+  }
+
+  // Al elegir materia en una cita nueva, la hora de fin se ajusta a lo que dura (Operatoria 3 h, Periodoncia 2 h…)
+  function cambiarMateria(id: string) {
+    setMateriaId(id);
+    const m = materias.find((x) => x.id === id);
+    if (esNueva && m?.duracion_min && inicio) setFin(sumarMinutos(inicio, m.duracion_min));
   }
 
   // En catálogos, mostrar activos + el que ya tenga la cita (aunque esté inactivo)
@@ -267,7 +275,7 @@ export default function CitaModal({
             </select>
           </Campo>
           <Campo label="Materia">
-            <select className="campo" value={materiaId} onChange={(e) => setMateriaId(e.target.value)}>
+            <select className="campo" value={materiaId} onChange={(e) => cambiarMateria(e.target.value)}>
               <option value="">—</option>
               {materiasOpc.map((m) => (
                 <option key={m.id} value={m.id}>{m.nombre}</option>

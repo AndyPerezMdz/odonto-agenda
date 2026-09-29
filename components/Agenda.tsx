@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCatalogos, useCitas, useHorarios, usePacientes } from "@/lib/useDatos";
 import { bloquesDelDia, huecos } from "@/lib/horario";
-import { prefs, type Cita } from "@/lib/types";
+import { prefs, type Cita, type Horario } from "@/lib/types";
+import { rangoDe } from "@/lib/cuatrimestre";
+import { inicioClinicas, rolDelBloque, tramosPorHora, type Turnos } from "@/lib/ritmo";
+import AvisosMaterial from "@/components/AvisosMaterial";
 import {
   aISO, deISO, diasDelMes, esFinDeSemana, fechaLarga, hhmm, hoyISO, sumarMinutos,
   MESES, DIAS_CORTOS_LUNES, DIAS_CORTOS_DOMINGO,
@@ -79,7 +82,7 @@ export default function Agenda({ userId }: { userId: string }) {
     if (vista === "lista") cambiarVista("mes");
   }
 
-  const { supabase, perfiles, clinicas, materias, nombreAgenda, pagadoHasta, recargar: recargarCatalogos } = useCatalogos();
+  const { supabase, perfiles, clinicas, materias, nombreAgenda, pagadoHasta, ajustes, recargar: recargarCatalogos } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
   const p = prefs(yo?.preferencias);
   const sinLeer = !!yo && pendientes(yo.version_vista).length > 0;
@@ -137,19 +140,45 @@ export default function Agenda({ userId }: { userId: string }) {
   const { pacientes } = usePacientes();
   const duenoFiltro = filtro === "todos" ? undefined : filtro;
 
-  // "+ Cita" en un hueco libre del horario de clínica
-  function citaEnHueco(fecha: string, inicio: string, fin: string) {
-    const f = sumarMinutos(inicio, p.duracionMin);
+  // "+ Cita" en un hueco libre del horario de clínica (ya trae la clínica, la materia y lo que dura)
+  function citaEnHueco(fecha: string, inicio: string, fin: string, b: Horario) {
+    const dur = (b.materia_id && materias.find((m) => m.id === b.materia_id)?.duracion_min) || p.duracionMin;
+    const f = sumarMinutos(inicio, dur);
     setModal({
       cita: null,
       fecha,
-      plantilla: { id: "", owner_id: userId, paciente: "", fecha, hora_inicio: inicio, hora_fin: f < fin ? f : fin, clinica_id: null, materia_id: null, notas: null },
+      plantilla: { id: "", owner_id: userId, paciente: "", fecha, hora_inicio: inicio, hora_fin: f < fin ? f : fin, clinica_id: b.clinica_id, materia_id: b.materia_id ?? null, notas: null },
     });
+  }
+
+  // Abrir un día desde un link (/?dia=2026-10-06), p. ej. desde "clínicas libres" en Mi avance
+  useEffect(() => {
+    const dia = new URLSearchParams(window.location.search).get("dia");
+    if (dia && /^\d{4}-\d{2}-\d{2}$/.test(dia)) {
+      const d = deISO(dia);
+      setAnio(d.getFullYear());
+      setMes(d.getMonth());
+      setSeleccionado(dia);
+      setVista("mes");
+      history.replaceState(null, "", "/");
+    }
+  }, []);
+
+  // Turnos de la pareja: ¿a quién le toca operar en cada bloque?
+  const dueno = perfiles.find((x) => x.rol === "owner")?.id ?? null;
+  const turnos: Turnos = { modo: perfiles.length >= 2 ? ajustes.turnos : "ninguno", inicia: ajustes.turnos_inicia ?? dueno };
+  function rolDe(b: Horario, fecha: string) {
+    if (turnos.modo === "ninguno") return null;
+    const r = rangoDe(deISO(fecha), ajustes.periodos);
+    const inicio = inicioClinicas(r.desde, ajustes.semana_clinicas);
+    return rolDelBloque(turnos, b.owner_id, horarios.filter((h) => h.owner_id === b.owner_id), inicio, fecha, b);
   }
 
   const perfilPorId = useMemo(() => new Map(perfiles.map((x) => [x.id, x])), [perfiles]);
   const clinicaPorId = useMemo(() => new Map(clinicas.map((x) => [x.id, x])), [clinicas]);
   const materiaPorId = useMemo(() => new Map(materias.map((x) => [x.id, x])), [materias]);
+  const nombreBloque = (b: Horario) =>
+    [b.clinica_id && clinicaPorId.get(b.clinica_id)?.numero, b.materia_id && materiaPorId.get(b.materia_id)?.nombre].filter(Boolean).join(" · ") || b.etiqueta || "Clínica";
 
   const citasFiltradas = filtro === "todos" ? citas : citas.filter((c) => c.owner_id === filtro);
   const porDia = useMemo(() => {
@@ -219,12 +248,16 @@ export default function Agenda({ userId }: { userId: string }) {
         )}
         <button onClick={() => setBuscando(true)} className="btn btn-sec" title="Buscar paciente">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          <span className="hidden sm:inline">Buscar</span>
+          <span className="hidden 2xl:inline">Buscar</span>
         </button>
         <span className="hidden sm:contents">
           <Link href="/pacientes" className="btn btn-sec" title="Mis pacientes y banco de pacientes">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.4 3.2-5.5 6.5-5.5s5.9 2.1 6.5 5.5"/><path d="M19 8v6M16 11h6"/></svg>
             Pacientes
+          </Link>
+          <Link href="/material" className="btn btn-sec" title="Mi material y CEyE">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M12 11v5M9.5 13.5h5"/></svg>
+            Material
           </Link>
         </span>
         <Link href="/avance" className="btn btn-sec" title="Mi avance por materia">
@@ -234,7 +267,7 @@ export default function Agenda({ userId }: { userId: string }) {
         <span className="hidden sm:contents">
         <a href={MANUAL_URL} target="_blank" rel="noopener noreferrer" className="btn btn-sec" title="Manual de usuario">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg>
-          Manual
+          <span className="hidden 2xl:inline">Manual</span>
         </a>
         <Link href="/personalizar" className="btn btn-sec">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
@@ -267,6 +300,7 @@ export default function Agenda({ userId }: { userId: string }) {
                   {sinLeer && <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-medium text-panel">Nuevo</span>}
                 </button>
                 <Link href="/pacientes" className="block px-4 py-2.5 hover:bg-panel-2">Pacientes</Link>
+                <Link href="/material" className="block px-4 py-2.5 hover:bg-panel-2">Mi material</Link>
                 <Link href="/personalizar" className="block px-4 py-2.5 hover:bg-panel-2">Personalizar</Link>
                 <button onClick={() => { setMenu(false); setVerInstalar(true); }} className="block w-full px-4 py-2.5 text-left hover:bg-panel-2">Instalar como app</button>
                 <a href={MANUAL_URL} target="_blank" rel="noopener noreferrer" className="block px-4 py-2.5 hover:bg-panel-2">Manual</a>
@@ -278,6 +312,7 @@ export default function Agenda({ userId }: { userId: string }) {
       </header>
 
       <BannerPago estado={pago} esDueno={yo?.rol === "owner"} />
+      <AvisosMaterial userId={userId} horarios={horarios} perfiles={perfiles} compacto />
       <InstalarApp />
 
       <div className={`grid gap-5 ${vista === "mes" ? "lg:grid-cols-[1fr_340px]" : ""}`}>
@@ -341,8 +376,9 @@ export default function Agenda({ userId }: { userId: string }) {
                 bloquesDelDia(horarios, iso, duenoFiltro).map((b) => (
                   <p key={b.id} className="mb-1.5 flex items-center gap-2 text-xs text-muted">
                     <span className="h-2 w-2 rounded-sm border" style={{ borderColor: perfilPorId.get(b.owner_id)?.color }} />
-                    {(b.clinica_id && clinicaPorId.get(b.clinica_id)?.numero) || b.etiqueta || "Clínica"} · {hhmm(b.hora_inicio)}–{hhmm(b.hora_fin)}
+                    {nombreBloque(b)} · {hhmm(b.hora_inicio)}–{hhmm(b.hora_fin)}
                     {b.owner_id !== userId && ` · ${perfilPorId.get(b.owner_id)?.nombre}`}
+                    <ChipTurno rol={rolDe(b, iso)} b={b} mio={b.owner_id === userId} nombre={perfilPorId.get(b.owner_id)?.nombre} inicia={turnos.inicia === b.owner_id} />
                   </p>
                 ))
               }
@@ -389,7 +425,7 @@ export default function Agenda({ userId }: { userId: string }) {
                       className="hidden truncate pl-1 text-[10px] leading-tight text-muted sm:block"
                       style={{ borderLeft: `2px dashed ${perfilPorId.get(b.owner_id)?.color ?? "#888"}` }}
                     >
-                      {hhmm(b.hora_inicio)}–{hhmm(b.hora_fin)} {(b.clinica_id && clinicaPorId.get(b.clinica_id)?.numero) || b.etiqueta || "Clínica"}
+                      {hhmm(b.hora_inicio)}–{hhmm(b.hora_fin)} {nombreBloque(b)}
                     </span>
                   ))}
 
@@ -442,21 +478,23 @@ export default function Agenda({ userId }: { userId: string }) {
           {bloquesDelDia(horarios, seleccionado, duenoFiltro).length > 0 && (
             <div className="mb-3 rounded-xl bg-panel-2 p-3 text-sm">
               {bloquesDelDia(horarios, seleccionado, duenoFiltro).map((b) => {
-                const libres = b.owner_id === userId && seleccionado >= hoyStr && !soloLectura ? huecos(b, citas, seleccionado) : [];
+                // Si esa clínica te toca asistir, no hay hueco para meter paciente tuyo
+                const libres = b.owner_id === userId && seleccionado >= hoyStr && !soloLectura && rolDe(b, seleccionado) !== "asiste" ? huecos(b, citas, seleccionado) : [];
                 return (
                   <div key={b.id} className="mb-1 last:mb-0">
                     <p className="flex items-center gap-2">
                       <span className="h-2 w-2 rounded-sm border" style={{ borderColor: perfilPorId.get(b.owner_id)?.color }} />
-                      <span className="font-medium">{(b.clinica_id && clinicaPorId.get(b.clinica_id)?.numero) || b.etiqueta || "Clínica"}</span>
+                      <span className="font-medium">{nombreBloque(b)}</span>
                       <span className="tabular-nums text-muted">{hhmm(b.hora_inicio)}–{hhmm(b.hora_fin)}</span>
                       <span className="ml-auto text-xs text-muted">{b.owner_id === userId ? "Tú" : perfilPorId.get(b.owner_id)?.nombre}</span>
                     </p>
+                    <div className="pl-4"><ChipTurno rol={rolDe(b, seleccionado)} b={b} mio={b.owner_id === userId} nombre={perfilPorId.get(b.owner_id)?.nombre} inicia={turnos.inicia === b.owner_id} /></div>
                     {libres.length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1.5 pl-4">
                         {libres.map((h) => (
                           <button
                             key={h.inicio}
-                            onClick={() => citaEnHueco(seleccionado, h.inicio, h.fin)}
+                            onClick={() => citaEnHueco(seleccionado, h.inicio, h.fin, b)}
                             className="rounded-full border border-dashed border-accent px-2 py-0.5 text-xs font-medium text-accent hover:bg-accent-soft"
                             title="Agendar en este hueco"
                           >
@@ -636,5 +674,28 @@ function VistaLista({
         </section>
       ))}
     </div>
+  );
+}
+
+/** "Operas tú" / "Asistes" / "8–9 tú · 9–10 Diego" según los turnos de la pareja. */
+function ChipTurno({ rol, b, mio, nombre, inicia }: { rol: "opera" | "asiste" | "mitad" | null; b: Horario; mio: boolean; nombre?: string; inicia: boolean }) {
+  if (!rol) return null;
+  const quien = mio ? "tú" : nombre ?? "";
+  if (rol === "mitad") {
+    const tramos = tramosPorHora(b, inicia);
+    return (
+      <span className="ml-1 inline-flex flex-wrap gap-1 align-middle">
+        {tramos.map((t) => (
+          <span key={t.inicio} className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${t.yo ? "bg-accent-soft text-accent" : "bg-panel-2 text-muted"}`}>
+            {t.inicio.replace(/:00$/, "")}–{t.fin.replace(/:00$/, "")} {t.yo ? (mio ? "operas" : `opera ${quien}`) : mio ? "asistes" : "asiste"}
+          </span>
+        ))}
+      </span>
+    );
+  }
+  return (
+    <span className={`ml-1 inline-block rounded-full px-2 py-0.5 align-middle text-[10px] font-medium ${rol === "opera" ? "bg-accent-soft text-accent" : "bg-panel-2 text-muted"}`}>
+      {rol === "opera" ? (mio ? "Operas tú" : `Opera ${quien}`) : mio ? "Te toca asistir" : `${quien} asiste`}
+    </span>
   );
 }

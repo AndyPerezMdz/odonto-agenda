@@ -162,9 +162,9 @@ export default function TarjetaCompanero({ onCambio }: { onCambio: () => void })
     <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
       <div className="mb-4 flex flex-col-reverse items-start gap-2 sm:flex-row sm:justify-between sm:gap-3">
         <div>
-          <h2 className="font-semibold">Compañero/a del cuatrimestre</h2>
+          <h2 className="font-semibold">Compañero/a del {estado?.periodo.palabra ?? "cuatrimestre"}</h2>
           <p className="mt-0.5 text-sm text-muted">
-            Eres el dueño de la agenda: sólo tú invitas a quien la comparte contigo. Cada cuatrimestre te preguntaremos si sigue la misma persona.
+            Eres el dueño de la agenda: sólo tú invitas a quien la comparte contigo. Cada {estado?.periodo.palabra ?? "cuatrimestre"} te preguntaremos si sigue la misma persona.
           </p>
         </div>
         {estado && <span className="shrink-0 rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent">{estado.periodo.nombre}</span>}

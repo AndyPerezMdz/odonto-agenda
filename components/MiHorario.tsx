@@ -2,22 +2,25 @@
 
 import { useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Clinica, Horario } from "@/lib/types";
+import type { Clinica, Horario, Materia } from "@/lib/types";
 import { hhmm } from "@/lib/fechas";
 import { DIAS } from "@/lib/horario";
 
 // "Los martes de 8 a 12 tengo Clínica 1": se pinta en la agenda y te enseña tus huecos libres.
 export default function MiHorario({
-  supabase, userId, horarios, clinicas, onCambio,
-}: { supabase: SupabaseClient; userId: string; horarios: Horario[]; clinicas: Clinica[]; onCambio: () => void }) {
+  supabase, userId, horarios, clinicas, materias, onCambio,
+}: { supabase: SupabaseClient; userId: string; horarios: Horario[]; clinicas: Clinica[]; materias: Materia[]; onCambio: () => void }) {
   const mios = horarios.filter((h) => h.owner_id === userId);
   const [dia, setDia] = useState(1);
   const [inicio, setInicio] = useState("08:00");
   const [fin, setFin] = useState("12:00");
   const [clinicaId, setClinicaId] = useState("");
+  const [materiaId, setMateriaId] = useState("");
   const [etiqueta, setEtiqueta] = useState("");
   const [error, setError] = useState<string | null>(null);
   const clinica = new Map(clinicas.map((c) => [c.id, c.numero]));
+  const materia = new Map(materias.map((m) => [m.id, m]));
+  const sinMateria = mios.filter((h) => !h.materia_id).length;
 
   async function agregar(e: React.FormEvent) {
     e.preventDefault();
@@ -28,10 +31,16 @@ export default function MiHorario({
       hora_inicio: inicio,
       hora_fin: fin,
       clinica_id: clinicaId || null,
+      materia_id: materiaId || null,
       etiqueta: etiqueta.trim() || null,
     });
     if (error) return setError("No se pudo guardar: " + error.message);
     setEtiqueta("");
+    onCambio();
+  }
+
+  async function cambiarMateria(id: string, materia_id: string) {
+    await supabase.from("horarios").update({ materia_id: materia_id || null }).eq("id", id);
     onCambio();
   }
 
@@ -54,10 +63,24 @@ export default function MiHorario({
               <span className="w-24 font-medium">{DIAS[h.dia_semana]}</span>
               <span className="tabular-nums">{hhmm(h.hora_inicio)}–{hhmm(h.hora_fin)}</span>
               <span className="text-muted">{[h.clinica_id && clinica.get(h.clinica_id), h.etiqueta].filter(Boolean).join(" · ")}</span>
+              <select
+                className="rounded-lg border border-line bg-panel px-1.5 py-0.5 text-xs"
+                value={h.materia_id ?? ""}
+                onChange={(e) => cambiarMateria(h.id, e.target.value)}
+                aria-label="Materia de este bloque"
+                style={h.materia_id ? { borderColor: materia.get(h.materia_id)?.color } : undefined}
+              >
+                <option value="">¿Qué materia?</option>
+                {materias.filter((m) => m.activo || m.id === h.materia_id).map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+              </select>
               <button onClick={() => quitar(h.id)} className="ml-auto text-xs text-danger hover:underline">Quitar</button>
             </li>
           ))}
         </ul>
+      )}
+
+      {mios.length > 0 && sinMateria > 0 && materias.length > 0 && (
+        <p className="-mt-2 mb-4 text-xs text-muted">Ponle su materia a cada bloque: así Mi avance te dice cuántas clínicas te quedan de cada una.</p>
       )}
 
       <form onSubmit={agregar} className="grid grid-cols-2 gap-2 sm:grid-cols-[1.2fr_1fr_1fr_1.2fr_auto]">
@@ -71,7 +94,11 @@ export default function MiHorario({
           {clinicas.filter((c) => c.activo).map((c) => <option key={c.id} value={c.id}>{c.numero}</option>)}
         </select>
         <button className="btn btn-primario">Agregar</button>
-        <input className="campo col-span-2 sm:col-span-5" placeholder="Etiqueta opcional (ej. Clínica integral, turno matutino)" value={etiqueta} onChange={(e) => setEtiqueta(e.target.value)} />
+        <select className="campo col-span-2 sm:col-span-2" value={materiaId} onChange={(e) => setMateriaId(e.target.value)} aria-label="Materia">
+          <option value="">Materia…</option>
+          {materias.filter((m) => m.activo).map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+        </select>
+        <input className="campo col-span-2 sm:col-span-3" placeholder="Etiqueta opcional (ej. turno matutino)" value={etiqueta} onChange={(e) => setEtiqueta(e.target.value)} />
       </form>
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
     </section>

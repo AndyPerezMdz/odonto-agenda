@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { duenoEnSesion, estadoCompanero } from "@/lib/companero";
 import { urlSitio } from "@/lib/recordatorios";
 import { periodoDe } from "@/lib/cuatrimestre";
+import { periodosDe } from "@/lib/plantillasServer";
 import { correoValido, invitarUsuario } from "@/lib/invitar";
 import { agendaEnPrueba, gastadaEnOtra, gastarPrueba, liberarPrueba, pruebaDe, usuarioPorCorreo, MENSAJE_PRUEBA_USADA } from "@/lib/pruebas";
 import { crearInvitacion } from "@/lib/invitaciones";
@@ -16,7 +17,7 @@ export async function GET() {
   const s = await duenoEnSesion();
   if (!s) return soloDueno();
   try {
-    return NextResponse.json({ ...(await estadoCompanero(s.db, s.agendaId)), periodo: periodoDe() });
+    return NextResponse.json({ ...(await estadoCompanero(s.db, s.agendaId)), periodo: periodoDe(new Date(), await periodosDe(s.db, s.agendaId)) });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Invitar cuenta como "confirmado" el cuatrimestre actual
-  await s.db.from("perfiles").update({ periodo_confirmado: periodoDe().id }).eq("id", s.user.id);
+  await s.db.from("perfiles").update({ periodo_confirmado: periodoDe(new Date(), await periodosDe(s.db, s.agendaId)).id }).eq("id", s.user.id);
   return NextResponse.json({ ok: true });
 }
 
@@ -102,7 +103,7 @@ export async function DELETE() {
 export async function PATCH() {
   const s = await duenoEnSesion();
   if (!s) return soloDueno();
-  const { error } = await s.db.from("perfiles").update({ periodo_confirmado: periodoDe().id }).eq("id", s.user.id);
+  const { error } = await s.db.from("perfiles").update({ periodo_confirmado: periodoDe(new Date(), await periodosDe(s.db, s.agendaId)).id }).eq("id", s.user.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

@@ -1,4 +1,5 @@
 import "server-only";
+import { aplicarPlantilla } from "@/lib/plantillasServer";
 import { randomBytes } from "crypto";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { APP_VERSION } from "@/lib/novedades";
@@ -49,7 +50,7 @@ type Resultado = { ok: true; agenda: "creada" | "unido" | "invitacion" | "ya"; a
 export async function completarRegistro(
   db: Db,
   user: { id: string; email?: string | null },
-  datos: { nombre?: string; codigo?: string; unir?: string; sitio: string }
+  datos: { nombre?: string; codigo?: string; unir?: string; plantilla?: string; sitio: string }
 ): Promise<Resultado> {
   const email = user.email ?? "";
   if (!email) return { ok: false, error: "Tu cuenta no tiene correo." };
@@ -112,5 +113,7 @@ export async function completarRegistro(
     return { ok: false, error: e2.message };
   }
   if (!usada) await gastarPrueba(db, email, agenda.id);
+  if (datos.plantilla) await aplicarPlantilla(db, agenda.id, datos.plantilla); // calendario y materias de su uni
+
   return { ok: true, agenda: "creada", aviso: usada ? MENSAJE_SIN_PRUEBA : aviso };
 }

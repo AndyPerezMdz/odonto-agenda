@@ -1,12 +1,22 @@
 // Versión de la app y lo nuevo de cada una. Al publicar una actualización:
 // 1) sube APP_VERSION, 2) agrega su bloque ARRIBA de la lista. Cada quien la ve una vez.
 
-export const APP_VERSION = "1.7";
+export const APP_VERSION = "1.8";
 
 export type Novedad = { titulo: string; texto: string; icono: keyof typeof ICONOS };
 export type Version = { version: string; fecha: string; items: Novedad[] };
 
 export const NOVEDADES: Version[] = [
+  {
+    version: "1.8",
+    fecha: "octubre 2026",
+    items: [
+      { icono: "semaforo", titulo: "¿Voy atrasado/a?", texto: "Mi avance ahora te dice cuántas clínicas te quedan de cada materia y te pone un semáforo: verde, vas bien; amarillo, vas justo; rojo, a conseguir pacientes ya. Y qué clínicas siguen sin paciente." },
+      { icono: "caja", titulo: "Mi material y la CEyE", texto: "Marca tu instrumental como usado o en la CEyE y te aviso si no alcanza a salir antes de tu clínica. Lo que compran entre los dos (alginato, yeso…) se marca cuando se acaba." },
+      { icono: "turnos", titulo: "Turnos para operar", texto: "¿Se turnan por hora, por clínica o por semana? Ponlo en Personalizar → Agenda y cada bloque te dice si operas o asistes." },
+      { icono: "reloj", titulo: "Semestres y duración por materia", texto: "Tu agenda ya entiende semestres (ago–dic, ene–jul) y la semana en que arrancan clínicas. Cada materia puede durar lo suyo: Operatoria 3 h, Periodoncia 2 h." },
+    ],
+  },
   {
     version: "1.7",
     fecha: "septiembre 2026",
@@ -72,5 +82,8 @@ export const ICONOS = {
   reloj: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
   enlace: "M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7",
   folio: "M4 4h16v16l-3-2-3 2-3-2-3 2-4-2zM8 9h8M8 13h5",
+  semaforo: "M9 2h6a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3zM12 7h.01M12 12h.01M12 17h.01",
+  caja: "M3 8h18v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM8 8V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v3M12 12v5M9.5 14.5h5",
+  turnos: "M7 4 3 8l4 4M3 8h13M17 20l4-4-4-4M21 16H8",
   estrella: "m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z",
 };
