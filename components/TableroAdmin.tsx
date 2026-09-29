@@ -447,3 +447,150 @@ export function PorCodigo({ agendas, resumen, onVerTodos }: { agendas: AgendaAdm
     </section>
   );
 }
+
+/* ---------------- universidades (1.8) ---------------- */
+
+export type FiltroUni = "todas" | "upp" | "uady";
+
+/** UPP / UADY, para la lista y la ficha de cada agenda. */
+export function InsigniaUni({ uni }: { uni: "upp" | "uady" }) {
+  return (
+    <span
+      className={`inline-block shrink-0 rounded-md px-1.5 py-px text-[10px] font-bold tracking-wide ${
+        uni === "uady" ? "bg-[#e7eefb] text-[#1f3f7a] dark:bg-[#1c2a44] dark:text-[#b9ccf2]" : "bg-panel-2 text-muted"
+      }`}
+    >
+      {uni.toUpperCase()}
+    </span>
+  );
+}
+
+/** Todas · UPP · UADY: filtra TODO el panel. */
+export function FiltroUniversidad({ valor, agendas, onCambio }: { valor: FiltroUni; agendas: AgendaAdmin[]; onCambio: (v: FiltroUni) => void }) {
+  const n = (u: "upp" | "uady") => agendas.filter((a) => a.universidad === u).length;
+  const opciones: [FiltroUni, string][] = [["todas", `Todas · ${agendas.length}`], ["upp", `UPP · ${n("upp")}`], ["uady", `UADY · ${n("uady")}`]];
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="flex rounded-xl border border-line bg-panel p-1 text-sm font-medium" role="tablist" aria-label="Universidad">
+        {opciones.map(([id, t]) => (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={valor === id}
+            onClick={() => onCambio(id)}
+            className={`rounded-lg px-3 py-1.5 tabular-nums transition ${valor === id ? "bg-ink text-panel" : "text-muted hover:text-ink"}`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+      {valor !== "todas" && <span className="text-xs text-muted">Todo el panel muestra sólo la {valor.toUpperCase()}.</span>}
+    </div>
+  );
+}
+
+/** UPP contra UADY, lado a lado. */
+export function Comparativo({ agendas, resumen }: { agendas: AgendaAdmin[]; resumen: ResumenAdmin }) {
+  const hoy = hoyISO();
+  const hace7 = Date.now() - 7 * 86400000;
+  const col = (u: "upp" | "uady") => {
+    const as = agendas.filter((a) => a.universidad === u);
+    const pagan = as.filter((a) => pagando(a, hoy));
+    return {
+      agendas: as.length,
+      pagan: pagan.length,
+      mrr: pagan.reduce((n, a) => n + a.precio_mensual, 0),
+      prueba: as.filter((a) => enPruebaViva(a, hoy)).length,
+      cobrado: resumen.mesesUni[u].at(-1)?.cobrado ?? 0,
+      activas: as.filter((a) => a.ultimoAcceso && new Date(a.ultimoAcceso).getTime() >= hace7).length,
+      citas: as.reduce((n, a) => n + a.citasSemana, 0),
+    };
+  };
+  const upp = col("upp");
+  const uady = col("uady");
+  if (!uady.agendas) return null; // mientras no haya UADY no hay nada que comparar
+  const filas: [string, (c: typeof upp) => string][] = [
+    ["Agendas", (c) => String(c.agendas)],
+    ["Pagando", (c) => (c.pagan ? `${c.pagan} (${pesos(c.mrr)})` : "—")],
+    ["En mes gratis", (c) => String(c.prueba)],
+    [`Cobrado en ${mesLargo(resumen.meses.at(-1)!.mes)}`, (c) => pesos(c.cobrado)],
+    ["Entraron esta semana", (c) => (c.agendas ? `${c.activas} de ${c.agendas}` : "—")],
+    ["Citas nuevas esta semana", (c) => String(c.citas)],
+  ];
+  return (
+    <section className="rounded-2xl border border-line bg-panel">
+      <h2 className="px-4 pb-2 pt-3 font-semibold">UPP vs UADY</h2>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-y border-line bg-panel-2 text-left text-xs text-muted">
+            <th className="px-4 py-1.5 font-medium" />
+            <th className="px-2 py-1.5 text-right font-medium"><InsigniaUni uni="upp" /></th>
+            <th className="px-4 py-1.5 text-right font-medium"><InsigniaUni uni="uady" /></th>
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map(([t, f]) => (
+            <tr key={t} className="border-b border-line last:border-0">
+              <td className="px-4 py-2 text-muted">{t}</td>
+              <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums">{f(upp)}</td>
+              <td className="whitespace-nowrap px-4 py-2 text-right tabular-nums font-medium">{f(uady)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+/** ¿Las agendas de la UADY usan lo que se hizo para ellas? */
+export function UsoUady({ agendas, onVer }: { agendas: AgendaAdmin[]; onVer: (id: string) => void }) {
+  const as = agendas.filter((a) => a.universidad === "uady");
+  if (!as.length) return null;
+  const conPareja = as.filter((a) => a.uso.pareja);
+  const filas = [
+    { t: "Horario con materia", d: "Sin esto no ven cuántas clínicas les quedan", n: as.filter((a) => a.uso.horarioMateria).length, de: as.length },
+    { t: "Metas puestas", d: "Sin meta no hay semáforo", n: as.filter((a) => a.uso.metas).length, de: as.length },
+    { t: "Turnos configurados", d: "Sólo cuentan las que tienen compañero/a", n: conPareja.filter((a) => a.uso.turnos).length, de: conPareja.length },
+    { t: "Usan Mi material", d: "Registraron instrumental o consumibles", n: as.filter((a) => a.uso.material).length, de: as.length },
+  ];
+  // Las que ni arrancan: sin horario con materia ni metas (a éstas hay que escribirles)
+  const sinArrancar = as.filter((a) => !a.uso.horarioMateria && !a.uso.metas && a.miembros.some((m) => !m.pendiente));
+  return (
+    <section className="rounded-2xl border border-line bg-panel p-4">
+      <div className="mb-3 flex items-baseline justify-between gap-2">
+        <h2 className="flex items-center gap-2 font-semibold">¿Usan lo de la UADY? <InsigniaUni uni="uady" /></h2>
+        <span className="text-xs text-muted">{as.length} agenda{as.length === 1 ? "" : "s"}</span>
+      </div>
+      <ul className="flex flex-col gap-3">
+        {filas.map((f) => {
+          const pct = f.de ? Math.round((f.n / f.de) * 100) : 0;
+          return (
+            <li key={f.t}>
+              <div className="flex items-baseline justify-between gap-2 text-sm">
+                <span className="font-medium">{f.t}</span>
+                <span className="tabular-nums">{f.de ? <><b>{f.n}</b><span className="text-muted"> de {f.de}</span></> : <span className="text-muted">—</span>}</span>
+              </div>
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-panel-2">
+                <div className="h-full rounded-full bg-[#3b64b3]" style={{ width: `${pct}%` }} />
+              </div>
+              <p className="mt-0.5 text-[11px] text-muted">{f.d}</p>
+            </li>
+          );
+        })}
+      </ul>
+      {sinArrancar.length > 0 && (
+        <div className="mt-4 rounded-xl bg-[#fdf6e3] p-3 text-xs text-[#5c4712] dark:bg-[#2a2415] dark:text-[#ecd9a4]">
+          <p className="mb-1.5 font-medium">No han puesto ni horario ni metas ({sinArrancar.length}):</p>
+          <div className="flex flex-wrap gap-1.5">
+            {sinArrancar.slice(0, 8).map((a) => (
+              <button key={a.id} onClick={() => onVer(a.id)} className="rounded-full border border-current/30 px-2 py-0.5 hover:bg-white/40">
+                {a.nombre}
+              </button>
+            ))}
+            {sinArrancar.length > 8 && <span>+{sinArrancar.length - 8}</span>}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}

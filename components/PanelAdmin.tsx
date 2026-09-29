@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { AgendaAdmin, AvisoAdmin, Miembro, ResumenAdmin } from "@/lib/admin";
-import { Saludo, Numeros, Totales, HoyTeToca, Ingresos, PorCodigo, hace, diasSinEntrar, enPruebaViva, pagando, DIAS_FANTASMA } from "@/components/TableroAdmin";
+import { Comparativo, FiltroUniversidad, InsigniaUni, UsoUady, type FiltroUni, Saludo, Numeros, Totales, HoyTeToca, Ingresos, PorCodigo, hace, diasSinEntrar, enPruebaViva, pagando, DIAS_FANTASMA } from "@/components/TableroAdmin";
 import type { CodigoAdmin } from "@/app/api/admin/codigos/route";
 import { estadoPago, pesos, codigoAgenda, sumarDias } from "@/lib/pagos";
 import { fechaLarga, hoyISO } from "@/lib/fechas";
@@ -34,6 +34,18 @@ export default function PanelAdmin({ email }: { email: string }) {
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [abierta, setAbierta] = useState<string | null>(null);
+  // Universidad: filtra TODO el panel (se recuerda en este navegador)
+  const [uni, setUniEstado] = useState<FiltroUni>("todas");
+  useEffect(() => {
+    try {
+      const g = localStorage.getItem("admin-universidad");
+      if (g === "upp" || g === "uady") setUniEstado(g);
+    } catch {}
+  }, []);
+  function setUni(v: FiltroUni) {
+    setUniEstado(v);
+    try { localStorage.setItem("admin-universidad", v); } catch {}
+  }
 
   const recargar = useCallback(async () => {
     const res = await fetch("/api/admin/agendas", { cache: "no-store" });
@@ -63,6 +75,8 @@ export default function PanelAdmin({ email }: { email: string }) {
   }
 
   function verAgenda(id: string) {
+    const a = agendas?.find((x) => x.id === id);
+    if (a && uni !== "todas" && a.universidad !== uni) setUni("todas");
     setPestana("agendas");
     setFiltro("todas");
     setBusca("");
@@ -70,8 +84,13 @@ export default function PanelAdmin({ email }: { email: string }) {
     setTimeout(() => document.getElementById(`agenda-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   }
 
+  // Lo que se ve según la universidad elegida
+  const delaUni = (agendas ?? []).filter((a) => uni === "todas" || a.universidad === uni);
+  const avisosUni = avisos.filter((v) => uni === "todas" || v.universidad === uni);
+  const resumenUni = resumen && uni !== "todas" ? { ...resumen, meses: resumen.mesesUni[uni] } : resumen;
+
   const q = busca.trim().toLowerCase();
-  const visibles = (agendas ?? []).filter(
+  const visibles = delaUni.filter(
     (a) =>
       (filtro === "todas" || grupoPago(a) === filtro) &&
       (!q || a.nombre.toLowerCase().includes(q) || a.miembros.some((m) => `${m.email} ${m.nombre}`.toLowerCase().includes(q)))
@@ -91,10 +110,12 @@ export default function PanelAdmin({ email }: { email: string }) {
         <button onClick={salir} className="btn btn-sec">Salir</button>
       </header>
 
-      {agendas && resumen ? (
+      {agendas && <FiltroUniversidad valor={uni} agendas={agendas} onCambio={setUni} />}
+
+      {agendas && resumenUni ? (
         <div className="mb-6">
-          <Numeros agendas={agendas} resumen={resumen} />
-          <Totales agendas={agendas} />
+          <Numeros agendas={delaUni} resumen={resumenUni} />
+          <Totales agendas={delaUni} />
         </div>
       ) : (
         !error && <p className="mb-6 text-sm text-muted">Cargando…</p>
@@ -103,12 +124,12 @@ export default function PanelAdmin({ email }: { email: string }) {
       {aviso && <p className="sticky top-2 z-20 mb-4 rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent shadow-sm">{aviso}</p>}
       {error && <p className="mb-4 text-sm text-danger">{error}</p>}
 
-      {agendas && resumen && (
+      {agendas && resumen && resumenUni && (
         <div className="mb-6 grid items-start gap-4 lg:grid-cols-[1.35fr_1fr]">
           <div className="flex min-w-0 flex-col gap-4">
-            {avisos.length > 0 && (
+            {avisosUni.length > 0 && (
               <AvisosPago
-                avisos={avisos}
+                avisos={avisosUni}
                 agendas={agendas}
                 onCambio={(msg) => {
                   setAviso(msg);
@@ -116,11 +137,13 @@ export default function PanelAdmin({ email }: { email: string }) {
                 }}
               />
             )}
-            <HoyTeToca agendas={agendas} avisosPendientes={avisos.length} onVer={verAgenda} onAviso={setAviso} />
+            <HoyTeToca agendas={delaUni} avisosPendientes={avisosUni.length} onVer={verAgenda} onAviso={setAviso} />
+            {uni !== "upp" && <UsoUady agendas={delaUni} onVer={verAgenda} />}
           </div>
           <div className="flex min-w-0 flex-col gap-4">
-            <Ingresos resumen={resumen} />
-            <PorCodigo agendas={agendas} resumen={resumen} onVerTodos={() => setPestana("codigos")} />
+            {uni === "todas" && <Comparativo agendas={agendas} resumen={resumen} />}
+            <Ingresos key={uni} resumen={resumenUni} />
+            <PorCodigo agendas={delaUni} resumen={resumenUni} onVerTodos={() => setPestana("codigos")} />
           </div>
         </div>
       )}
@@ -129,7 +152,7 @@ export default function PanelAdmin({ email }: { email: string }) {
       <nav className="mb-5 flex gap-1 rounded-xl border border-line bg-panel p-1 text-sm font-medium">
         {(
           [
-            ["agendas", `Agendas${agendas ? ` (${agendas.length})` : ""}`],
+            ["agendas", `Agendas${agendas ? ` (${delaUni.length})` : ""}`],
             ["codigos", "Códigos"],
             ["ajustes", "Datos de pago"],
           ] as const
@@ -160,7 +183,7 @@ export default function PanelAdmin({ email }: { email: string }) {
             />
             <div className="flex flex-wrap gap-1.5">
               {FILTROS.map(([id, t]) => {
-                const n = agendas?.filter((a) => grupoPago(a) === id).length ?? 0;
+                const n = delaUni.filter((a) => grupoPago(a) === id).length;
                 if (id !== "todas" && n === 0) return null;
                 return (
                   <button
@@ -246,7 +269,7 @@ function FilaAgenda({
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-4">
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-semibold">{agenda.nombre}</span>
+            <span className="flex min-w-0 items-center gap-1.5"><span className="truncate font-semibold">{agenda.nombre}</span><InsigniaUni uni={agenda.universidad} /></span>
             <span className="block truncate text-xs text-muted">
               {dueno ? dueno.email : agenda.invitacionPendiente ? `Invitación a ${agenda.invitacionPendiente}` : <b className="font-semibold text-danger">Sin dueño</b>}
               {compa ? ` · ${compa.nombre}` : ""} · {agenda.citas} cita{agenda.citas === 1 ? "" : "s"}
@@ -393,9 +416,16 @@ function TarjetaAgenda({ agenda, onCambio, onAviso }: { agenda: AgendaAdmin; onC
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
             title="Clic para renombrar"
           />
-          <p className="text-xs text-muted">
-            Creada el {fechaCorta(agenda.created_at)} · {agenda.citas} cita{agenda.citas === 1 ? "" : "s"}
+          <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+            <InsigniaUni uni={agenda.universidad} /> Creada el {fechaCorta(agenda.created_at)} · {agenda.citas} cita{agenda.citas === 1 ? "" : "s"}
           </p>
+          {agenda.universidad === "uady" && (
+            <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted">
+              {([["Horario con materia", agenda.uso.horarioMateria], ["Metas", agenda.uso.metas], ["Turnos", agenda.uso.turnos], ["Mi material", agenda.uso.material]] as const).map(([t, ok]) => (
+                <span key={t} className={ok ? "text-accent" : ""}>{ok ? "✓" : "○"} {t}</span>
+              ))}
+            </p>
+          )}
         </div>
         {!borrando && (
           <button className="btn btn-peligro text-xs" onClick={() => setBorrando(true)}>Eliminar agenda</button>

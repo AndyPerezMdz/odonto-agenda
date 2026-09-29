@@ -17,11 +17,24 @@ export type Miembro = {
 
 export type PagoAdmin = { id: string; monto: number; meses: number; metodo: string; referencia: string | null; cubre_desde: string; cubre_hasta: string; created_at: string };
 
-export type AvisoAdmin = { id: string; agenda_id: string; agenda: string; monto: number | null; referencia: string | null; quien: string | null; created_at: string };
+export type AvisoAdmin = { id: string; agenda_id: string; agenda: string; monto: number | null; referencia: string | null; quien: string | null; created_at: string; universidad: Universidad };
+
+export type Universidad = "upp" | "uady";
+
+/** ¿Una agenda de la UADY ya usa lo suyo? (para saber si esas funciones sirven de verdad) */
+export type UsoUady = {
+  horarioMateria: boolean; // algún bloque del horario tiene materia (sin eso no hay ritmo)
+  metas: boolean; // alguien puso metas
+  turnos: boolean; // configuraron cómo se turnan
+  material: boolean; // registraron material
+  pareja: boolean; // tiene compañero/a (los turnos sólo aplican así)
+};
 
 export type AgendaAdmin = {
   id: string;
   nombre: string;
+  universidad: Universidad; // se elige al registrarse y nunca cambia
+  uso: UsoUady;
   notas: string | null;
   created_at: string;
   pagado_hasta: string | null;
@@ -41,6 +54,7 @@ export type AgendaAdmin = {
 export type MesResumen = { mes: string; cobrado: number; pagos: number; nuevas: number };
 export type ResumenAdmin = {
   meses: MesResumen[]; // últimos 6, del más viejo al actual
+  mesesUni: Record<Universidad, MesResumen[]>; // lo mismo, por universidad
   codigos: { codigo: string; creador: string }[];
 };
 
@@ -75,17 +89,24 @@ export async function listarAgendas(db: Db): Promise<{ agendas: AgendaAdmin[]; a
     { data: avisos },
   ] =
     await Promise.all([
-      db.from("agendas").select("id,nombre,notas,created_at,pagado_hasta,precio_mensual,prueba_hasta,codigo").order("created_at"),
+      db.from("agendas").select("id,nombre,notas,created_at,pagado_hasta,precio_mensual,prueba_hasta,codigo,universidad,turnos").order("created_at"),
       db.from("perfiles").select("id,nombre,rol,agenda_id,color,ultimo_acceso").not("agenda_id", "is", null),
       db.from("citas").select("owner_id,agenda_id,created_at"),
       db.auth.admin.listUsers({ perPage: 1000 }),
       db.from("pagos").select("id,agenda_id,monto,meses,metodo,referencia,cubre_desde,cubre_hasta,created_at").order("created_at", { ascending: false }).order("cubre_hasta", { ascending: false }),
       db.from("avisos_pago").select("id,agenda_id,monto,referencia,reportado_por,created_at").eq("estado", "pendiente").order("created_at"),
     ]);
-  const [{ data: invitaciones }, { data: codigos }] = await Promise.all([
+  const [{ data: invitaciones }, { data: codigos }, { data: horarios }, { data: metas }, { data: material }] = await Promise.all([
     db.from("invitaciones").select("agenda_id,email"),
     db.from("codigos").select("codigo,creador"),
+    db.from("horarios").select("agenda_id,materia_id"),
+    db.from("metas").select("perfil_id"),
+    db.from("material").select("agenda_id"),
   ]);
+  const agendaDePerfil = new Map((perfiles ?? []).map((p) => [p.id, p.agenda_id as string]));
+  const conHorarioMateria = new Set((horarios ?? []).filter((h) => h.materia_id).map((h) => h.agenda_id));
+  const conMetas = new Set((metas ?? []).map((m) => agendaDePerfil.get(m.perfil_id)).filter(Boolean));
+  const conMaterial = new Set((material ?? []).map((m) => m.agenda_id));
   const err = e1 ?? e2 ?? e3 ?? e4;
   if (err) throw new Error(err.message);
 
@@ -122,8 +143,17 @@ export async function listarAgendas(db: Db): Promise<{ agendas: AgendaAdmin[]; a
         };
       })
       .sort((x, y) => (x.rol === "owner" ? -1 : y.rol === "owner" ? 1 : 0));
+    const { turnos, ...resto } = a;
     return {
-    ...a,
+    ...resto,
+    universidad: (a.universidad === "uady" ? "uady" : "upp") as Universidad,
+    uso: {
+      horarioMateria: conHorarioMateria.has(a.id),
+      metas: conMetas.has(a.id),
+      turnos: !!turnos && turnos !== "ninguno",
+      material: conMaterial.has(a.id),
+      pareja: miembros.length >= 2,
+    },
     miembros,
     ultimoAcceso: masReciente(...miembros.map((m) => m.ultimoAcceso)),
     citasSemana: semanaPorAgenda.get(a.id) ?? 0,
@@ -142,25 +172,36 @@ export async function listarAgendas(db: Db): Promise<{ agendas: AgendaAdmin[]; a
   });
 
   // Últimos 6 meses: lo cobrado (por fecha en que registraste el pago) y agendas nuevas
+  // (también por universidad, para el filtro del panel)
+  const uniDe = new Map((agendas ?? []).map((a) => [a.id, (a.universidad === "uady" ? "uady" : "upp") as Universidad]));
   const hoy = new Date();
-  const meses: MesResumen[] = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - i, 15));
-    meses.push({ mes: d.toISOString().slice(0, 7), cobrado: 0, pagos: 0, nuevas: 0 });
-  }
-  const porMes = new Map(meses.map((m) => [m.mes, m]));
+  const mesesVacios = () => {
+    const out: MesResumen[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - i, 15));
+      out.push({ mes: d.toISOString().slice(0, 7), cobrado: 0, pagos: 0, nuevas: 0 });
+    }
+    return out;
+  };
+  const meses = mesesVacios();
+  const mesesUni: Record<Universidad, MesResumen[]> = { upp: mesesVacios(), uady: mesesVacios() };
+  const sumar = (lista: MesResumen[], iso: string, fn: (m: MesResumen) => void) => {
+    const m = lista.find((x) => x.mes === mesDe(iso));
+    if (m) fn(m);
+  };
   for (const p of pagos ?? []) {
-    const m = porMes.get(mesDe(p.created_at));
-    if (m) { m.cobrado += Number(p.monto); m.pagos++; }
+    const cobro = (m: MesResumen) => { m.cobrado += Number(p.monto); m.pagos++; };
+    sumar(meses, p.created_at, cobro);
+    sumar(mesesUni[uniDe.get(p.agenda_id) ?? "upp"], p.created_at, cobro);
   }
   for (const a of agendas ?? []) {
-    const m = porMes.get(mesDe(a.created_at));
-    if (m) m.nuevas++;
+    sumar(meses, a.created_at, (m) => m.nuevas++);
+    sumar(mesesUni[uniDe.get(a.id) ?? "upp"], a.created_at, (m) => m.nuevas++);
   }
 
   return {
     agendas: lista,
-    resumen: { meses, codigos: codigos ?? [] },
+    resumen: { meses, mesesUni, codigos: codigos ?? [] },
     avisos: (avisos ?? []).map((v) => ({
       id: v.id,
       agenda_id: v.agenda_id,
@@ -169,6 +210,7 @@ export async function listarAgendas(db: Db): Promise<{ agendas: AgendaAdmin[]; a
       referencia: v.referencia,
       quien: v.reportado_por ? nombrePerfil.get(v.reportado_por) ?? null : null,
       created_at: v.created_at,
+      universidad: uniDe.get(v.agenda_id) ?? "upp",
     })),
   };
 }
