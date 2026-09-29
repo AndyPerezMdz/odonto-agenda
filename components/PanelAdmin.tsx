@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import type { AgendaAdmin, AvisoAdmin, Miembro, ResumenAdmin } from "@/lib/admin";
 import { Comparativo, FiltroUniversidad, InsigniaUni, UsoUady, type FiltroUni, Saludo, Numeros, Totales, HoyTeToca, Ingresos, PorCodigo, hace, diasSinEntrar, enPruebaViva, pagando, DIAS_FANTASMA } from "@/components/TableroAdmin";
 import type { CodigoAdmin } from "@/app/api/admin/codigos/route";
+import type { CuentaAdmin, SugerenciaAdmin } from "@/lib/staff";
+import { AnunciosAdmin, Buzon, CobrosQueVienen, CuentasAMedias, cuentasAMedias, Embudo, PreciosUni } from "@/components/StaffPiezas";
 import { estadoPago, pesos, codigoAgenda, sumarDias } from "@/lib/pagos";
 import { fechaLarga, hoyISO } from "@/lib/fechas";
 
@@ -23,14 +25,19 @@ async function api(url: string, method: string, body?: unknown): Promise<string 
 const fechaCorta = (iso: string) =>
   new Date(iso).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
 
+type Pestana = "hoy" | "negocio" | "agendas" | "cuentas" | "uady" | "buzon" | "anuncios" | "ajustes";
+const PESTANAS: Pestana[] = ["hoy", "negocio", "agendas", "cuentas", "uady", "buzon", "anuncios", "ajustes"];
+
 export default function PanelAdmin({ email }: { email: string }) {
   const router = useRouter();
   const [agendas, setAgendas] = useState<AgendaAdmin[] | null>(null);
   const [avisos, setAvisos] = useState<AvisoAdmin[]>([]);
   const [resumen, setResumen] = useState<ResumenAdmin | null>(null);
+  const [cuentas, setCuentas] = useState<CuentaAdmin[]>([]);
+  const [sugerencias, setSugerencias] = useState<SugerenciaAdmin[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  const [pestana, setPestana] = useState<"agendas" | "codigos" | "ajustes">("agendas");
+  const [pestana, setPestanaEstado] = useState<Pestana>("hoy");
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [abierta, setAbierta] = useState<string | null>(null);
@@ -41,14 +48,29 @@ export default function PanelAdmin({ email }: { email: string }) {
       const g = localStorage.getItem("admin-universidad");
       if (g === "upp" || g === "uady") setUniEstado(g);
     } catch {}
+    const leer = () => {
+      const h = window.location.hash.replace("#", "") as Pestana;
+      if (PESTANAS.includes(h)) setPestanaEstado(h);
+    };
+    leer();
+    window.addEventListener("hashchange", leer);
+    return () => window.removeEventListener("hashchange", leer);
   }, []);
   function setUni(v: FiltroUni) {
     setUniEstado(v);
     try { localStorage.setItem("admin-universidad", v); } catch {}
   }
+  function setPestana(p: Pestana) {
+    setPestanaEstado(p);
+    history.replaceState(null, "", `#${p}`);
+  }
 
   const recargar = useCallback(async () => {
-    const res = await fetch("/api/admin/agendas", { cache: "no-store" });
+    const [res, rc, rs] = await Promise.all([
+      fetch("/api/admin/agendas", { cache: "no-store" }),
+      fetch("/api/admin/cuentas", { cache: "no-store" }),
+      fetch("/api/admin/sugerencias", { cache: "no-store" }),
+    ]);
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
       setAgendas(data.agendas);
@@ -56,6 +78,8 @@ export default function PanelAdmin({ email }: { email: string }) {
       setResumen(data.resumen ?? null);
       setError(null);
     } else setError(data.error ?? "No se pudo cargar.");
+    if (rc.ok) setCuentas((await rc.json().catch(() => ({}))).cuentas ?? []);
+    if (rs.ok) setSugerencias((await rs.json().catch(() => ({}))).sugerencias ?? []);
   }, []);
 
   useEffect(() => {
@@ -88,6 +112,11 @@ export default function PanelAdmin({ email }: { email: string }) {
   const delaUni = (agendas ?? []).filter((a) => uni === "todas" || a.universidad === uni);
   const avisosUni = avisos.filter((v) => uni === "todas" || v.universidad === uni);
   const resumenUni = resumen && uni !== "todas" ? { ...resumen, meses: resumen.mesesUni[uni] } : resumen;
+  const cuentasUni = cuentas.filter((c) => uni === "todas" || c.universidad === uni);
+  const sugerenciasUni = sugerencias.filter((x) => uni === "todas" || x.universidad === uni);
+  const medias = cuentasAMedias(cuentasUni).length;
+  const nuevas = sugerenciasUni.filter((x) => x.estado === "nueva").length;
+  const hayUady = (agendas ?? []).some((a) => a.universidad === "uady");
 
   const q = busca.trim().toLowerCase();
   const visibles = delaUni.filter(
@@ -96,9 +125,21 @@ export default function PanelAdmin({ email }: { email: string }) {
       (!q || a.nombre.toLowerCase().includes(q) || a.miembros.some((m) => `${m.email} ${m.nombre}`.toLowerCase().includes(q)))
   );
 
+  const pestanas: [Pestana, string, number?][] = [
+    ["hoy", "Hoy", avisosUni.length || undefined],
+    ["negocio", "Negocio"],
+    ["agendas", `Agendas${agendas ? ` · ${delaUni.length}` : ""}`],
+    ["cuentas", "Cuentas", medias || undefined],
+    ...(hayUady && uni !== "upp" ? ([["uady", "UADY"]] as [Pestana, string][]) : []),
+    ["buzon", "Buzón", nuevas || undefined],
+    ["anuncios", "Anuncios"],
+    ["ajustes", "Ajustes"],
+  ];
+  const actual = pestana === "uady" && !(hayUady && uni !== "upp") ? "hoy" : pestana;
+
   return (
     <div className="mx-auto max-w-5xl px-3 py-4 sm:px-6 sm:py-6">
-      <header className="mb-6 flex flex-wrap items-center gap-3">
+      <header className="mb-5 flex flex-wrap items-center gap-3">
         <div className="mr-auto">
           <p className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-ink px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-panel">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -112,67 +153,95 @@ export default function PanelAdmin({ email }: { email: string }) {
 
       {agendas && <FiltroUniversidad valor={uni} agendas={agendas} onCambio={setUni} />}
 
-      {agendas && resumenUni ? (
-        <div className="mb-6">
-          <Numeros agendas={delaUni} resumen={resumenUni} />
-          <Totales agendas={delaUni} />
+      {/* Pestañas (en el celular se deslizan de lado) */}
+      <nav className="-mx-3 mb-5 overflow-x-auto px-3 sm:mx-0 sm:px-0">
+        <div className="flex min-w-max gap-1 rounded-xl border border-line bg-panel p-1 text-sm font-medium">
+          {pestanas.map(([id, t, n]) => (
+            <button
+              key={id}
+              onClick={() => setPestana(id)}
+              className={`relative flex-1 whitespace-nowrap rounded-lg px-3 py-2 transition ${actual === id ? "bg-accent text-panel" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
+            >
+              {t}
+              {n ? <span className={`ml-1.5 rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums ${actual === id ? "bg-panel text-accent" : "bg-danger text-panel"}`}>{n}</span> : null}
+            </button>
+          ))}
         </div>
-      ) : (
-        !error && <p className="mb-6 text-sm text-muted">Cargando…</p>
-      )}
+      </nav>
 
       {aviso && <p className="sticky top-2 z-20 mb-4 rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent shadow-sm">{aviso}</p>}
       {error && <p className="mb-4 text-sm text-danger">{error}</p>}
+      {!agendas && !error && <p className="mb-6 text-sm text-muted">Cargando…</p>}
 
-      {agendas && resumen && resumenUni && (
-        <div className="mb-6 grid items-start gap-4 lg:grid-cols-[1.35fr_1fr]">
-          <div className="flex min-w-0 flex-col gap-4">
-            {avisosUni.length > 0 && (
-              <AvisosPago
-                avisos={avisosUni}
-                agendas={agendas}
-                onCambio={(msg) => {
-                  setAviso(msg);
-                  recargar();
-                }}
-              />
-            )}
-            <HoyTeToca agendas={delaUni} avisosPendientes={avisosUni.length} onVer={verAgenda} onAviso={setAviso} />
-            {uni !== "upp" && <UsoUady agendas={delaUni} onVer={verAgenda} />}
+      {/* HOY: lo que hay que hacer */}
+      {actual === "hoy" && agendas && (
+        <div className="flex flex-col gap-4">
+          {(medias > 0 || nuevas > 0) && (
+            <div className="flex flex-wrap gap-2">
+              {medias > 0 && (
+                <button onClick={() => setPestana("cuentas")} className="rounded-full border border-line bg-panel px-3 py-1.5 text-sm hover:bg-panel-2">
+                  <b>{medias}</b> cuenta{medias === 1 ? "" : "s"} sin terminar su registro →
+                </button>
+              )}
+              {nuevas > 0 && (
+                <button onClick={() => setPestana("buzon")} className="rounded-full border border-accent bg-accent-soft px-3 py-1.5 text-sm text-accent hover:bg-accent-soft/70">
+                  <b>{nuevas}</b> sugerencia{nuevas === 1 ? "" : "s"} nueva{nuevas === 1 ? "" : "s"} en el buzón →
+                </button>
+              )}
+            </div>
+          )}
+          {avisosUni.length > 0 && (
+            <AvisosPago
+              avisos={avisosUni}
+              agendas={agendas}
+              onCambio={(msg) => {
+                setAviso(msg);
+                recargar();
+              }}
+            />
+          )}
+          <HoyTeToca agendas={delaUni} avisosPendientes={avisosUni.length} onVer={verAgenda} onAviso={setAviso} />
+        </div>
+      )}
+
+      {/* NEGOCIO: números, cobros, embudo */}
+      {actual === "negocio" && agendas && resumen && resumenUni && (
+        <div className="flex flex-col gap-4">
+          <div>
+            <Numeros agendas={delaUni} resumen={resumenUni} />
+            <Totales agendas={delaUni} />
           </div>
-          <div className="flex min-w-0 flex-col gap-4">
-            {uni === "todas" && <Comparativo agendas={agendas} resumen={resumen} />}
-            <Ingresos key={uni} resumen={resumenUni} />
-            <PorCodigo agendas={delaUni} resumen={resumenUni} onVerTodos={() => setPestana("codigos")} />
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <div className="flex min-w-0 flex-col gap-4">
+              <CobrosQueVienen agendas={delaUni} onVer={verAgenda} />
+              <Embudo cuentas={cuentasUni} agendas={delaUni} />
+            </div>
+            <div className="flex min-w-0 flex-col gap-4">
+              {uni === "todas" && <Comparativo agendas={agendas} resumen={resumen} />}
+              <Ingresos key={uni} resumen={resumenUni} />
+              <PorCodigo agendas={delaUni} resumen={resumenUni} onVerTodos={() => setPestana("ajustes")} />
+            </div>
           </div>
         </div>
       )}
 
-      {/* Pestañas */}
-      <nav className="mb-5 flex gap-1 rounded-xl border border-line bg-panel p-1 text-sm font-medium">
-        {(
-          [
-            ["agendas", `Agendas${agendas ? ` (${delaUni.length})` : ""}`],
-            ["codigos", "Códigos"],
-            ["ajustes", "Datos de pago"],
-          ] as const
-        ).map(([id, t]) => (
-          <button
-            key={id}
-            onClick={() => setPestana(id)}
-            className={`flex-1 whitespace-nowrap rounded-lg px-2 py-2 text-xs transition sm:px-3 sm:text-sm ${pestana === id ? "bg-accent text-panel" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
-          >
-            {t}
-          </button>
-        ))}
-      </nav>
+      {actual === "cuentas" && <CuentasAMedias cuentas={cuentasUni} onCambio={recargar} onAviso={setAviso} />}
 
+      {actual === "uady" && agendas && <UsoUady agendas={delaUni} onVer={verAgenda} />}
 
-      {pestana === "ajustes" && <DatosBancarios onAviso={setAviso} />}
+      {actual === "buzon" && <Buzon sugerencias={sugerenciasUni} onCambio={recargar} />}
 
-      {pestana === "codigos" && <Codigos onAviso={setAviso} />}
+      {actual === "anuncios" && agendas && <AnunciosAdmin agendas={agendas} onAviso={setAviso} />}
 
-      {pestana === "agendas" && (
+      {actual === "ajustes" && agendas && (
+        <div className="flex flex-col gap-5">
+          <PreciosUni agendas={agendas} onAviso={setAviso} onCambio={recargar} />
+          <DatosBancarios onAviso={setAviso} />
+          <Codigos onAviso={setAviso} />
+        </div>
+      )}
+
+      {actual === "agendas" && (
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <input
@@ -199,7 +268,6 @@ export default function PanelAdmin({ email }: { email: string }) {
             </div>
           </div>
 
-          {!agendas && !error && <p className="text-sm text-muted">Cargando…</p>}
           {agendas?.length === 0 && (
             <p className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">
               Aún no hay agendas. Cuando alguien se registre en <b>/registro</b>, aparece aquí.
@@ -546,14 +614,14 @@ function AvisosPago({ avisos, agendas, onCambio }: { avisos: AvisoAdmin[]; agend
     setError(null);
     const err = await api(`/api/admin/agendas/${v.agenda_id}/pagos`, "POST", {
       monto: v.monto ?? agenda?.precio_mensual ?? 0,
-      meses: 1,
+      meses: v.meses,
       metodo: "spei",
       referencia: v.referencia,
       avisoId: v.id,
     });
     setTrabajando(null);
     if (err) return setError(err);
-    onCambio(`Pago de “${v.agenda}” confirmado: +1 mes. Le avisamos por correo.`);
+    onCambio(`Pago de “${v.agenda}” confirmado: +${v.meses === 12 ? "1 año" : `${v.meses} mes${v.meses === 1 ? "" : "es"}`}. Le avisamos por correo.`);
   }
 
   async function descartar(v: AvisoAdmin) {
@@ -581,12 +649,12 @@ function AvisosPago({ avisos, agendas, onCambio }: { avisos: AvisoAdmin[]; agend
                 {v.agenda} <span className="text-xs font-normal text-muted">· concepto {codigoAgenda(v.agenda_id)}</span>
               </p>
               <p className="text-sm text-muted">
-                {v.quien ?? "El dueño"} · {v.monto != null ? pesos(v.monto) : "monto no indicado"} · {fechaLarga(v.created_at.slice(0, 10))}
+                {v.quien ?? "El dueño"} · {v.monto != null ? pesos(v.monto) : "monto no indicado"}{v.meses > 1 ? ` · plan de ${v.meses === 12 ? "1 año" : `${v.meses} meses`}` : ""} · {fechaLarga(v.created_at.slice(0, 10))}
                 {v.referencia ? ` · rastreo ${v.referencia}` : ""}
               </p>
             </div>
             <button className="btn btn-primario py-1.5 text-sm" disabled={trabajando === v.id} onClick={() => confirmar(v)}>
-              Confirmar (+1 mes)
+              Confirmar (+{v.meses === 12 ? "1 año" : `${v.meses} mes${v.meses === 1 ? "" : "es"}`})
             </button>
             {porDescartar === v.id ? (
               <>

@@ -21,3 +21,10 @@ export async function periodosDeAgenda(db: Db, agendaId: string) {
   const { data } = await db.from("agendas").select("universidad").eq("id", agendaId).maybeSingle();
   return periodosDe(data?.universidad as string | undefined);
 }
+
+/** Precios configurados por universidad (Ajustes del panel). */
+export async function preciosConfig(db: Db) {
+  const { normalizarPrecios } = await import("@/lib/precios");
+  const { data } = await db.from("configuracion").select("valor").eq("clave", "precios").maybeSingle();
+  return normalizarPrecios(data?.valor);
+}

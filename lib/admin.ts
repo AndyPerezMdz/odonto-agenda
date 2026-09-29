@@ -17,7 +17,7 @@ export type Miembro = {
 
 export type PagoAdmin = { id: string; monto: number; meses: number; metodo: string; referencia: string | null; cubre_desde: string; cubre_hasta: string; created_at: string };
 
-export type AvisoAdmin = { id: string; agenda_id: string; agenda: string; monto: number | null; referencia: string | null; quien: string | null; created_at: string; universidad: Universidad };
+export type AvisoAdmin = { id: string; agenda_id: string; agenda: string; monto: number | null; meses: number; referencia: string | null; quien: string | null; created_at: string; universidad: Universidad };
 
 export type Universidad = "upp" | "uady";
 
@@ -94,7 +94,7 @@ export async function listarAgendas(db: Db): Promise<{ agendas: AgendaAdmin[]; a
       db.from("citas").select("owner_id,agenda_id,created_at"),
       db.auth.admin.listUsers({ perPage: 1000 }),
       db.from("pagos").select("id,agenda_id,monto,meses,metodo,referencia,cubre_desde,cubre_hasta,created_at").order("created_at", { ascending: false }).order("cubre_hasta", { ascending: false }),
-      db.from("avisos_pago").select("id,agenda_id,monto,referencia,reportado_por,created_at").eq("estado", "pendiente").order("created_at"),
+      db.from("avisos_pago").select("id,agenda_id,monto,meses,referencia,reportado_por,created_at").eq("estado", "pendiente").order("created_at"),
     ]);
   const [{ data: invitaciones }, { data: codigos }, { data: horarios }, { data: metas }, { data: material }] = await Promise.all([
     db.from("invitaciones").select("agenda_id,email"),
@@ -208,6 +208,7 @@ export async function listarAgendas(db: Db): Promise<{ agendas: AgendaAdmin[]; a
       agenda: nombreAgenda.get(v.agenda_id) ?? "—",
       monto: v.monto != null ? Number(v.monto) : null,
       referencia: v.referencia,
+      meses: Number(v.meses) || 1,
       quien: v.reportado_por ? nombrePerfil.get(v.reportado_por) ?? null : null,
       created_at: v.created_at,
       universidad: uniDe.get(v.agenda_id) ?? "upp",

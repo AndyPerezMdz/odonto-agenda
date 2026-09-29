@@ -745,6 +745,45 @@ create policy material_delete on public.material for delete to authenticated
 grant select, insert, update, delete on public.material to authenticated;
 
 -- =====================================================================
+-- 1.8 · PANEL DE STAFF: BUZÓN DE SUGERENCIAS, ANUNCIOS Y PLAN ANUAL
+-- =====================================================================
+
+-- "Ya pagué" puede ser por un mes o por un año (plan anual, si lo activas para esa universidad)
+alter table public.avisos_pago add column if not exists meses int not null default 1;
+alter table public.avisos_pago drop constraint if exists avisos_pago_meses_valido;
+alter table public.avisos_pago add constraint avisos_pago_meses_valido check (meses between 1 and 24);
+
+-- Buzón: "¿Qué le falta a tu agenda?". Sólo el servidor lo escribe y lo lee (con límite por día).
+create table if not exists public.sugerencias (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.perfiles (id) on delete cascade,
+  agenda_id   uuid references public.agendas (id) on delete set null,
+  texto       text not null check (length(trim(texto)) between 3 and 2000),
+  estado      text not null default 'nueva' check (estado in ('nueva', 'leida', 'hecha')),
+  created_at  timestamptz not null default now()
+);
+create index if not exists sugerencias_fecha_idx on public.sugerencias (created_at desc);
+alter table public.sugerencias enable row level security; -- sin políticas: sólo el servidor
+
+-- Anuncios del staff: salen arriba de la agenda (a todas, sólo UPP o sólo UADY) hasta que venzan
+create table if not exists public.anuncios (
+  id           uuid primary key default gen_random_uuid(),
+  titulo       text not null check (length(trim(titulo)) between 1 and 80),
+  texto        text not null check (length(trim(texto)) between 1 and 600),
+  universidad  text not null default 'todas' check (universidad in ('todas', 'upp', 'uady')),
+  hasta        date,                       -- vacío = hasta que lo apagues
+  activo       boolean not null default true,
+  correos      int not null default 0,     -- a cuántas personas se les mandó por correo
+  created_at   timestamptz not null default now()
+);
+alter table public.anuncios enable row level security;
+drop policy if exists anuncios_select on public.anuncios;
+create policy anuncios_select on public.anuncios for select to authenticated
+  using (activo and (hasta is null or hasta >= current_date)
+         and (universidad = 'todas' or universidad = (select public.mi_universidad())));
+grant select on public.anuncios to authenticated;
+
+-- =====================================================================
 -- Listo. Las cuentas nuevas se registran solas en /registro.
 -- En Supabase: Authentication → Sign In / Providers → Email:
 --   "Enable email signups" y "Confirm email" ENCENDIDOS.

@@ -98,7 +98,7 @@ function Registro() {
     const { data, error } = await supabase.auth.signUp({
       email: correo,
       password,
-      options: { data: { nombre: nombre.trim() }, emailRedirectTo: `${window.location.origin}/auth/confirm?next=/` },
+      options: { data: { nombre: nombre.trim(), ...(uni ? { universidad: uni } : {}) }, emailRedirectTo: `${window.location.origin}/auth/confirm?next=/` },
     });
     setCargando(false);
     if (error) {

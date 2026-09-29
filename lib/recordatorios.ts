@@ -5,7 +5,7 @@ import { fechaLarga, hhmm } from "@/lib/fechas";
 
 // Zona horaria para decidir qué es "hoy" (Mérida y Cancún coinciden en fecha a la hora del cron).
 const ZONA = process.env.RECORDATORIOS_ZONA || "America/Merida";
-const REMITENTE =
+export const REMITENTE =
   process.env.RECORDATORIOS_REMITENTE || "Agenda de clínicas <agenda@tapiceriaautomotrizbynovo.com>";
 
 type Resultado = { persona: string; estado: "enviado" | "sin citas" | "desactivado" | "ya enviado" | "sin correo" | "error"; detalle?: string };

@@ -9,6 +9,7 @@ type Datos = {
   enPrueba: boolean;
   codigoCreador: string | null;
   precio: number;
+  anual: number | null; // plan anual de su universidad (null = no hay)
   codigo: string;
   banco: { banco?: string; clabe?: string; titular?: string };
   pagos: { id: string; monto: number; meses: number; metodo: string; cubre_desde: string; cubre_hasta: string; created_at: string }[];
@@ -48,6 +49,7 @@ export default function TarjetaSuscripcion() {
   const [referencia, setReferencia] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [plan, setPlan] = useState<"mensual" | "anual">("mensual");
 
   const cargar = useCallback(async () => {
     const res = await fetch("/api/pago", { cache: "no-store" });
@@ -67,7 +69,7 @@ export default function TarjetaSuscripcion() {
     const res = await fetch("/api/pago", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ referencia }),
+      body: JSON.stringify({ referencia, plan: datos?.anual ? plan : "mensual" }),
     });
     const d = await res.json().catch(() => ({}));
     setEnviando(false);
@@ -89,6 +91,9 @@ export default function TarjetaSuscripcion() {
   const estado = estadoPago(datos.pagadoHasta, hoyISO());
   const clabe = (datos.banco.clabe ?? "").replace(/\D/g, "").replace(/(\d{3})(\d{3})(\d{11})(\d?)/, "$1 $2 $3 $4").trim();
   const sinDatosBanco = !datos.banco.clabe;
+  const esAnual = !!datos.anual && plan === "anual";
+  const monto = esAnual ? datos.anual! : datos.precio;
+  const ahorro = datos.anual ? datos.precio * 12 - datos.anual : 0;
 
   const insignia =
     estado.tipo === "cortesia"
@@ -109,7 +114,7 @@ export default function TarjetaSuscripcion() {
           <p className="mt-0.5 text-sm text-muted">
             {estado.tipo === "cortesia"
               ? "Tu agenda no tiene fecha de vencimiento."
-              : `${pesos(datos.precio)} MXN al mes, por pareja de clínica (tú y tu compañero/a).`}
+              : `${pesos(datos.precio)} MXN al mes${datos.anual ? ` o ${pesos(datos.anual)} al año` : ""}, por pareja de clínica (tú y tu compañero/a).`}
           </p>
         </div>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${insignia.c}`}>{insignia.t}</span>
@@ -119,6 +124,23 @@ export default function TarjetaSuscripcion() {
 
       {estado.tipo !== "cortesia" && (
         <>
+          {datos.anual && (
+            <div className="mb-4 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Plan">
+              {([["mensual", "Un mes", pesos(datos.precio), ""], ["anual", "Un año", pesos(datos.anual), ahorro > 0 ? `Ahorras ${pesos(ahorro)}` : "12 meses de un jalón"]] as const).map(([id, t, p, d]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="radio"
+                  aria-checked={plan === id}
+                  onClick={() => setPlan(id)}
+                  className={`rounded-xl border px-3 py-2.5 text-left ${plan === id ? "border-accent bg-accent-soft" : "border-line hover:bg-panel-2"}`}
+                >
+                  <span className={`block text-sm font-semibold ${plan === id ? "text-accent" : ""}`}>{t} · {p}</span>
+                  <span className="text-xs text-muted">{d || "Se renueva cada mes"}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="min-w-0 rounded-xl border border-line px-3">
               <p className="pt-3 text-sm font-semibold">Transferencia SPEI</p>
@@ -126,7 +148,7 @@ export default function TarjetaSuscripcion() {
                 <p className="py-3 text-sm text-muted">Los datos bancarios aún no están disponibles. Contacta al administrador.</p>
               ) : (
                 <>
-                  <Copiable etiqueta="Monto" valor={`${pesos(datos.precio)}`} />
+                  <Copiable etiqueta="Monto" valor={`${pesos(monto)}`} />
                   <Copiable etiqueta="CLABE" valor={clabe} grande />
                   <Copiable etiqueta="Banco" valor={datos.banco.banco ?? ""} />
                   <Copiable etiqueta="Beneficiario" valor={datos.banco.titular ?? ""} />

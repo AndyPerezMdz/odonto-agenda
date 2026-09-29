@@ -9,6 +9,8 @@ import { prefs, type Cita, type Horario } from "@/lib/types";
 import { rangoDe } from "@/lib/cuatrimestre";
 import { inicioClinicas, rolDelBloque, tramosPorHora, type Turnos } from "@/lib/ritmo";
 import AvisosMaterial from "@/components/AvisosMaterial";
+import Anuncios from "@/components/Anuncios";
+import Sugerencia from "@/components/Sugerencia";
 import { esUady, periodosDe } from "@/lib/universidades";
 import {
   aISO, deISO, diasDelMes, esFinDeSemana, fechaLarga, hhmm, hoyISO, sumarMinutos,
@@ -52,6 +54,7 @@ export default function Agenda({ userId }: { userId: string }) {
   const [cuatriAbierto, setCuatriAbierto] = useState<boolean | null>(null);
   const [invitacionAbierta, setInvitacionAbierta] = useState<boolean | null>(null);
   const [buscando, setBuscando] = useState(false);
+  const [sugerir, setSugerir] = useState(false);
   const [vista, setVista] = useState<"mes" | "lista">("mes");
 
   // Recuerda si prefieres ver el mes o la lista (sólo en este navegador)
@@ -306,6 +309,7 @@ export default function Agenda({ userId }: { userId: string }) {
                 <Link href="/personalizar" className="block px-4 py-2.5 hover:bg-panel-2">Personalizar</Link>
                 <button onClick={() => { setMenu(false); setVerInstalar(true); }} className="block w-full px-4 py-2.5 text-left hover:bg-panel-2">Instalar como app</button>
                 <a href={manualDe(ajustes.universidad)} target="_blank" rel="noopener noreferrer" className="block px-4 py-2.5 hover:bg-panel-2">Manual</a>
+                <button onClick={() => { setMenu(false); setSugerir(true); }} className="block w-full px-4 py-2.5 text-left hover:bg-panel-2">¿Qué le falta?</button>
                 <button onClick={salir} className="block w-full border-t border-line px-4 py-2.5 text-left text-danger hover:bg-panel-2">Salir</button>
               </div>
             </>
@@ -314,6 +318,7 @@ export default function Agenda({ userId }: { userId: string }) {
       </header>
 
       <BannerPago estado={pago} esDueno={yo?.rol === "owner"} />
+      <Anuncios supabase={supabase} />
       {uady && <AvisosMaterial userId={userId} horarios={horarios} perfiles={perfiles} compacto />}
       <InstalarApp />
 
@@ -549,6 +554,8 @@ export default function Agenda({ userId }: { userId: string }) {
         </button>
         <span aria-hidden>·</span>
         <button onClick={() => setVerInstalar(true)} className="hover:text-ink">Instalar como app</button>
+        <span aria-hidden>·</span>
+        <button onClick={() => setSugerir(true)} className="font-medium text-accent hover:underline">¿Qué le falta a tu agenda?</button>
       </footer>
 
       {yo && !yo.acepto_terminos_at && (
@@ -574,6 +581,7 @@ export default function Agenda({ userId }: { userId: string }) {
       )}
 
       {verInstalar && <VentanaInstalar onClose={() => setVerInstalar(false)} />}
+      {sugerir && <Sugerencia onClose={() => setSugerir(false)} />}
 
       {buscando && (
         <BuscarPaciente

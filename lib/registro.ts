@@ -1,5 +1,5 @@
 import "server-only";
-import { sembrarMaterias } from "@/lib/universidadesServer";
+import { preciosConfig, sembrarMaterias } from "@/lib/universidadesServer";
 import { esUniversidad, universidad } from "@/lib/universidades";
 import { randomBytes } from "crypto";
 import type { createAdminClient } from "@/lib/supabase/admin";
@@ -90,6 +90,7 @@ export async function completarRegistro(
   // --- Su propia agenda: la universidad es obligatoria y queda fija para siempre
   if (!esUniversidad(datos.universidad)) return { ok: false, error: "Elige tu universidad.", motivo: "universidad" };
   const uni = universidad(datos.universidad);
+  const precio = (await preciosConfig(db))[uni.id].mensual; // el precio de su universidad
   const p = await pruebaDe(db, email);
   const usada = !!p?.usada_at;
   let codigo: string | null = null;
@@ -105,7 +106,7 @@ export async function completarRegistro(
   const hasta = usada ? sumarDias(fechaEnZona(0), -(DIAS_GRACIA + 1)) : finDePrueba(mesesExtra);
   const { data: agenda, error } = await db
     .from("agendas")
-    .insert({ nombre: `Agenda de ${nombre.split(" ")[0]}`, precio_mensual: 200, pagado_hasta: hasta, prueba_hasta: usada ? null : hasta, codigo, universidad: uni.id, semana_clinicas: uni.semana })
+    .insert({ nombre: `Agenda de ${nombre.split(" ")[0]}`, precio_mensual: precio, pagado_hasta: hasta, prueba_hasta: usada ? null : hasta, codigo, universidad: uni.id, semana_clinicas: uni.semana })
     .select("id")
     .single();
   if (error || !agenda) return { ok: false, error: error?.message ?? "No se pudo crear tu agenda." };

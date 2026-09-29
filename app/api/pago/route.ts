@@ -4,6 +4,7 @@ import { notificarAvisoPago } from "@/lib/pagosServer";
 import { urlSitio } from "@/lib/recordatorios";
 import { codigoAgenda } from "@/lib/pagos";
 import { agendaEnPrueba } from "@/lib/pruebas";
+import { preciosConfig } from "@/lib/universidadesServer";
 
 export const dynamic = "force-dynamic";
 
@@ -15,15 +16,17 @@ export async function GET() {
   if (!s) return soloDueno();
 
   const [{ data: agenda }, { data: config }, { data: pagos }, { data: avisos }, enPrueba] = await Promise.all([
-    s.db.from("agendas").select("id,nombre,pagado_hasta,precio_mensual,prueba_hasta,codigo").eq("id", s.agendaId).single(),
+    s.db.from("agendas").select("id,nombre,pagado_hasta,precio_mensual,prueba_hasta,codigo,universidad").eq("id", s.agendaId).single(),
     s.db.from("configuracion").select("valor").eq("clave", "pago").maybeSingle(),
     s.db.from("pagos").select("id,monto,meses,metodo,cubre_desde,cubre_hasta,created_at").eq("agenda_id", s.agendaId).order("created_at", { ascending: false }).limit(6),
     s.db.from("avisos_pago").select("id,created_at,estado").eq("agenda_id", s.agendaId).order("created_at", { ascending: false }).limit(1),
     agendaEnPrueba(s.db, s.agendaId),
   ]);
   if (!agenda) return NextResponse.json({ error: "Agenda no encontrada." }, { status: 404 });
+  const precios = await preciosConfig(s.db);
 
   return NextResponse.json({
+    anual: precios[agenda.universidad === "uady" ? "uady" : "upp"].anual, // null = sin plan anual
     pagadoHasta: agenda.pagado_hasta,
     enPrueba,
     codigoCreador: agenda.codigo ?? null,
@@ -40,7 +43,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const s = await duenoEnSesion();
   if (!s) return soloDueno();
-  const body = (await request.json().catch(() => ({}))) as { referencia?: string; monto?: number };
+  const body = (await request.json().catch(() => ({}))) as { referencia?: string; plan?: "mensual" | "anual" };
 
   const { data: pendiente } = await s.db
     .from("avisos_pago")
@@ -53,13 +56,17 @@ export async function POST(request: NextRequest) {
   }
 
   const [{ data: agenda }, { data: yo }] = await Promise.all([
-    s.db.from("agendas").select("id,nombre,precio_mensual").eq("id", s.agendaId).single(),
+    s.db.from("agendas").select("id,nombre,precio_mensual,universidad").eq("id", s.agendaId).single(),
     s.db.from("perfiles").select("nombre").eq("id", s.user.id).single(),
   ]);
-  const monto = typeof body.monto === "number" && body.monto > 0 ? body.monto : Number(agenda?.precio_mensual ?? 0);
+  // El monto lo pone el servidor (no el navegador): mensual de su agenda, o el anual de su universidad
+  const anual = (await preciosConfig(s.db))[agenda?.universidad === "uady" ? "uady" : "upp"].anual;
+  const esAnual = body.plan === "anual" && !!anual;
+  const monto = esAnual ? anual! : Number(agenda?.precio_mensual ?? 0);
+  const meses = esAnual ? 12 : 1;
   const referencia = body.referencia?.trim().slice(0, 80) || null;
 
-  const { error } = await s.db.from("avisos_pago").insert({ agenda_id: s.agendaId, reportado_por: s.user.id, monto, referencia });
+  const { error } = await s.db.from("avisos_pago").insert({ agenda_id: s.agendaId, reportado_por: s.user.id, monto, referencia, meses });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   try {
@@ -68,6 +75,7 @@ export async function POST(request: NextRequest) {
       agendaId: s.agendaId,
       quien: `${yo?.nombre ?? "El dueño"} (${s.user.email})`,
       monto,
+      meses,
       referencia,
       sitio: urlSitio(request.nextUrl.origin),
     });

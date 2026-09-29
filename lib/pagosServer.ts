@@ -59,11 +59,11 @@ export const envolver = (titulo: string, cuerpo: string, boton?: { texto: string
 /** Te avisa al instante cuando un dueño presiona "Ya pagué". */
 export async function notificarAvisoPago(
   db: Db,
-  a: { agendaNombre: string; agendaId: string; quien: string; monto: number | null; referencia: string | null; sitio: string }
+  a: { agendaNombre: string; agendaId: string; quien: string; monto: number | null; referencia: string | null; sitio: string; meses?: number }
 ) {
   const para = await correosSuperadmin(db);
   if (para.length === 0) return;
-  const monto = a.monto != null ? pesos(a.monto) : "no indicado";
+  const monto = (a.monto != null ? pesos(a.monto) : "no indicado") + (a.meses && a.meses > 1 ? ` · plan de ${a.meses === 12 ? "1 año" : `${a.meses} meses`}` : "");
   const asunto = `Aviso de pago: ${a.agendaNombre} (${monto})`;
   const html = envolver(
     "Nuevo aviso de pago",

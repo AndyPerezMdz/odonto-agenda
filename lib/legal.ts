@@ -6,7 +6,7 @@ export const LEGAL = {
   responsable: "Andrés Pérez",
   domicilio: "Mérida, Yucatán", // ← pon tu domicilio real (al menos ciudad y estado)
   correo: "aperezmdz21@icloud.com", // ← correo donde recibes solicitudes de privacidad
-  actualizado: "28 de septiembre de 2026",
+  actualizado: "29 de septiembre de 2026",
   diasGracia: 3,
   diasBorrado: 30, // días para borrar los datos después de cancelar
 };

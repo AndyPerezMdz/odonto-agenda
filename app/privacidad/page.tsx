@@ -20,6 +20,7 @@ export default function PrivacidadPage() {
         <li>Nombre y correo electrónico.</li>
         <li>Contraseña (se guarda cifrada; nadie, ni nosotros, puede verla).</li>
         <li>Tus preferencias dentro de la agenda (colores, recordatorios, etc.).</li>
+        <li>Tu universidad (la eliges al registrarte) y lo que nos escribas en “¿Qué le falta a tu agenda?”.</li>
         <li>Si eres dueño/a de una agenda: los registros de tus pagos (monto, fecha y clave de rastreo). No recibimos ni guardamos datos de tarjetas ni contraseñas bancarias.</li>
       </ul>
       <p><b>De tus pacientes, que tú capturas:</b> nombre, fecha y hora de la cita, clínica, materia y las notas que tú escribas.</p>
@@ -39,7 +40,8 @@ export default function PrivacidadPage() {
         <li>Administrar tu suscripción y confirmar tus pagos.</li>
         <li>Confirmar que tu correo es tuyo (con un código) al registrarte.</li>
         <li>Controlar el mes gratis (uno por persona) y registrar si llegaste con el código de alguien que te recomendó.</li>
-        <li>Darte soporte cuando lo pidas.</li>
+        <li>Darte soporte cuando lo pidas, y leer (y responderte por correo) lo que nos mandes en “¿Qué le falta a tu agenda?”.</li>
+        <li>Mandarte avisos generales del servicio (por ejemplo, una actualización o un mantenimiento) dentro de la agenda o por correo.</li>
       </ul>
       <p>No usamos tus datos para publicidad ni para enviarte promociones, y no los vendemos ni rentamos a nadie.</p>
 
