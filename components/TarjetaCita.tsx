@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Cita, Clinica, EstadoCita, Materia, Perfil } from "@/lib/types";
 import { hhmm } from "@/lib/fechas";
 import { estadoDe } from "@/lib/estados";
-import { enlaceWhatsApp, mensajeConfirmar, IcoWhatsApp } from "@/lib/whatsapp";
+import { enlaceWhatsApp, enlaceConfirmar, mensajeConfirmar, IcoWhatsApp } from "@/lib/whatsapp";
 import { pesos } from "@/lib/pagos";
 
 type Props = {
@@ -17,12 +17,13 @@ type Props = {
   materia?: Materia | null;
   supabase: SupabaseClient;
   soloLectura?: boolean;
+  pro?: boolean;
   onAbrir: () => void;
   onCambio: () => void;
 };
 
 // Una cita en lista (panel del día, vista de lista). Si ya pasó y es tuya, deja marcar Asistió/Faltó de un toque.
-export default function TarjetaCita({ cita: c, userId, hoy, dueno, clinica, materia, supabase, soloLectura, onAbrir, onCambio }: Props) {
+export default function TarjetaCita({ cita: c, userId, hoy, dueno, clinica, materia, supabase, soloLectura, pro = true, onAbrir, onCambio }: Props) {
   const [marcando, setMarcando] = useState(false);
   const [folio, setFolio] = useState("");
   const pideFolio = !soloLectura && c.owner_id === userId && c.estado === "asistio" && !c.folio;
@@ -39,7 +40,8 @@ export default function TarjetaCita({ cita: c, userId, hoy, dueno, clinica, mate
   const est = estadoDe(c.estado);
   const cancelada = c.estado === "cancelo";
   const puedeMarcar = !soloLectura && c.owner_id === userId && !c.estado && c.fecha <= hoy;
-  const wa = c.owner_id === userId && !cancelada && c.fecha >= hoy ? enlaceWhatsApp(c.telefono, mensajeConfirmar(c, clinica?.numero)) : null;
+  const link = c.token_confirmar && typeof window !== "undefined" ? enlaceConfirmar(c.token_confirmar, window.location.origin) : undefined;
+  const wa = pro && c.owner_id === userId && !cancelada && c.fecha >= hoy && !c.confirmacion ? enlaceWhatsApp(c.telefono, mensajeConfirmar(c, clinica?.numero, link)) : null;
 
   async function marcar(estado: EstadoCita) {
     setMarcando(true);
@@ -68,6 +70,8 @@ export default function TarjetaCita({ cita: c, userId, hoy, dueno, clinica, mate
             </span>
           )}
           {c.estado && <span className={`rounded-md px-1.5 py-0.5 font-medium ${est.clase}`}>{est.corto}</span>}
+          {!c.estado && !cancelada && c.confirmacion === "confirmada" && <span className="rounded-md bg-[#e6f4ea] px-1.5 py-0.5 font-medium text-[#1e6b3a] dark:bg-[#1c3324] dark:text-[#9fd8b0]">✓ Confirmó</span>}
+          {!c.estado && !cancelada && c.confirmacion === "no_puede" && <span className="rounded-md bg-[#fbecea] px-1.5 py-0.5 font-medium text-[#7a1f1a] dark:bg-[#3a1d1b] dark:text-[#f1b5b0]">No puede ir</span>}
           {c.folio && <span className="rounded-md bg-panel-2 px-1.5 py-0.5 tabular-nums text-muted">Folio {c.folio}</span>}
           {c.cobro != null && c.cobro > 0 && c.owner_id === userId && (
             <span className={`rounded-md px-1.5 py-0.5 font-medium ${c.cobrado ? "bg-panel-2 text-muted" : "bg-[#fdf6e3] text-[#5c4712] dark:bg-[#2a2415] dark:text-[#ecd9a4]"}`}>
@@ -80,7 +84,7 @@ export default function TarjetaCita({ cita: c, userId, hoy, dueno, clinica, mate
       </button>
       {wa && (
         <div className="flex items-center gap-1.5 border-t border-line px-3 py-2 text-xs">
-          <span className="mr-auto text-muted">¿Ya le confirmaste?</span>
+          <span className="mr-auto text-muted">{link ? "Mándale su link para que confirme" : "¿Ya le confirmaste?"}</span>
           <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full bg-[#25D366] px-2.5 py-1 font-medium text-white">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d={IcoWhatsApp} /></svg>
             WhatsApp

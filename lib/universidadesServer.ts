@@ -22,9 +22,9 @@ export async function periodosDeAgenda(db: Db, agendaId: string) {
   return periodosDe(data?.universidad as string | undefined);
 }
 
-/** Precios configurados por universidad (Ajustes del panel). */
-export async function preciosConfig(db: Db) {
-  const { normalizarPrecios } = await import("@/lib/precios");
-  const { data } = await db.from("configuracion").select("valor").eq("clave", "precios").maybeSingle();
-  return normalizarPrecios(data?.valor);
+/** Planes y precios por universidad (Ajustes del panel). */
+export async function planesConfig(db: Db) {
+  const { normalizarPlanes } = await import("@/lib/precios");
+  const { data } = await db.from("configuracion").select("valor").eq("clave", "planes").maybeSingle();
+  return normalizarPlanes(data?.valor);
 }

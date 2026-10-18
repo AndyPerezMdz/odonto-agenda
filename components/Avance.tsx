@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useCatalogos, useCitas, useHorarios, usePacientes } from "@/lib/useDatos";
+import Candado, { ChipPro } from "@/components/Candado";
 import { prefs, type Cita, type Materia } from "@/lib/types";
 import { aplicarTema } from "@/lib/tema";
 import { deISO, fechaLarga, hhmm, hoyISO } from "@/lib/fechas";
@@ -13,7 +14,9 @@ import { pesos, sumarDias } from "@/lib/pagos";
 
 // "Mi avance": cuántos casos lleva cada quien por materia en el cuatrimestre, contra la meta.
 export default function Avance({ userId }: { userId: string }) {
-  const { supabase, perfiles, materias, ajustes, recargar: recargarCatalogos } = useCatalogos();
+  const { supabase, perfiles, materias, ajustes, recargar: recargarCatalogos, pro } = useCatalogos();
+  const [pidePro, setPidePro] = useState<string | null>(null); // 2.0: historial, PDF, cobros y ritmo son de Pro
+  const soloPro = (que: string, accion: () => void) => (pro ? accion() : setPidePro(que));
   const { horarios } = useHorarios();
   const [fechaRef, setFechaRef] = useState(hoyISO());
   const [persona, setPersona] = useState(userId);
@@ -46,7 +49,7 @@ export default function Avance({ userId }: { userId: string }) {
   // Clínicas del periodo: desde la semana en que empiezan hasta tu fecha de fin (o el fin del periodo)
   const inicio = inicioClinicas(rango.desde, ajustes.semana_clinicas);
   const fin = finClinicas(quienPerfil?.fin_clinicas, rango.desde, rango.hasta);
-  const conRitmo = uady && !todo && hoy <= fin;
+  const conRitmo = pro && uady && !todo && hoy <= fin;
   const turnos: Turnos = {
     modo: uady && perfiles.length >= 2 ? ajustes.turnos : "ninguno",
     inicia: ajustes.turnos_inicia ?? perfiles.find((p) => p.rol === "owner")?.id ?? null,
@@ -129,25 +132,25 @@ export default function Avance({ userId }: { userId: string }) {
           <h1 className="text-xl font-semibold tracking-tight">Mi avance</h1>
           <p className="text-sm text-muted">Casos atendidos por materia.</p>
         </div>
-        <button onClick={() => window.print()} className="btn btn-sec ml-auto" title="Imprime o guarda en PDF la lista de casos atendidos">
+        <button onClick={() => soloPro("El PDF para tus doctores", () => window.print())} className="btn btn-sec ml-auto" title="Imprime o guarda en PDF la lista de casos atendidos">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"/><rect x="6" y="14" width="12" height="8"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/></svg>
-          <span className="hidden sm:inline">PDF</span>
+          <span className="hidden sm:inline">PDF</span>{!pro && <ChipPro />}
         </button>
       </header>
 
       <div className="no-imprimir mb-4 flex flex-wrap items-center gap-2">
         <div className="flex rounded-lg border border-line p-0.5 text-xs font-medium">
           {[false, true].map((v) => (
-            <button key={String(v)} onClick={() => setTodo(v)} className={`rounded-md px-2.5 py-1 ${todo === v ? "bg-accent-soft text-accent" : "text-muted hover:text-ink"}`}>
-              {v ? "Todo" : palabraPeriodo(tipo, true)}
+            <button key={String(v)} onClick={() => (v ? soloPro("Todo tu historial", () => setTodo(true)) : setTodo(false))} className={`rounded-md px-2.5 py-1 ${todo === v ? "bg-accent-soft text-accent" : "text-muted hover:text-ink"}`}>
+              {v ? "Todo" : palabraPeriodo(tipo, true)}{v && !pro && <ChipPro />}
             </button>
           ))}
         </div>
         {!todo && (
           <>
             <div className="flex items-center gap-1">
-              <button className="btn btn-sec px-2.5" onClick={() => setFechaRef(sumarDias(rango.desde, -1))} aria-label={`${palabraPeriodo(tipo)} anterior`}>‹</button>
-              <button className="btn btn-sec px-2.5" onClick={() => setFechaRef(sumarDias(rango.hasta, 1))} aria-label={`${palabraPeriodo(tipo)} siguiente`}>›</button>
+              <button className="btn btn-sec px-2.5" onClick={() => soloPro("Periodos anteriores", () => setFechaRef(sumarDias(rango.desde, -1)))} aria-label={`${palabraPeriodo(tipo)} anterior`}>‹</button>
+              <button className="btn btn-sec px-2.5" onClick={() => soloPro("Otros periodos", () => setFechaRef(sumarDias(rango.hasta, 1)))} aria-label={`${palabraPeriodo(tipo)} siguiente`}>›</button>
             </div>
             <h2 className="font-semibold first-letter:uppercase">{rango.nombre}</h2>
           </>
@@ -166,6 +169,12 @@ export default function Avance({ userId }: { userId: string }) {
           ))}
         </div>
       </div>
+
+      {pidePro && (
+        <div className="no-imprimir mb-4">
+          <Candado compacto titulo={pidePro} texto="En Gratis ves tu avance del periodo actual. Con Pro: todo tu historial, el PDF para doctores, tus cobros y tu ritmo." esDueno={perfiles.find((x) => x.id === userId)?.rol === "owner"} />
+        </div>
+      )}
 
       <div className="no-imprimir mb-5 grid grid-cols-3 gap-3">
         {[
@@ -234,7 +243,7 @@ export default function Avance({ userId }: { userId: string }) {
         </section>
       )}
 
-      {esMio && conCobro.length > 0 && (
+      {pro && esMio && conCobro.length > 0 && (
         <section className="no-imprimir mb-5 rounded-2xl border border-line bg-panel p-4 sm:p-5">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="font-semibold">Cobros a pacientes</h3>

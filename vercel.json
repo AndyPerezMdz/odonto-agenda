@@ -4,6 +4,10 @@
     {
       "path": "/api/recordatorios",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/push/resumen",
+      "schedule": "0 12 * * *"
     }
   ]
 }

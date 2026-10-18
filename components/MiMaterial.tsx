@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { esUady } from "@/lib/universidades";
+import Candado from "@/components/Candado";
 import { useCatalogos, useHorarios, useMaterial } from "@/lib/useDatos";
 import { prefs, type EstadoMaterial, type Material, type NivelMaterial } from "@/lib/types";
 import { aplicarTema } from "@/lib/tema";
@@ -23,7 +24,7 @@ const NIVELES: { id: NivelMaterial; nombre: string }[] = [
 
 // Mi material: tu instrumental (listo / usado / en la CEyE) y los consumibles que compran entre los dos.
 export default function MiMaterial({ userId }: { userId: string }) {
-  const { supabase, perfiles, materias, ajustes, cargando } = useCatalogos();
+  const { supabase, perfiles, materias, ajustes, cargando, pro } = useCatalogos();
   const router = useRouter();
   const uady = esUady(ajustes.universidad);
   // Mi material es sólo de la UADY
@@ -45,7 +46,7 @@ export default function MiMaterial({ userId }: { userId: string }) {
   async function correr(p: PromiseLike<{ error: { message: string } | null }>) {
     setError(null);
     const { error } = await p;
-    if (error) setError(error.message.includes("row-level") ? "Tu agenda está en sólo lectura." : error.message);
+    if (error) setError(error.message.includes("row-level") ? "Esto es de Pro." : error.message);
     recargar();
   }
 
@@ -62,6 +63,21 @@ export default function MiMaterial({ userId }: { userId: string }) {
   const enCeye = mios.filter((m) => m.estado === "ceye").map((m) => m.id);
 
   if (cargando || !uady) return null;
+  if (!pro)
+    return (
+      <div className="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-6">
+        <header className="mb-5 flex items-center gap-3">
+          <Link href="/" className="btn btn-sec px-2.5" aria-label="Volver">‹</Link>
+          <h1 className="text-xl font-semibold tracking-tight">Mi material</h1>
+        </header>
+        <Candado
+          esDueno={yo?.rol === "owner"}
+          titulo="Mi material y CEyE"
+          texto="Lleva qué instrumental está en la CEyE, qué está usado y qué compran entre los dos, con aviso cuando algo lleva mucho esterilizándose. Lo que ya anotaste sigue guardado."
+          beneficios
+        />
+      </div>
+    );
 
   return (
     <div className="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-6">

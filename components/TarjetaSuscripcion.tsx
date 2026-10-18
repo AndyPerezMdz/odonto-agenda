@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { estadoPago, pesos } from "@/lib/pagos";
+import { ahorroDe, type Plan } from "@/lib/precios";
+import { BENEFICIOS_PRO, PAGO_EN_LINEA } from "@/lib/plan";
 import { fechaLarga, hoyISO } from "@/lib/fechas";
 
 type Datos = {
@@ -9,7 +11,9 @@ type Datos = {
   enPrueba: boolean;
   codigoCreador: string | null;
   precio: number;
-  anual: number | null; // plan anual de su universidad (null = no hay)
+  planes: Plan[]; // mensual, trimestral, por periodo, anual (los activos de su universidad)
+  mensual: number;
+  mp: boolean; // ¿hay pago con tarjeta / OXXO (Mercado Pago)?
   codigo: string;
   banco: { banco?: string; clabe?: string; titular?: string };
   pagos: { id: string; monto: number; meses: number; metodo: string; cubre_desde: string; cubre_hasta: string; created_at: string }[];
@@ -49,7 +53,12 @@ export default function TarjetaSuscripcion() {
   const [referencia, setReferencia] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
-  const [plan, setPlan] = useState<"mensual" | "anual">("mensual");
+  const [plan, setPlan] = useState<string>("periodo");
+  const [yendo, setYendo] = useState(false);
+  const [retorno, setRetorno] = useState<string | null>(null);
+  useEffect(() => {
+    setRetorno(new URLSearchParams(window.location.search).get("pago"));
+  }, []);
 
   const cargar = useCallback(async () => {
     const res = await fetch("/api/pago", { cache: "no-store" });
@@ -69,7 +78,7 @@ export default function TarjetaSuscripcion() {
     const res = await fetch("/api/pago", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ referencia, plan: datos?.anual ? plan : "mensual" }),
+      body: JSON.stringify({ referencia, plan: elegido?.id ?? "mes" }),
     });
     const d = await res.json().catch(() => ({}));
     setEnviando(false);
@@ -91,30 +100,40 @@ export default function TarjetaSuscripcion() {
   const estado = estadoPago(datos.pagadoHasta, hoyISO());
   const clabe = (datos.banco.clabe ?? "").replace(/\D/g, "").replace(/(\d{3})(\d{3})(\d{11})(\d?)/, "$1 $2 $3 $4").trim();
   const sinDatosBanco = !datos.banco.clabe;
-  const esAnual = !!datos.anual && plan === "anual";
-  const monto = esAnual ? datos.anual! : datos.precio;
-  const ahorro = datos.anual ? datos.precio * 12 - datos.anual : 0;
+  const elegido = datos.planes.find((p) => p.id === plan) ?? datos.planes[0];
+  const monto = elegido ? elegido.precio : datos.precio;
+
+  async function pagarEnLinea() {
+    if (!elegido) return;
+    setYendo(true);
+    setError(null);
+    const r = await fetch("/api/pago/mp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan: elegido.id }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.url) {
+      setYendo(false);
+      return setError(d.error ?? "No se pudo abrir el pago.");
+    }
+    window.location.href = d.url;
+  }
 
   const insignia =
     estado.tipo === "cortesia"
       ? { t: "Sin vencimiento", c: "bg-accent-soft text-accent" }
       : estado.tipo === "activa"
-        ? { t: `${datos.enPrueba ? "Mes gratis" : "Activa"} hasta el ${fechaLarga(estado.vence)}`, c: "bg-accent-soft text-accent" }
+        ? { t: `${datos.enPrueba ? "Prueba de Pro" : "Pro"} hasta el ${fechaLarga(estado.vence)}`, c: "bg-accent-soft text-accent" }
         : estado.tipo === "por_vencer"
           ? { t: estado.dias === 0 ? "Vence hoy" : `Vence en ${estado.dias} día${estado.dias === 1 ? "" : "s"}`, c: "bg-[#fdf6e3] text-[#5c4712] dark:bg-[#2a2415] dark:text-[#ecd9a4]" }
-          : estado.tipo === "gracia"
-            ? { t: "Vencida · en periodo de gracia", c: "bg-[#fbecea] text-[#7a1f1a] dark:bg-[#3a1d1b] dark:text-[#f1b5b0]" }
-            : { t: "Vencida · sólo lectura", c: "bg-[#fbecea] text-[#7a1f1a] dark:bg-[#3a1d1b] dark:text-[#f1b5b0]" };
+          : { t: "Estás en Gratis", c: "bg-panel-2 text-muted" };
 
   return (
     <section id="suscripcion" className="scroll-mt-4 rounded-2xl border border-line bg-panel p-4 sm:p-5">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-semibold">Suscripción</h2>
+          <h2 className="font-semibold">Suscripción · Pro</h2>
           <p className="mt-0.5 text-sm text-muted">
             {estado.tipo === "cortesia"
               ? "Tu agenda no tiene fecha de vencimiento."
-              : `${pesos(datos.precio)} MXN al mes${datos.anual ? ` o ${pesos(datos.anual)} al año` : ""}, por pareja de clínica (tú y tu compañero/a).`}
+              : `Pro para tu agenda (tú y tu compañero/a), desde ${pesos(datos.mensual)} al mes. Sin pagar sigues en Gratis.`}
           </p>
         </div>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${insignia.c}`}>{insignia.t}</span>
@@ -124,23 +143,49 @@ export default function TarjetaSuscripcion() {
 
       {estado.tipo !== "cortesia" && (
         <>
-          {datos.anual && (
-            <div className="mb-4 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Plan">
-              {([["mensual", "Un mes", pesos(datos.precio), ""], ["anual", "Un año", pesos(datos.anual), ahorro > 0 ? `Ahorras ${pesos(ahorro)}` : "12 meses de un jalón"]] as const).map(([id, t, p, d]) => (
+          {PAGO_EN_LINEA && retorno === "ok" && <p className="mb-3 rounded-xl bg-accent-soft px-3 py-3 text-sm text-accent">¡Gracias! En cuanto Mercado Pago confirme tu pago se activa tu Pro (normalmente en segundos). Recarga si no lo ves.</p>}
+          {PAGO_EN_LINEA && retorno === "pendiente" && <p className="mb-3 rounded-xl bg-[#fdf6e3] px-3 py-3 text-sm text-[#5c4712]">Tu pago quedó pendiente (si pagaste en OXXO, se acredita cuando la tienda lo reporta). Te avisamos por correo al activarse.</p>}
+          {PAGO_EN_LINEA && retorno === "error" && <p className="mb-3 rounded-xl bg-[#fbecea] px-3 py-3 text-sm text-[#7a1f1a]">El pago no se completó. Puedes intentar otra vez o pagar por transferencia.</p>}
+
+          <p className="mb-2 text-sm font-medium">Elige tu plan de Pro</p>
+          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Plan">
+            {datos.planes.map((p) => {
+              const ahorro = ahorroDe(p, datos.mensual);
+              const pct = ahorro ? Math.round((ahorro / (datos.mensual * p.meses)) * 100) : 0;
+              return (
                 <button
-                  key={id}
+                  key={p.id}
                   type="button"
                   role="radio"
-                  aria-checked={plan === id}
-                  onClick={() => setPlan(id)}
-                  className={`rounded-xl border px-3 py-2.5 text-left ${plan === id ? "border-accent bg-accent-soft" : "border-line hover:bg-panel-2"}`}
+                  aria-checked={elegido?.id === p.id}
+                  onClick={() => setPlan(p.id)}
+                  className={`relative rounded-xl border px-3 py-2.5 text-left ${elegido?.id === p.id ? "border-accent bg-accent-soft" : "border-line hover:bg-panel-2"}`}
                 >
-                  <span className={`block text-sm font-semibold ${plan === id ? "text-accent" : ""}`}>{t} · {p}</span>
-                  <span className="text-xs text-muted">{d || "Se renueva cada mes"}</span>
+                  {p.id === "periodo" && <span className="absolute -top-2 right-2 rounded-full bg-accent px-1.5 py-px text-[10px] font-semibold text-panel">Recomendado</span>}
+                  <span className={`block text-sm font-semibold ${elegido?.id === p.id ? "text-accent" : ""}`}>{p.nombre}</span>
+                  <span className="block text-lg font-semibold tabular-nums">{pesos(p.precio)}</span>
+                  <span className="text-xs text-muted">{p.meses === 1 ? "por mes" : `${p.meses} meses${pct ? ` · ahorras ${pct}%` : ""}`}</span>
                 </button>
-              ))}
+              );
+            })}
+          </div>
+          <details className="mb-4 text-sm">
+            <summary className="cursor-pointer text-muted hover:text-ink">¿Qué trae Pro?</summary>
+            <ul className="mt-2 grid gap-1 pl-1 sm:grid-cols-2">
+              {BENEFICIOS_PRO.map((b) => <li key={b} className="flex gap-2"><span className="text-accent">✓</span>{b}</li>)}
+            </ul>
+            <p className="mt-2 text-xs text-muted">Sin Pro tu agenda sigue funcionando en Gratis: citas, tu compa, horario, asistencia, folios y tu avance del periodo.</p>
+          </details>
+
+          {datos.mp && (
+            <div className="mb-4 rounded-xl border-2 border-accent p-3">
+              <button className="btn btn-primario w-full" disabled={yendo || !elegido} onClick={pagarEnLinea}>
+                {yendo ? "Abriendo Mercado Pago…" : `Pagar ${elegido ? pesos(elegido.precio) : ""} con tarjeta u OXXO`}
+              </button>
+              <p className="mt-1.5 text-center text-xs text-muted">Con tarjeta se activa al instante. En OXXO, cuando la tienda reporta tu pago.</p>
             </div>
           )}
+          {datos.mp && <p className="mb-2 text-sm font-medium">O por transferencia</p>}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="min-w-0 rounded-xl border border-line px-3">
               <p className="pt-3 text-sm font-semibold">Transferencia SPEI</p>
@@ -226,7 +271,7 @@ export function CanjearCodigo({ aplicado, onCanjeado }: { aplicado: string | nul
   if (aplicado) {
     return (
       <p className="mb-4 rounded-xl bg-accent-soft px-3 py-2 text-sm text-accent">
-        Código <b>{aplicado}</b> aplicado a tu mes gratis.
+        Código <b>{aplicado}</b> aplicado a tu prueba de Pro.
       </p>
     );
   }
@@ -239,7 +284,7 @@ export function CanjearCodigo({ aplicado, onCanjeado }: { aplicado: string | nul
     const d = await res.json().catch(() => ({}));
     setEnviando(false);
     if (!res.ok) return setMsg({ ok: false, t: d.error ?? "No se pudo aplicar." });
-    setMsg({ ok: true, t: `¡Listo! Tienes ${d.meses} mes${d.meses === 1 ? "" : "es"} gratis extra, cortesía de ${d.creador}.` });
+    setMsg({ ok: true, t: `¡Listo! Tienes ${d.dias} días extra de Pro, cortesía de ${d.creador}.` });
     onCanjeado();
   }
 
@@ -258,7 +303,7 @@ export function CanjearCodigo({ aplicado, onCanjeado }: { aplicado: string | nul
         <button className="btn btn-primario shrink-0" disabled={enviando || !codigo.trim()}>{enviando ? "…" : "Aplicar"}</button>
       </div>
       {msg && <p className={`mt-2 text-sm ${msg.ok ? "text-accent" : "text-danger"}`}>{msg.t}</p>}
-      <p className="mt-2 text-xs text-muted">Te da meses gratis extra. Sólo se puede usar uno, durante tu mes gratis.</p>
+      <p className="mt-2 text-xs text-muted">Te da días extra de Pro. Sólo se puede usar uno, durante tu prueba.</p>
     </form>
   );
 }

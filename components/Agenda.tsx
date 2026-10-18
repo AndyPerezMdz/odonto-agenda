@@ -21,9 +21,10 @@ import { manualDe } from "@/lib/manual";
 import { aplicarTema, type MarcadorId } from "@/lib/tema";
 import MarcadorHoy from "@/components/MarcadorHoy";
 import CuatriModal from "@/components/CuatriModal";
-import BannerPago from "@/components/BannerPago";
+import BannerPlan from "@/components/BannerPlan";
+import PanelHoy from "@/components/PanelHoy";
 import AceptarTerminos from "@/components/AceptarTerminos";
-import { estadoPago, sumarDias } from "@/lib/pagos";
+import { sumarDias } from "@/lib/pagos";
 import TarjetaCita from "@/components/TarjetaCita";
 import BuscarPaciente from "@/components/BuscarPaciente";
 import InstalarApp, { VentanaInstalar } from "@/components/InstalarApp";
@@ -86,7 +87,7 @@ export default function Agenda({ userId }: { userId: string }) {
     if (vista === "lista") cambiarVista("mes");
   }
 
-  const { supabase, perfiles, clinicas, materias, nombreAgenda, pagadoHasta, ajustes, recargar: recargarCatalogos } = useCatalogos();
+  const { supabase, perfiles, clinicas, materias, nombreAgenda, pagadoHasta, ajustes, recargar: recargarCatalogos, pro, quedanPro, cargando } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
   const p = prefs(yo?.preferencias);
   const sinLeer = !!yo && pendientes(yo.version_vista, ajustes.universidad).length > 0;
@@ -120,9 +121,11 @@ export default function Agenda({ userId }: { userId: string }) {
     setNovedades(null);
   }
 
-  // Suscripción: si venció (pasada la gracia) la agenda queda en sólo lectura
-  const pago = estadoPago(pagadoHasta, hoyISO());
-  const soloLectura = pago.tipo === "vencida";
+  // 2.0: ya no hay sólo lectura. Sin Pro la agenda sigue en Gratis (lo de la uni nunca se bloquea).
+  const soloLectura = false;
+  const cortesia = !cargando && quedanPro === null && pro;
+  const urgePlan = !cargando && !cortesia && (!pro || (quedanPro ?? 99) <= 3);
+  const etiquetaPlan = !pro ? "Pásate a Pro" : quedanPro === 0 ? "Pro · último día" : (quedanPro ?? 99) <= 3 ? `Pro · quedan ${quedanPro} d` : `Pro · ${pagadoHasta ? fechaCorta(pagadoHasta) : ""}`;
 
   // Aplica el tema guardado de quien está viendo
   useEffect(() => {
@@ -171,7 +174,7 @@ export default function Agenda({ userId }: { userId: string }) {
   // Turnos de la pareja: ¿a quién le toca operar en cada bloque?
   const dueno = perfiles.find((x) => x.rol === "owner")?.id ?? null;
   const uady = esUady(ajustes.universidad); // ritmo, turnos y Mi material son sólo de la UADY
-  const turnos: Turnos = { modo: uady && perfiles.length >= 2 ? ajustes.turnos : "ninguno", inicia: ajustes.turnos_inicia ?? dueno };
+  const turnos: Turnos = { modo: uady && pro && perfiles.length >= 2 ? ajustes.turnos : "ninguno", inicia: ajustes.turnos_inicia ?? dueno };
   function rolDe(b: Horario, fecha: string) {
     if (turnos.modo === "ninguno") return null;
     const r = rangoDe(deISO(fecha), periodosDe(ajustes.universidad));
@@ -226,19 +229,15 @@ export default function Agenda({ userId }: { userId: string }) {
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{nombreAgenda || "Agenda"}</h1>
           {yo && <p className="text-sm text-muted">Hola, {yo.nombre}</p>}
         </div>
-        {yo?.rol === "owner" && pago.tipo !== "cortesia" && (
+        {yo?.rol === "owner" && !cortesia && !cargando && (
           <span className="hidden sm:contents">
           <Link
             href="/personalizar#suscripcion"
-            className={`btn btn-sec ${pago.tipo === "activa" ? "" : "border-danger text-danger"}`}
+            className={`btn btn-sec ${!pro ? "border-accent text-accent" : urgePlan ? "border-danger text-danger" : ""}`}
             title="Suscripción y pagos"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
-            {pago.tipo === "activa"
-              ? `Suscripción · ${fechaCorta(pago.vence)}`
-              : pago.tipo === "por_vencer"
-                ? pago.dias === 0 ? "Vence hoy" : `Vence en ${pago.dias} d`
-                : "Pagar suscripción"}
+            {etiquetaPlan}
           </Link>
           </span>
         )}
@@ -285,7 +284,7 @@ export default function Agenda({ userId }: { userId: string }) {
         <div className="relative sm:hidden">
           <button onClick={() => setMenu(!menu)} className="btn btn-sec relative" aria-label="Más opciones" aria-expanded={menu}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
-            {yo?.rol === "owner" && pago.tipo !== "cortesia" && pago.tipo !== "activa" ? (
+            {yo?.rol === "owner" && urgePlan ? (
               <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-danger" />
             ) : sinLeer ? (
               <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-accent" />
@@ -295,9 +294,9 @@ export default function Agenda({ userId }: { userId: string }) {
             <>
               <div className="fixed inset-0 z-30" onClick={() => setMenu(false)} />
               <div className="absolute right-0 z-40 mt-2 w-56 overflow-hidden rounded-xl border border-line bg-panel py-1 text-sm shadow-xl">
-                {yo?.rol === "owner" && pago.tipo !== "cortesia" && (
-                  <Link href="/personalizar#suscripcion" className={`block px-4 py-2.5 hover:bg-panel-2 ${pago.tipo === "activa" ? "" : "text-danger"}`}>
-                    {pago.tipo === "activa" ? `Suscripción · ${fechaCorta(pago.vence)}` : pago.tipo === "por_vencer" ? (pago.dias === 0 ? "Suscripción · vence hoy" : `Suscripción · vence en ${pago.dias} d`) : "Pagar suscripción"}
+                {yo?.rol === "owner" && !cortesia && !cargando && (
+                  <Link href="/personalizar#suscripcion" className={`block px-4 py-2.5 hover:bg-panel-2 ${urgePlan ? "text-accent" : ""}`}>
+                    {etiquetaPlan}
                   </Link>
                 )}
                 <button onClick={() => { setMenu(false); setNovedades(sinLeer ? "nuevas" : "todas"); }} className="flex w-full items-center justify-between px-4 py-2.5 text-left hover:bg-panel-2">
@@ -317,10 +316,11 @@ export default function Agenda({ userId }: { userId: string }) {
         </div>
       </header>
 
-      <BannerPago estado={pago} esDueno={yo?.rol === "owner"} />
+      <BannerPlan pro={pro} quedan={quedanPro} esDueno={yo?.rol === "owner"} cargando={cargando} />
       <Anuncios supabase={supabase} />
-      {uady && <AvisosMaterial userId={userId} horarios={horarios} perfiles={perfiles} compacto />}
+      {uady && pro && <AvisosMaterial userId={userId} horarios={horarios} perfiles={perfiles} compacto />}
       <InstalarApp />
+      <PanelHoy citas={citas} userId={userId} hoy={hoyStr} clinicaPorId={clinicaPorId} materiaPorId={materiaPorId} onAbrir={(c) => setModal({ cita: c, fecha: c.fecha })} />
 
       <div className={`grid gap-5 ${vista === "mes" ? "lg:grid-cols-[1fr_340px]" : ""}`}>
         {/* Calendario */}
@@ -374,6 +374,7 @@ export default function Agenda({ userId }: { userId: string }) {
                   materia={c.materia_id ? materiaPorId.get(c.materia_id) : null}
                   supabase={supabase}
                   soloLectura={soloLectura}
+                  pro={pro}
                   onAbrir={() => setModal({ cita: c, fecha: c.fecha })}
                   onCambio={recargarCitas}
                 />
@@ -533,6 +534,7 @@ export default function Agenda({ userId }: { userId: string }) {
                     materia={c.materia_id ? materiaPorId.get(c.materia_id) : null}
                     supabase={supabase}
                     soloLectura={soloLectura}
+                    pro={pro}
                     onAbrir={() => setModal({ cita: c, fecha: c.fecha })}
                     onCambio={recargarCitas}
                   />
@@ -610,6 +612,7 @@ export default function Agenda({ userId }: { userId: string }) {
           materias={materias}
           preferencias={p}
           soloLectura={soloLectura}
+          pro={pro}
           onClose={() => setModal(null)}
           onGuardado={(fecha) => {
             setModal(null);

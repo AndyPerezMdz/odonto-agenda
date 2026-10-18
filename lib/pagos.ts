@@ -1,6 +1,6 @@
 // Lógica de suscripción compartida entre cliente y servidor. Fechas como "YYYY-MM-DD".
 
-export const DIAS_GRACIA = 3;   // días después del vencimiento en que la agenda sigue funcionando
+export const DIAS_GRACIA = 0;   // 2.0: sin gracia ni sólo lectura; al vencer, la agenda pasa a Gratis
 export const AVISAR_DESDE = 5;  // cuántos días antes se muestra el aviso "por vencer"
 
 export type EstadoPago =

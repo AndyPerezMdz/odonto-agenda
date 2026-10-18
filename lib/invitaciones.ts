@@ -103,7 +103,7 @@ export async function invitacionesPara(db: Db, userId: string, email: string): P
       destinoEnPrueba: destP,
       puede: !bloqueada,
       motivo: bloqueada
-        ? "Ya usaste tu mes gratis y esta agenda sigue en su mes gratis. Podrás entrar cuando esté pagada, o invita tú a esa persona a tu agenda."
+        ? "Ya usaste tu prueba de Pro y esta agenda sigue en su prueba. Podrás entrar cuando esté pagada, o invita tú a esa persona a tu agenda."
         : null,
       soyDueno: yo?.rol === "owner",
       misCitas,
@@ -139,7 +139,7 @@ export async function aceptarInvitacion(db: Db, userId: string, email: string, i
 
   // Regla 3: a una agenda en prueba no entra quien ya gastó la suya
   if (destP && gastadaEnOtra(prueba, destino)) {
-    return { error: "Ya usaste tu mes gratis y esta agenda sigue en su mes gratis. Podrás entrar cuando esté pagada." };
+    return { error: "Ya usaste tu prueba de Pro y esta agenda sigue en su prueba. Podrás entrar cuando esté pagada." };
   }
 
   // ¿Hay lugar? (un dueño y un compañero por agenda)

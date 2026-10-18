@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Cita, Clinica, EstadoCita, Materia, Paciente, Perfil, Preferencias } from "@/lib/types";
-import { enlaceWhatsApp, mensajeConfirmar, IcoWhatsApp } from "@/lib/whatsapp";
+import { enlaceWhatsApp, enlaceConfirmar, mensajeConfirmar, IcoWhatsApp } from "@/lib/whatsapp";
+import { ChipPro } from "@/components/Candado";
 import { fechaLarga, hhmm, sumarMinutos } from "@/lib/fechas";
 import { sumarDias } from "@/lib/pagos";
 import { ESTADOS } from "@/lib/estados";
@@ -18,6 +19,7 @@ type Props = {
   materias: Materia[];
   preferencias: Required<Preferencias>;
   soloLectura?: boolean;
+  pro?: boolean; // 2.0: repetir, otra sesión, cobros y WhatsApp con link son de Pro
   plantilla?: Cita; // "Otra sesión": nueva cita con los datos de otra
   onOtraSesion?: (c: Cita) => void;
   pacientes?: Paciente[]; // banco de pacientes (para autocompletar nombre y teléfono)
@@ -27,7 +29,7 @@ type Props = {
 };
 
 export default function CitaModal({
-  supabase, userId, cita, fechaInicial, perfiles, clinicas, materias, preferencias, soloLectura = false, plantilla, onOtraSesion, pacientes = [], pacienteOrigen, onClose, onGuardado,
+  supabase, userId, cita, fechaInicial, perfiles, clinicas, materias, preferencias, soloLectura = false, pro = true, plantilla, onOtraSesion, pacientes = [], pacienteOrigen, onClose, onGuardado,
 }: Props) {
   const base = cita ?? plantilla ?? null;
   const esNueva = !cita;
@@ -157,7 +159,11 @@ export default function CitaModal({
 
     const { error } = esNueva
       ? await supabase.from("citas").insert(datos)
-      : await supabase.from("citas").update({ ...datos, estado }).eq("id", cita.id);
+      : await supabase
+          .from("citas")
+          // Si cambió el día o la hora, la confirmación del paciente ya no vale
+          .update({ ...datos, estado, ...(cita.fecha !== fecha || hhmm(cita.hora_inicio) !== inicio ? { confirmacion: null, confirmacion_at: null, aviso_push_at: null } : {}) })
+          .eq("id", cita.id);
 
     setGuardando(false);
     if (error) {
@@ -240,9 +246,9 @@ export default function CitaModal({
           <Campo label="Teléfono (opcional)">
             <div className="flex gap-1.5">
               <input type="tel" inputMode="tel" className="campo min-w-0" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="999 123 4567" />
-              {esMia && !esNueva && enlaceWhatsApp(telefono, "") && (
+              {pro && esMia && !esNueva && enlaceWhatsApp(telefono, "") && (
                 <a
-                  href={enlaceWhatsApp(telefono, mensajeConfirmar({ paciente, fecha, hora_inicio: inicio }, clinicas.find((c) => c.id === clinicaId)?.numero)) ?? "#"}
+                  href={enlaceWhatsApp(telefono, mensajeConfirmar({ paciente, fecha, hora_inicio: inicio }, clinicas.find((c) => c.id === clinicaId)?.numero, cita?.token_confirmar && cita.fecha === fecha && hhmm(cita.hora_inicio) === inicio ? enlaceConfirmar(cita.token_confirmar, window.location.origin) : undefined)) ?? "#"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn shrink-0 bg-[#25D366] px-2.5 text-white"
@@ -300,7 +306,7 @@ export default function CitaModal({
           )}
 
           {/* El cobro es asunto de cada quien: en citas ajenas no se muestra */}
-          {(esNueva || cita?.owner_id === userId) && (
+          {pro && (esNueva || cita?.owner_id === userId) && (
             <>
           <Campo label="Cobro al paciente (opcional)">
             <div className="flex items-center gap-1.5">
@@ -327,7 +333,10 @@ export default function CitaModal({
             <span className="mt-1 block text-xs text-muted">Sin diagnósticos ni datos clínicos: sólo lo necesario para organizarte.</span>
           </Campo>
 
-          {esNueva && (
+          {esNueva && !pro && (
+            <p className="col-span-2 rounded-xl border border-dashed border-line p-3 text-sm text-muted">Repetir cada semana <ChipPro /> — agenda todo el tratamiento de un jalón.</p>
+          )}
+          {esNueva && pro && (
             <div className="col-span-2 rounded-xl border border-line p-3">
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input type="checkbox" checked={repetir} onChange={(e) => setRepetir(e.target.checked)} />
@@ -377,12 +386,12 @@ export default function CitaModal({
               ) : (
                 <button type="button" className="btn btn-peligro" onClick={() => setConfirmarBorrar(true)}>Borrar</button>
               ))}
-            {!esNueva && onOtraSesion && cita && (
+            {pro && !esNueva && onOtraSesion && cita && (
               <button type="button" className="btn btn-sec ml-auto" onClick={() => onOtraSesion(cita)} title="Nueva cita con el mismo paciente, clínica, materia y horario">
                 + Otra sesión
               </button>
             )}
-            <button type="submit" className={`btn btn-primario ${!esNueva && onOtraSesion ? "" : "ml-auto"}`} disabled={guardando}>
+            <button type="submit" className={`btn btn-primario ${pro && !esNueva && onOtraSesion ? "" : "ml-auto"}`} disabled={guardando}>
               {guardando ? "Guardando…" : "Guardar"}
             </button>
           </div>

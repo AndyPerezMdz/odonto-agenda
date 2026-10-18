@@ -82,12 +82,12 @@ export default function InvitacionPendiente({ onVisible }: { onVisible?: (v: boo
               )}
               <li>
                 {inv.destinoEnPrueba
-                  ? "Esa agenda está en su mes gratis: al entrar, usas el tuyo."
+                  ? "Esa agenda está en su prueba de Pro: al entrar, usas la tuya."
                   : inv.devolucion === "devuelve"
-                    ? "Te devolvemos tu mes gratis: lo podrás usar después en tu propia agenda."
+                    ? "Te devolvemos tu prueba de Pro: la podrás usar después en tu propia agenda."
                     : inv.devolucion === "gastada"
-                      ? "Tu mes gratis ya cuenta como usado."
-                      : "Tu mes gratis no se toca."}
+                      ? "Tu prueba de Pro ya cuenta como usada."
+                      : "Tu prueba de Pro no se toca."}
               </li>
               <li>Entras a {inv.agenda} con tu misma cuenta y contraseña.</li>
             </ul>

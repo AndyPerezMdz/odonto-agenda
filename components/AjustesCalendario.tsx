@@ -1,5 +1,7 @@
 "use client";
 
+import Candado from "@/components/Candado";
+
 import { useState } from "react";
 import type { AjustesAgenda, Perfil } from "@/lib/types";
 
@@ -12,8 +14,8 @@ const MODOS: { id: AjustesAgenda["turnos"]; nombre: string; detalle: string }[] 
 
 // UADY: semana en que arrancan las clínicas y turnos de la pareja para operar.
 export default function AjustesCalendario({
-  ajustes, perfiles, userId, onCambio,
-}: { ajustes: AjustesAgenda; perfiles: Perfil[]; userId: string; onCambio: () => void }) {
+  ajustes, perfiles, userId, onCambio, pro = true, esDueno = false,
+}: { ajustes: AjustesAgenda; perfiles: Perfil[]; userId: string; onCambio: () => void; pro?: boolean; esDueno?: boolean }) {
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
   const [guardando, setGuardando] = useState(false);
   const hayPareja = perfiles.length >= 2;
@@ -52,7 +54,9 @@ export default function AjustesCalendario({
       <div className="mt-5 border-t border-line pt-4">
         <p className="text-sm font-medium">¿Cómo se turnan para operar?</p>
         <p className="mb-2 text-xs text-muted">El caso le cuenta sólo a quien opera. La agenda te dice a quién le toca y tu ritmo cuenta sólo las clínicas donde operas.</p>
-        {!hayPareja ? (
+        {!pro ? (
+          <Candado compacto titulo="Turnos para operar" texto="Que la agenda lleve a quién le toca operar y cuente tu ritmo sólo donde operas." esDueno={esDueno} />
+        ) : !hayPareja ? (
           <p className="rounded-xl border border-dashed border-line p-3 text-sm text-muted">Cuando tengas compañero/a en la agenda podrás poner sus turnos.</p>
         ) : (
           <>

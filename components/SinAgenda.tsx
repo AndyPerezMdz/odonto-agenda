@@ -62,7 +62,7 @@ export default function SinAgenda() {
         ))}
       </div>
       <p className="mb-2 text-xs text-muted">La universidad no se puede cambiar después.</p>
-      <p className="mb-4 text-xs text-muted">Si ya usaste tu mes gratis, tu agenda empieza sin él: para agendar primero se paga el mes.</p>
+      <p className="mb-4 text-xs text-muted">Si ya usaste tu prueba de Pro, tu agenda empieza en Gratis (con lo básico).</p>
       <form action="/auth/salir" method="post">
         <button className="btn btn-sec w-full">Cerrar sesión</button>
       </form>

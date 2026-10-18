@@ -298,9 +298,9 @@ export default function PanelAdmin({ email }: { email: string }) {
 
 const FILTROS = [
   ["todas", "Todas"],
-  ["atencion", "Por vencer / vencidas"],
-  ["prueba", "Mes gratis"],
-  ["activa", "Al corriente"],
+  ["atencion", "Por vencer / en Gratis"],
+  ["prueba", "En prueba"],
+  ["activa", "Pro"],
   ["cortesia", "Cortesía"],
 ] as const;
 type Filtro = (typeof FILTROS)[number][0];
@@ -350,7 +350,7 @@ function FilaAgenda({
               </span>
             )}
           </span>
-          <span className={`self-start rounded-full px-2.5 py-0.5 text-xs font-medium sm:self-auto ${ins.c}`}>{agenda.enPrueba ? ins.t.replace("Pagada hasta", "Mes gratis hasta") : ins.t}</span>
+          <span className={`self-start rounded-full px-2.5 py-0.5 text-xs font-medium sm:self-auto ${ins.c}`}>{agenda.enPrueba ? ins.t.replace("Pagada hasta", "Prueba Pro hasta") : ins.t}</span>
         </span>
         <svg className={`shrink-0 text-muted transition ${abierta ? "rotate-180" : ""}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>
@@ -363,7 +363,7 @@ function Codigos({ onAviso }: { onAviso: (m: string) => void }) {
   const [lista, setLista] = useState<CodigoAdmin[] | null>(null);
   const [codigo, setCodigo] = useState("");
   const [creador, setCreador] = useState("");
-  const [meses, setMeses] = useState(1);
+  const [dias, setDias] = useState(15);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -379,13 +379,13 @@ function Codigos({ onAviso }: { onAviso: (m: string) => void }) {
     e.preventDefault();
     setEnviando(true);
     setError(null);
-    const err = await api("/api/admin/codigos", "POST", { codigo, creador, meses_extra: meses });
+    const err = await api("/api/admin/codigos", "POST", { codigo, creador, dias_extra: dias });
     setEnviando(false);
     if (err) return setError(err);
     onAviso(`Código ${codigo.trim().toUpperCase()} creado.`);
     setCodigo("");
     setCreador("");
-    setMeses(1);
+    setDias(15);
     cargar();
   }
 
@@ -400,7 +400,7 @@ function Codigos({ onAviso }: { onAviso: (m: string) => void }) {
       <form onSubmit={crear} className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
         <h2 className="font-semibold">Nuevo código de creador</h2>
         <p className="mb-4 mt-0.5 text-sm text-muted">
-          Quien lo use al crear su cuenta recibe meses gratis extra (sólo si su agenda empieza con mes gratis). Aquí ves cuántos llegan por cada creador.
+          Quien lo use al crear su cuenta recibe días extra de Pro (sólo si su agenda empieza con prueba). Aquí ves cuántos llegan por cada creador.
         </p>
         <div className="grid gap-3 sm:grid-cols-[1fr_1.4fr_auto]">
           <label className="block">
@@ -412,9 +412,9 @@ function Codigos({ onAviso }: { onAviso: (m: string) => void }) {
             <input required className="campo" placeholder="Jenrry · @suinstagram" value={creador} onChange={(e) => setCreador(e.target.value)} />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm font-medium">Meses extra</span>
-            <select className="campo" value={meses} onChange={(e) => setMeses(Number(e.target.value))}>
-              {[1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}
+            <span className="mb-1 block text-sm font-medium">Días extra de Pro</span>
+            <select className="campo" value={dias} onChange={(e) => setDias(Number(e.target.value))}>
+              {[7, 15, 30].map((n) => <option key={n} value={n}>{n} días</option>)}
             </select>
           </label>
         </div>
@@ -431,10 +431,10 @@ function Codigos({ onAviso }: { onAviso: (m: string) => void }) {
           <div key={c.codigo} className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 ${i ? "border-t border-line" : ""} ${c.activo ? "" : "opacity-50"}`}>
             <span className="min-w-0 flex-1">
               <span className="block font-mono font-semibold">{c.codigo}</span>
-              <span className="block truncate text-xs text-muted">{c.creador} · +{c.meses_extra} mes{c.meses_extra === 1 ? "" : "es"}</span>
+              <span className="block truncate text-xs text-muted">{c.creador} · +{c.dias_extra ?? 15} días</span>
             </span>
             <span className="text-sm tabular-nums">
-              <b>{c.agendas}</b> <span className="text-muted">agenda{c.agendas === 1 ? "" : "s"} ·</span> <b>{c.enPrueba}</b> <span className="text-muted">en mes gratis ·</span> <b>{c.pagando}</b> <span className="text-muted">pagando</span>
+              <b>{c.agendas}</b> <span className="text-muted">agenda{c.agendas === 1 ? "" : "s"} ·</span> <b>{c.enPrueba}</b> <span className="text-muted">en prueba ·</span> <b>{c.pagando}</b> <span className="text-muted">pagando</span>
               {c.agendas > 0 && <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">{Math.round((c.pagando / c.agendas) * 100)}% paga</span>}
             </span>
             <button className="btn btn-sec py-1 text-xs" onClick={() => alternar(c)}>{c.activo ? "Desactivar" : "Activar"}</button>
@@ -592,13 +592,13 @@ function insigniaPago(pagadoHasta: string | null) {
     case "cortesia":
       return { t: "Cortesía", c: "bg-panel-2 text-muted" };
     case "activa":
-      return { t: `Pagada hasta ${fechaLarga(e.vence)}`, c: "bg-accent-soft text-accent" };
+      return { t: `Pro hasta ${fechaLarga(e.vence)}`, c: "bg-accent-soft text-accent" };
     case "por_vencer":
       return { t: e.dias === 0 ? "Vence hoy" : `Vence en ${e.dias} día${e.dias === 1 ? "" : "s"}`, c: "bg-[#fdf6e3] text-[#5c4712] dark:bg-[#2a2415] dark:text-[#ecd9a4]" };
     case "gracia":
       return { t: `Vencida · se bloquea el ${fechaLarga(e.bloqueo)}`, c: "bg-[#fbecea] text-[#7a1f1a] dark:bg-[#3a1d1b] dark:text-[#f1b5b0]" };
     default:
-      return { t: "Vencida · sólo lectura", c: "bg-[#fbecea] text-[#7a1f1a] dark:bg-[#3a1d1b] dark:text-[#f1b5b0]" };
+      return { t: `En Gratis desde el ${fechaLarga(sumarDias(e.vence, 1))}`, c: "bg-[#fbecea] text-[#7a1f1a] dark:bg-[#3a1d1b] dark:text-[#f1b5b0]" };
   }
 }
 

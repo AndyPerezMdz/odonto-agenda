@@ -6,7 +6,6 @@ import { useCatalogos, usePacientes } from "@/lib/useDatos";
 import { prefs, type Cita, type EstadoPaciente, type Paciente } from "@/lib/types";
 import { aplicarTema } from "@/lib/tema";
 import { hoyISO, sumarMinutos } from "@/lib/fechas";
-import { estadoPago } from "@/lib/pagos";
 import { enlaceWhatsApp, mensajeInvitarPaciente, IcoWhatsApp } from "@/lib/whatsapp";
 import CitaModal from "@/components/CitaModal";
 
@@ -20,11 +19,11 @@ const estadoP = (e: EstadoPaciente) => ESTADOS.find((x) => x.id === e) ?? ESTADO
 
 // Banco de pacientes: gente por conseguir o en espera, por materia. Para cuando falta un caso o se cae una cita.
 export default function BancoPacientes({ userId, embebido = false }: { userId: string; embebido?: boolean }) {
-  const { supabase, perfiles, clinicas, materias, pagadoHasta } = useCatalogos();
+  const { supabase, perfiles, clinicas, materias, pro } = useCatalogos();
   const { pacientes, recargar } = usePacientes();
   const yo = perfiles.find((p) => p.id === userId);
   const p = prefs(yo?.preferencias);
-  const soloLectura = estadoPago(pagadoHasta, hoyISO()).tipo === "vencida";
+  const soloLectura = !pro;
   useEffect(() => {
     if (yo) aplicarTema(p.tema);
   }, [yo, p.tema]);

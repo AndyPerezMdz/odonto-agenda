@@ -17,11 +17,16 @@ export function enlaceWhatsApp(tel: string | null | undefined, texto: string): s
 const primerNombre = (s: string) => s.trim().split(/\s+/)[0] ?? s;
 
 /** "Hola Juan, te escribo para confirmar tu cita…" */
-export function mensajeConfirmar(c: { paciente: string; fecha: string; hora_inicio: string }, clinica?: string | null) {
-  return `Hola ${primerNombre(c.paciente)}, te escribo para confirmar tu cita del ${fechaLarga(c.fecha)} a las ${hhmm(c.hora_inicio)}${
+export function mensajeConfirmar(c: { paciente: string; fecha: string; hora_inicio: string }, clinica?: string | null, enlace?: string | null) {
+  const base = `Hola ${primerNombre(c.paciente)}, te escribo para confirmar tu cita del ${fechaLarga(c.fecha)} a las ${hhmm(c.hora_inicio)}${
     clinica ? ` en la ${clinica}` : ""
-  }. ¿Me confirmas si puedes venir? Gracias.`;
+  }.`;
+  // Pro (2.0): el paciente confirma con un toque y la cita se marca sola
+  return enlace ? `${base} Confírmame aquí con un toque: ${enlace}` : `${base} ¿Me confirmas si puedes venir? Gracias.`;
 }
+
+/** Link para que el paciente confirme su cita (sólo Pro). */
+export const enlaceConfirmar = (token: string | null | undefined, origen: string) => (token ? `${origen}/confirmar/${token}` : null);
 
 /** Para el banco de pacientes: primer contacto. */
 export function mensajeInvitarPaciente(p: { nombre: string }, yo?: string | null, materia?: string | null) {

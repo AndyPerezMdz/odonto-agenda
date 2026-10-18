@@ -116,7 +116,7 @@ export function Numeros({ agendas, resumen }: { agendas: AgendaAdmin[]; resumen:
         tono={pagan.length ? "bien" : "mal"}
       />
       <Kpi
-        titulo="En mes gratis"
+        titulo="En prueba de Pro"
         valor={String(pruebas.length)}
         detalle={terminanSemana ? `${terminanSemana} termina${terminanSemana === 1 ? "" : "n"} esta semana` : "Ninguna termina esta semana"}
         tono={terminanSemana ? "ojo" : "neutro"}
@@ -124,7 +124,7 @@ export function Numeros({ agendas, resumen }: { agendas: AgendaAdmin[]; resumen:
       <Kpi
         titulo="Pasan de gratis a pago"
         valor={conversion == null ? "—" : `${conversion}%`}
-        detalle={base ? `${convertidas} de ${base} pagaron` : "Aún no termina ningún mes gratis"}
+        detalle={base ? `${convertidas} de ${base} pagaron` : "Aún no termina ninguna prueba"}
         tono={conversion == null ? "neutro" : conversion >= 50 ? "bien" : conversion >= 25 ? "ojo" : "mal"}
       />
     </div>
@@ -171,29 +171,29 @@ function pendientesDe(agendas: AgendaAdmin[]): Pendiente[] {
     const dueno = a.miembros.find((m) => m.rol === "owner");
     const nombre = dueno?.nombre?.split(" ")[0] ?? "";
     const hola = `Hola${nombre ? ` ${nombre}` : ""}! Te escribo de Agenda de clínicas.`;
-    const pagar = `Son ${pesos(a.precio_mensual)} al mes con el concepto ${codigoAgenda(a.id)}; los datos están en Personalizar → Suscripción.`;
+    const pagar = `Pro cuesta desde ${pesos(a.precio_mensual)} al mes (más barato por periodo); se paga en Personalizar → Suscripción por transferencia (concepto ${codigoAgenda(a.id)}).`;
 
     // 1) Dinero: vencidas, en gracia y por vencer
     if (e.tipo === "gracia") {
       lista.push({
         id: `pago-${a.id}`, nivel: "urgente", agenda: a, correo: "pago",
-        titulo: a.enPrueba ? "Se le acabó el mes gratis y no ha pagado" : "Venció y está en días de gracia",
+        titulo: a.enPrueba ? "Se le acabó la prueba y no ha pagado (está en Gratis)" : "Venció: bajó a Gratis",
         detalle: `Se bloquea el ${fechaLarga(e.bloqueo)}`,
-        whatsapp: `${hola} ${a.enPrueba ? "Tu mes gratis ya terminó" : `Tu suscripción venció el ${fechaLarga(e.vence)}`}; para seguir agendando sólo falta renovar. ${pagar} ¡Gracias!`,
+        whatsapp: `${hola} ${a.enPrueba ? "Tu prueba de Pro ya terminó" : `Tu suscripción venció el ${fechaLarga(e.vence)}`}; para seguir agendando sólo falta renovar. ${pagar} ¡Gracias!`,
       });
     } else if (e.tipo === "vencida" && diasEntre(e.vence, hoy) <= 30 && dueno) {
       lista.push({
         id: `pago-${a.id}`, nivel: "dinero", agenda: a, correo: "pago",
-        titulo: "Vencida, en sólo lectura",
-        detalle: `Desde el ${fechaLarga(sumarDias(e.vence, 4))}. Todavía se puede rescatar.`,
-        whatsapp: `${hola} Tu agenda quedó en sólo lectura, pero tus citas siguen guardadas. Si quieres reactivarla: ${pagar}`,
+        titulo: a.enPrueba ? "Terminó su prueba de Pro: está en Gratis" : "Bajó a Gratis",
+        detalle: `Desde el ${fechaLarga(sumarDias(e.vence, 1))}. Todavía se puede rescatar.`,
+        whatsapp: `${hola} Tu agenda sigue funcionando en Gratis y tus citas están guardadas. Si quieres de vuelta recordatorios, historial, PDF y lo demás, elige un plan en Personalizar → Suscripción y paga por transferencia. ¡Gracias!`,
       });
     } else if (e.tipo === "por_vencer" && a.enPrueba) {
       lista.push({
         id: `prueba-${a.id}`, nivel: "dinero", agenda: a, correo: "prueba",
-        titulo: e.dias === 0 ? "Su mes gratis termina hoy" : `Su mes gratis termina en ${e.dias} día${e.dias === 1 ? "" : "s"}`,
+        titulo: e.dias === 0 ? "Su prueba de Pro termina hoy" : `Su prueba de Pro termina en ${e.dias} día${e.dias === 1 ? "" : "s"}`,
         detalle: `${hace(a.ultimoAcceso)} · ${a.citas} cita${a.citas === 1 ? "" : "s"} capturadas`,
-        whatsapp: `${hola} ¿Qué tal te ha ido con la agenda? Tu mes gratis termina el ${fechaLarga(e.vence)}. Si quieres seguir usándola: ${pagar}`,
+        whatsapp: `${hola} ¿Qué tal te ha ido con la agenda? Tu prueba de Pro termina el ${fechaLarga(e.vence)}. Si quieres seguir usándola: ${pagar}`,
       });
     } else if (e.tipo === "por_vencer") {
       lista.push({
@@ -210,7 +210,7 @@ function pendientesDe(agendas: AgendaAdmin[]): Pendiente[] {
       lista.push({
         id: `fantasma-${a.id}`, nivel: a.enPrueba ? "dinero" : "ojo", agenda: a, correo: "inactiva",
         titulo: a.ultimoAcceso ? `No entra desde hace ${sinEntrar} días` : "Nunca ha entrado",
-        detalle: a.enPrueba ? "Está en mes gratis: si no la usa, no va a pagar." : "Paga pero no la usa: candidata a irse.",
+        detalle: a.enPrueba ? "Está en prueba: si no la usa, no va a pagar." : "Paga pero no la usa: candidata a irse.",
         whatsapp: `${hola} Vi que hace rato no entras a la agenda, ¿todo bien? Si algo no te funciona, dime y lo arreglo.`,
       });
     }
@@ -512,7 +512,7 @@ export function Comparativo({ agendas, resumen }: { agendas: AgendaAdmin[]; resu
   const filas: [string, (c: typeof upp) => string][] = [
     ["Agendas", (c) => String(c.agendas)],
     ["Pagando", (c) => (c.pagan ? `${c.pagan} (${pesos(c.mrr)})` : "—")],
-    ["En mes gratis", (c) => String(c.prueba)],
+    ["En prueba de Pro", (c) => String(c.prueba)],
     [`Cobrado en ${mesLargo(resumen.meses.at(-1)!.mes)}`, (c) => pesos(c.cobrado)],
     ["Entraron esta semana", (c) => (c.agendas ? `${c.activas} de ${c.agendas}` : "—")],
     ["Citas nuevas esta semana", (c) => String(c.citas)],

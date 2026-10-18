@@ -21,9 +21,10 @@ export default function PrivacidadPage() {
         <li>Contraseña (se guarda cifrada; nadie, ni nosotros, puede verla).</li>
         <li>Tus preferencias dentro de la agenda (colores, recordatorios, etc.).</li>
         <li>Tu universidad (la eliges al registrarte) y lo que nos escribas en “¿Qué le falta a tu agenda?”.</li>
-        <li>Si eres dueño/a de una agenda: los registros de tus pagos (monto, fecha y clave de rastreo). No recibimos ni guardamos datos de tarjetas ni contraseñas bancarias.</li>
+        <li>Si eres dueño/a de una agenda: los registros de tus pagos (monto, fecha y clave de rastreo). Si pagas en línea, el pago lo procesa Mercado Pago: nosotros sólo recibimos el número de operación, el monto y si se aprobó; nunca los datos de tu tarjeta.</li>
+        <li>Si activas las notificaciones: un identificador técnico de tu navegador para poder mandártelas. Si usas “Tu agenda en tu calendario”: un link privado con un código aleatorio.</li>
       </ul>
-      <p><b>De tus pacientes, que tú capturas:</b> nombre, fecha y hora de la cita, clínica, materia y las notas que tú escribas.</p>
+      <p><b>De tus pacientes, que tú capturas:</b> nombre, fecha y hora de la cita, clínica, materia y las notas que tú escribas. Si le mandas a tu paciente su link para confirmar, guardamos sólo su respuesta (“sí voy” o “no puedo”) y la hora en que respondió.</p>
 
       <h2>3. Datos sensibles</h2>
       <p>
@@ -39,7 +40,7 @@ export default function PrivacidadPage() {
         <li>Enviarte recordatorios de citas y avisos de tu cuenta (invitaciones, cambio de contraseña, pagos y vencimientos).</li>
         <li>Administrar tu suscripción y confirmar tus pagos.</li>
         <li>Confirmar que tu correo es tuyo (con un código) al registrarte.</li>
-        <li>Controlar el mes gratis (uno por persona) y registrar si llegaste con el código de alguien que te recomendó.</li>
+        <li>Controlar la prueba de Pro (una por persona) y registrar si llegaste con el código de alguien que te recomendó.</li>
         <li>Darte soporte cuando lo pidas, y leer (y responderte por correo) lo que nos mandes en “¿Qué le falta a tu agenda?”.</li>
         <li>Mandarte avisos generales del servicio (por ejemplo, una actualización o un mantenimiento) dentro de la agenda o por correo.</li>
       </ul>
@@ -50,7 +51,7 @@ export default function PrivacidadPage() {
         Tú decides qué datos de tus pacientes capturas y eres responsable de ellos frente a tus pacientes. Nosotros los tratamos
         únicamente <b>por tu cuenta y para darte el servicio</b> (guardarlos, mostrártelos y enviarte recordatorios); no los usamos
         para ningún otro fin. Si guardas el <b>teléfono</b> de un paciente, es sólo para que tú lo contactes por WhatsApp desde tu
-        celular: la plataforma no le envía mensajes. Antes de anotarlo, pídele permiso. El <b>No. de historia clínica</b> y el
+        celular: la plataforma no le envía mensajes. Antes de anotarlo, pídele permiso. El link para confirmar que tú le mandas abre una página que sólo muestra su nombre de pila, la fecha, la hora, la clínica y tu nombre de pila; no se indexa en buscadores y deja de servir si cancelas la cita. El <b>No. de historia clínica</b> y el
         <b> folio</b> del tratamiento son sólo números de control para que los tengas a la mano; el expediente clínico se queda
         en tu facultad, no aquí.
       </p>
@@ -60,7 +61,7 @@ export default function PrivacidadPage() {
         <li><b>Tu compañero/a de agenda</b> ve las citas, nombres y catálogos de la agenda que comparten.</li>
         <li>
           <b>Proveedores que nos ayudan a operar</b> el servicio, sólo para ese fin: alojamiento de base de datos y autenticación
-          (Supabase), alojamiento de la página (Vercel) y envío de correos (Resend). Algunos de sus servidores pueden estar fuera de México.
+          (Supabase), alojamiento de la página (Vercel), envío de correos (Resend), cobros en línea (Mercado Pago) y, si las activas, el servicio de notificaciones de tu navegador (Google, Apple o Mozilla), que sólo recibe el texto del aviso cifrado. Algunos de sus servidores pueden estar fuera de México.
         </li>
         <li><b>Autoridades</b>, sólo cuando una ley o una orden legal lo exija.</li>
       </ul>
@@ -76,7 +77,7 @@ export default function PrivacidadPage() {
         <li>Mientras tu cuenta esté activa.</li>
         <li>Cuando el dueño/a quita a un compañero/a, se borran su cuenta y sus citas.</li>
         <li>Si cancelas el servicio, borramos la agenda y sus datos en un máximo de {L.diasBorrado} días.</li>
-        <li>Lo único que conservamos después es tu <b>correo</b> junto con la fecha en que usaste tu mes gratis, para que sea uno por persona. Si quieres que lo borremos, pídelo como se indica abajo.</li>
+        <li>Lo único que conservamos después es tu <b>correo</b> junto con la fecha en que usaste tu prueba de Pro, para que sea uno por persona. Si quieres que lo borremos, pídelo como se indica abajo.</li>
       </ul>
 
       <h2>9. Tus derechos (ARCO) y cómo ejercerlos</h2>

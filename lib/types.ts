@@ -105,6 +105,8 @@ export type Cita = {
   cobrado?: boolean;
   folio?: string | null; // del ticket del tratamiento (se piden los últimos 5 dígitos)
   historia?: string | null; // No. de historia clínica del paciente
+  confirmacion?: "confirmada" | "no_puede" | null; // lo que respondió el paciente con su link (2.0)
+  token_confirmar?: string | null; // link secreto para que el paciente confirme
 };
 
 export const PREFERENCIAS_DEFAULT: Required<Preferencias> = {

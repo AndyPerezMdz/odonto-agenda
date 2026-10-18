@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { superadminEnSesion } from "@/lib/admin";
-import { normalizarPrecios } from "@/lib/precios";
+import { normalizarPlanes } from "@/lib/precios";
 
 export const dynamic = "force-dynamic";
 
@@ -10,20 +10,20 @@ export async function GET() {
   if (!s) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   const [{ data }, { data: precios }] = await Promise.all([
     s.db.from("configuracion").select("valor").eq("clave", "pago").maybeSingle(),
-    s.db.from("configuracion").select("valor").eq("clave", "precios").maybeSingle(),
+    s.db.from("configuracion").select("valor").eq("clave", "planes").maybeSingle(),
   ]);
-  return NextResponse.json({ pago: data?.valor ?? {}, precios: normalizarPrecios(precios?.valor) });
+  return NextResponse.json({ pago: data?.valor ?? {}, planes: normalizarPlanes(precios?.valor) });
 }
 
 // PUT { banco, clabe, titular } → actualizarlos (se ven al instante en todas las agendas)
 export async function PUT(request: NextRequest) {
   const s = await superadminEnSesion();
   if (!s) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
-  const b = (await request.json().catch(() => ({}))) as { banco?: string; clabe?: string; titular?: string; precios?: unknown };
+  const b = (await request.json().catch(() => ({}))) as { banco?: string; clabe?: string; titular?: string; planes?: unknown };
 
-  // { precios } → precios por universidad (sólo afectan a agendas NUEVAS; para las de ya, usa "aplicar")
-  if (b.precios !== undefined) {
-    const { error } = await s.db.from("configuracion").upsert({ clave: "precios", valor: normalizarPrecios(b.precios) });
+  // { planes } → planes y precios por universidad (el mensual también es el de las agendas NUEVAS)
+  if (b.planes !== undefined) {
+    const { error } = await s.db.from("configuracion").upsert({ clave: "planes", valor: normalizarPlanes(b.planes) });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   }

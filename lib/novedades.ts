@@ -2,12 +2,23 @@
 // 1) sube APP_VERSION, 2) agrega su bloque ARRIBA de la lista. Cada quien la ve una vez.
 // 3) Si es sólo para una universidad, ponle solo: "upp" o solo: "uady". Sin "solo" le sale a las dos.
 
-export const APP_VERSION = "1.8";
+export const APP_VERSION = "2.0";
 
 export type Novedad = { titulo: string; texto: string; icono: keyof typeof ICONOS };
 export type Version = { version: string; fecha: string; items: Novedad[]; solo?: "upp" | "uady" }; // solo = sólo la ve esa universidad
 
 export const NOVEDADES: Version[] = [
+  {
+    version: "2.0",
+    fecha: "octubre 2026",
+    items: [
+      { icono: "check", titulo: "Tu paciente confirma solo", texto: "El WhatsApp de confirmar ahora lleva un link: tu paciente toca “Sí voy” o “No puedo” y en tu agenda sale ✓ Confirmó. Sin perseguir a nadie." },
+      { icono: "campana", titulo: "Notificaciones en tu cel", texto: "Te avisa en cuanto tu paciente confirme (o diga que no puede) y cada mañana cuántas citas tienes. Actívalas en Personalizar → Yo." },
+      { icono: "calendario", titulo: "Tu agenda en tu calendario", texto: "Tus citas aparecen solas en Google Calendar o el calendario del iPhone, con alarma 1 hora antes. También en Personalizar → Yo." },
+      { icono: "reloj", titulo: "Pantalla “Hoy”", texto: "Arriba de tu agenda: la cita que sigue, quién confirmó, quién no puede y qué llevar. Gratis para todos." },
+      { icono: "estrella", titulo: "Gratis y Pro", texto: "Lo que pide la uni (agenda compartida con tu compa, citas, asistencia, folios) es gratis para siempre. Lo que te ahorra tiempo es Pro: estrénalo con tu prueba." },
+    ],
+  },
   {
     version: "1.8",
     fecha: "octubre 2026",
@@ -101,5 +112,7 @@ export const ICONOS = {
   semaforo: "M9 2h6a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3zM12 7h.01M12 12h.01M12 17h.01",
   caja: "M3 8h18v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM8 8V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v3M12 12v5M9.5 14.5h5",
   turnos: "M7 4 3 8l4 4M3 8h13M17 20l4-4-4-4M21 16H8",
+  campana: "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0",
+  calendario: "M3 5h18v16H3zM16 3v4M8 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01",
   estrella: "m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z",
 };

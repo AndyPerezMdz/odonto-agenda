@@ -5,14 +5,13 @@ import Link from "next/link";
 import { useCatalogos } from "@/lib/useDatos";
 import { prefs } from "@/lib/types";
 import { aplicarTema } from "@/lib/tema";
-import { hoyISO } from "@/lib/fechas";
-import { estadoPago } from "@/lib/pagos";
+import Candado from "@/components/Candado";
 import MisPacientes from "@/components/MisPacientes";
 import BancoPacientes from "@/components/BancoPacientes";
 
 // /pacientes: los que ya atiendes (con historia y folios) y los que tienes por conseguir.
 export default function PaginaPacientes({ userId }: { userId: string }) {
-  const { supabase, perfiles, clinicas, materias, pagadoHasta } = useCatalogos();
+  const { supabase, perfiles, clinicas, materias, pro } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
   const p = prefs(yo?.preferencias);
   const [tab, setTab] = useState<"mis" | "banco">("mis");
@@ -48,14 +47,21 @@ export default function PaginaPacientes({ userId }: { userId: string }) {
         ))}
       </nav>
 
-      {tab === "mis" ? (
+      {!pro ? (
+        <Candado
+          esDueno={yo?.rol === "owner"}
+          titulo={tab === "mis" ? "Mis pacientes" : "Pacientes por conseguir"}
+          texto={tab === "mis" ? "Todos tus pacientes con su No. de historia, sus folios y cuántas veces vinieron, en un solo lugar. Tus folios siguen guardados en cada cita." : "Tu lista de gente por conseguir o en espera, para agendarla de un toque cuando te falte un caso."}
+          beneficios
+        />
+      ) : tab === "mis" ? (
         <MisPacientes
           supabase={supabase}
           userId={userId}
           perfiles={perfiles}
           clinicas={clinicas}
           materias={materias}
-          soloLectura={estadoPago(pagadoHasta, hoyISO()).tipo === "vencida"}
+          soloLectura={false}
         />
       ) : (
         <BancoPacientes userId={userId} embebido />

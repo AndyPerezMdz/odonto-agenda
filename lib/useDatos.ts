@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { diasPro, esPro } from "@/lib/plan";
+import { hoyISO } from "@/lib/fechas";
 import { AJUSTES_DEFAULT, type AjustesAgenda, type Cita, type Clinica, type Horario, type Materia, type Material, type Paciente, type Perfil } from "@/lib/types";
 
-export const CAMPOS_CITA = "id,owner_id,paciente,fecha,hora_inicio,hora_fin,clinica_id,materia_id,notas,estado,telefono,cobro,cobrado,folio,historia";
+export const CAMPOS_CITA = "id,owner_id,paciente,fecha,hora_inicio,hora_fin,clinica_id,materia_id,notas,estado,telefono,cobro,cobrado,folio,historia,confirmacion,token_confirmar";
 
 /** Perfiles + catálogos, con recarga en tiempo real. */
 export function useCatalogos() {
@@ -46,7 +48,11 @@ export function useCatalogos() {
     };
   }, [supabase, recargar, idCanal]);
 
-  return { supabase, perfiles, clinicas, materias, nombreAgenda, pagadoHasta, ajustes, cargando, recargar };
+  // Gratis o Pro (2.0): mientras carga se asume Pro para no enseñar candados de más
+  const hoy = hoyISO();
+  const pro = cargando || esPro(pagadoHasta, hoy);
+  const quedanPro = cargando ? null : diasPro(pagadoHasta, hoy);
+  return { supabase, perfiles, clinicas, materias, nombreAgenda, pagadoHasta, ajustes, cargando, recargar, pro, quedanPro };
 }
 
 /** Citas entre dos fechas (inclusive), con recarga en tiempo real. */

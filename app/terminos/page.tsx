@@ -36,13 +36,14 @@ export default function TerminosPage() {
 
       <h2>4. Suscripción y pagos</h2>
       <ul>
-        <li>El precio es mensual <b>por agenda</b> (dueño/a y compañero/a). El monto y los datos para transferir aparecen en <b>Personalizar → Suscripción</b>.</li>
-        <li>Paga por transferencia con el <b>concepto</b> indicado y presiona <b>“Ya pagué”</b>. El pago se confirma manualmente y te avisamos por correo.</li>
-        <li>Si la suscripción vence, tienes <b>{L.diasGracia} días de gracia</b>. Después, la agenda queda en <b>sólo lectura</b> (puedes ver tus citas, pero no agendar ni editar) hasta que se registre el pago.</li>
-        <li>Los meses ya pagados no son reembolsables, salvo que se haya cobrado por error.</li>
-        <li><b>Mes gratis:</b> uno por persona, seas dueño/a o compañero/a. Si entras a una agenda que está en su mes gratis, usas el tuyo. A una agenda pagada puedes entrar sin gastarlo. Si dejas una agenda en su mes gratis para entrar a una pagada dentro de los primeros 7 días, te lo devolvemos (sólo una vez).</li>
-        <li><b>Códigos de creador:</b> dan meses gratis extra, sólo durante el mes gratis de una agenda nueva, y sólo uno por agenda.</li>
-        <li>Si ya usaste tu mes gratis y creas una agenda nueva, empieza sin él: la ves, pero para agendar primero se paga el mes.</li>
+        <li>La agenda tiene dos niveles <b>por agenda</b> (dueño/a y compañero/a): <b>Gratis</b>, sin costo y sin fecha de fin, con lo necesario para la clínica (agenda compartida, citas, asistencia, horario, folios, avance del periodo actual); y <b>Pro</b>, de paga, que agrega funciones como recordatorios, notificaciones, historial completo, PDF, pacientes, confirmación del paciente con link y, en la UADY, ritmo, material y turnos. La lista vigente está en <b>Personalizar → Suscripción</b>.</li>
+        <li>Pro se paga por adelantado por el plan que elijas (mensual, trimestral, por periodo o anual; los planes más largos cuestan menos por mes). Los precios aparecen en <b>Personalizar → Suscripción</b>.</li>
+        <li>Puedes pagar en línea con tarjeta u OXXO a través de <b>Mercado Pago</b>, que procesa el pago (nosotros no vemos ni guardamos los datos de tu tarjeta), o por transferencia con el <b>concepto</b> indicado y presionando <b>“Ya pagué”</b>; la transferencia se confirma manualmente. Te avisamos por correo.</li>
+        <li>Pro no se renueva solo. Cuando termina, la agenda <b>pasa a Gratis</b>: no se borra nada y lo que capturaste con Pro vuelve a verse al renovar.</li>
+        <li>Los periodos ya pagados no son reembolsables, salvo que se haya cobrado por error.</li>
+        <li><b>Prueba de Pro:</b> {L.diasPrueba} días, una por persona, seas dueño/a o compañero/a. Si entras a una agenda que está en su prueba, usas la tuya. A una agenda con Pro pagado puedes entrar sin gastarla. Si dejas una agenda en su prueba para entrar a una pagada dentro de los primeros 7 días, te la devolvemos (sólo una vez).</li>
+        <li><b>Códigos de creador:</b> dan días extra de Pro (normalmente {L.diasCodigo}), sólo durante la prueba de una agenda nueva, y sólo uno por agenda.</li>
+        <li>Si ya usaste tu prueba y creas una agenda nueva, empieza en Gratis.</li>
         <li>Si el precio cambia, te avisaremos con al menos 30 días de anticipación.</li>
       </ul>
 

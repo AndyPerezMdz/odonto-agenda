@@ -90,7 +90,7 @@ export default function BienvenidaPage() {
               Código de creador <span className="font-normal text-muted">(opcional)</span>
             </label>
             <input id="codigo" className="campo mb-1 uppercase placeholder:normal-case" value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder="Si alguien te recomendó, pon su código" />
-            <p className="mb-5 text-xs text-muted">Te da meses gratis extra.</p>
+            <p className="mb-5 text-xs text-muted">Te da días extra de Pro.</p>
           </>
         )}
 

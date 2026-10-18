@@ -1,10 +1,11 @@
 import "server-only";
-import { preciosConfig, sembrarMaterias } from "@/lib/universidadesServer";
+import { planesConfig, sembrarMaterias } from "@/lib/universidadesServer";
+import { mensualDe } from "@/lib/precios";
 import { esUniversidad, universidad } from "@/lib/universidades";
 import { randomBytes } from "crypto";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { APP_VERSION } from "@/lib/novedades";
-import { DIAS_GRACIA, sumarDias } from "@/lib/pagos";
+import { sumarDias } from "@/lib/pagos";
 import { fechaEnZona } from "@/lib/recordatorios";
 import { esSuperadmin } from "@/lib/admin";
 import { crearInvitacion } from "@/lib/invitaciones";
@@ -21,7 +22,7 @@ type Db = ReturnType<typeof createAdminClient>;
 */
 
 export const MENSAJE_SIN_PRUEBA =
-  "Ya habías usado tu mes gratis, así que tu agenda empieza sin él: la puedes ver, pero para agendar primero hay que pagar el mes (Personalizar → Suscripción).";
+  "Ya habías usado tu prueba de Pro, así que tu agenda empieza en Gratis: úsala con lo básico y pásate a Pro cuando quieras (Personalizar → Suscripción).";
 
 export function nuevoToken() {
   return randomBytes(9).toString("base64url"); // 12 caracteres, imposible de adivinar
@@ -90,20 +91,21 @@ export async function completarRegistro(
   // --- Su propia agenda: la universidad es obligatoria y queda fija para siempre
   if (!esUniversidad(datos.universidad)) return { ok: false, error: "Elige tu universidad.", motivo: "universidad" };
   const uni = universidad(datos.universidad);
-  const precio = (await preciosConfig(db))[uni.id].mensual; // el precio de su universidad
+  const precio = mensualDe(await planesConfig(db), uni.id); // el mensual de su universidad
   const p = await pruebaDe(db, email);
   const usada = !!p?.usada_at;
   let codigo: string | null = null;
-  let mesesExtra = 0;
+  let diasExtra = 0;
   let aviso: string | undefined;
   if (datos.codigo?.trim()) {
-    const { data: c } = await db.from("codigos").select("codigo,meses_extra,activo").eq("codigo", datos.codigo.trim().toUpperCase()).maybeSingle();
+    const { data: c } = await db.from("codigos").select("codigo,dias_extra,activo").eq("codigo", datos.codigo.trim().toUpperCase()).maybeSingle();
     if (c?.activo) {
       codigo = c.codigo;
-      if (!usada) mesesExtra = c.meses_extra;
-    } else aviso = "Ese código de creador no existe o ya no está activo; tu agenda se creó con el mes gratis normal.";
+      if (!usada) diasExtra = c.dias_extra ?? 15;
+    } else aviso = "Ese código de creador no existe o ya no está activo; tu agenda se creó con los 15 días de Pro normales.";
   }
-  const hasta = usada ? sumarDias(fechaEnZona(0), -(DIAS_GRACIA + 1)) : finDePrueba(mesesExtra);
+  // Sin prueba disponible, nace en Gratis (Pro vencido ayer); con prueba, 15 días de Pro (+ los del código)
+  const hasta = usada ? sumarDias(fechaEnZona(0), -1) : finDePrueba(diasExtra);
   const { data: agenda, error } = await db
     .from("agendas")
     .insert({ nombre: `Agenda de ${nombre.split(" ")[0]}`, precio_mensual: precio, pagado_hasta: hasta, prueba_hasta: usada ? null : hasta, codigo, universidad: uni.id, semana_clinicas: uni.semana })

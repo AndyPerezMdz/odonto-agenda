@@ -1,8 +1,9 @@
 import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { enviarConResend, esc, fechaEnZona } from "@/lib/recordatorios";
-import { codigoAgenda, DIAS_GRACIA, estadoPago, pesos } from "@/lib/pagos";
+import { codigoAgenda, estadoPago, pesos } from "@/lib/pagos";
 import { fechaLarga } from "@/lib/fechas";
+import { PAGO_EN_LINEA } from "@/lib/plan";
 
 type Db = ReturnType<typeof createAdminClient>;
 
@@ -95,15 +96,13 @@ export async function avisosVencimiento(db: Db, sitio: string) {
     const dias = "dias" in e ? e.dias : null;
     let asunto: string | null = null;
     let cuerpo = "";
+    // 2.0: al vencer no se bloquea nada, la agenda baja a Gratis
     if (dias === 3) {
-      asunto = "Tu agenda vence en 3 días";
-      cuerpo = `Tu suscripción está pagada hasta el <b>${fechaLarga(a.pagado_hasta!)}</b>.`;
+      asunto = "Te quedan 3 días de Pro";
+      cuerpo = `Tu Pro está activo hasta el <b>${fechaLarga(a.pagado_hasta!)}</b>. Después tu agenda sigue funcionando en Gratis, pero se apagan los recordatorios, las confirmaciones del paciente, el PDF y lo demás de Pro.`;
     } else if (dias === 0) {
-      asunto = "Tu agenda vence hoy";
-      cuerpo = `Hoy vence tu suscripción. Tienes ${DIAS_GRACIA} días de gracia antes de que la agenda quede en sólo lectura.`;
-    } else if (dias === -DIAS_GRACIA) {
-      asunto = "Último día: mañana tu agenda queda en sólo lectura";
-      cuerpo = `Tu suscripción venció el <b>${fechaLarga(a.pagado_hasta!)}</b>. A partir de mañana podrás ver tus citas, pero no agendar ni editar.`;
+      asunto = "Hoy es tu último día de Pro";
+      cuerpo = `Mañana tu agenda baja a <b>Gratis</b>. Tus citas y tus datos se quedan; sólo se apagan las funciones de Pro hasta que elijas un plan.`;
     }
     if (!asunto) continue;
 
@@ -115,10 +114,10 @@ export async function avisosVencimiento(db: Db, sitio: string) {
     const html = envolver(
       asunto,
       `<p style="margin:0 0 10px;color:#4a4843;">Hola, ${esc(dueno.nombre)}. ${cuerpo}</p>
-       <p style="margin:0;color:#4a4843;">Para renovar, transfiere <b>${pesos(a.precio_mensual)}</b> con el concepto <b>${codigoAgenda(a.id)}</b>. Los datos bancarios están en <b>Personalizar → Suscripción</b>; al terminar, presiona <b>“Ya pagué”</b>.</p>`,
-      sitio ? { texto: "Ver cómo pagar", url: `${sitio}/personalizar` } : undefined
+       <p style="margin:0;color:#4a4843;">Elige tu plan (mensual, trimestral, por periodo o anual) en <b>Personalizar → Suscripción</b>${PAGO_EN_LINEA ? ": con tarjeta u OXXO se activa al instante" : " y paga por transferencia"}.</p>`,
+      sitio ? { texto: "Elegir mi plan", url: `${sitio}/personalizar#suscripcion` } : undefined
     );
-    const texto = `${asunto}\nHola, ${dueno.nombre}. ${cuerpo.replace(/<[^>]+>/g, "")}\nTransfiere ${pesos(a.precio_mensual)} con el concepto ${codigoAgenda(a.id)}. Datos en Personalizar → Suscripción.`;
+    const texto = `${asunto}\nHola, ${dueno.nombre}. ${cuerpo.replace(/<[^>]+>/g, "")}\nElige tu plan en Personalizar → Suscripción.`;
     try {
       await enviarConResend({ para: u.user.email, asunto, html, texto, idempotencia: `vencimiento-${a.id}-${hoy}` });
       resultados.push({ agenda: a.nombre, aviso: asunto });
@@ -215,13 +214,13 @@ export async function recordatorioManual(db: Db, agendaId: string, tipo: TipoRec
   const t = {
     pago: {
       asunto: "Tu agenda está pendiente de pago",
-      cuerpo: `Hola, ${esc(d.nombre)}. Tu suscripción de <b>${esc(d.agenda.nombre)}</b> ${hasta ? `venció el <b>${hasta}</b>` : "está pendiente"}. Tus citas siguen guardadas; para seguir agendando sólo falta renovar.`,
+      cuerpo: `Hola, ${esc(d.nombre)}. Tu Pro de <b>${esc(d.agenda.nombre)}</b> ${hasta ? `venció el <b>${hasta}</b>` : "está pendiente"} y la agenda está en Gratis. Tus citas y datos siguen ahí; para recuperar lo de Pro sólo elige un plan.`,
       boton: { texto: "Ver cómo pagar", url: `${sitio}/personalizar#suscripcion` },
       pagar: true,
     },
     prueba: {
-      asunto: hasta ? `Tu mes gratis termina el ${hasta}` : "Tu mes gratis está por terminar",
-      cuerpo: `Hola, ${esc(d.nombre)}. Esperamos que <b>${esc(d.agenda.nombre)}</b> te esté ahorrando estrés. Tu mes gratis termina ${hasta ? `el <b>${hasta}</b>` : "pronto"}; si quieres seguir usándola, el precio es de <b>${monto} al mes</b> por agenda (tú y tu compañero/a).`,
+      asunto: hasta ? `Tu prueba de Pro termina el ${hasta}` : "Tu prueba de Pro está por terminar",
+      cuerpo: `Hola, ${esc(d.nombre)}. Esperamos que <b>${esc(d.agenda.nombre)}</b> te esté ahorrando estrés. Tu prueba de Pro termina ${hasta ? `el <b>${hasta}</b>` : "pronto"}. Después sigues en Gratis, o eliges un plan desde <b>${monto} al mes</b> por agenda (tú y tu compañero/a), con descuento si pagas por periodo o por año.`,
       boton: { texto: "Ver cómo pagar", url: `${sitio}/personalizar#suscripcion` },
       pagar: true,
     },

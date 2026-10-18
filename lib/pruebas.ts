@@ -1,4 +1,5 @@
 import "server-only";
+import { DIAS_PRUEBA } from "@/lib/plan";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { fechaEnZona } from "@/lib/recordatorios";
 import { sumarDias, sumarMeses } from "@/lib/pagos";
@@ -27,9 +28,9 @@ export function clavePrueba(email: string) {
   return e;
 }
 
-/** Hasta cuándo dura la prueba que empieza hoy: 1 mes + los meses extra de un código. */
-export function finDePrueba(mesesExtra = 0) {
-  return sumarDias(sumarMeses(fechaEnZona(0), 1 + mesesExtra), -1);
+/** Hasta cuándo dura la prueba que empieza hoy: 15 días de Pro + los días extra de un código. */
+export function finDePrueba(diasExtra = 0) {
+  return sumarDias(fechaEnZona(0), DIAS_PRUEBA + diasExtra - 1);
 }
 
 /** Una agenda está "en prueba" si nació con mes gratis y todavía no registra ningún pago. */
@@ -95,4 +96,4 @@ export async function usuarioPorCorreo(db: Db, email: string) {
 }
 
 export const MENSAJE_PRUEBA_USADA =
-  "Esta persona ya usó su mes gratis. Tienen dos opciones: que te invite a su agenda (la paga y tu mes gratis se queda guardado), o pagar la tuya para poder invitarla.";
+  "Esta persona ya usó su prueba de Pro en otra agenda. Pueden compartir agenda cuando ésta tenga un plan pagado, o que te invite a la suya.";

@@ -80,7 +80,7 @@ export async function recordarCuenta(db: Db, id: string, sitio: string): Promise
       asunto: "Tu agenda de clínicas te está esperando",
       html: envolver(
         `${esc(nombre)}, te falta un paso`,
-        `<p style="margin:0 0 8px;color:#4a4843;">Ya creaste tu cuenta pero todavía no tienes agenda. Entra, elige tu universidad y listo: empiezas con tu mes gratis.</p>
+        `<p style="margin:0 0 8px;color:#4a4843;">Ya creaste tu cuenta pero todavía no tienes agenda. Entra, elige tu universidad y listo: empiezas con 15 días de Pro.</p>
          <p style="margin:0;color:#4a4843;">Si tu compañero/a ya tiene agenda, pídele su link para unirte a la suya.</p>`,
         { texto: "Terminar mi agenda", url: `${sitio}/` }
       ),

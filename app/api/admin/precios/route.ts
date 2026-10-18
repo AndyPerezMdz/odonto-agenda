@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { superadminEnSesion } from "@/lib/admin";
-import { preciosConfig } from "@/lib/universidadesServer";
+import { planesConfig } from "@/lib/universidadesServer";
+import { mensualDe } from "@/lib/precios";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest) {
   if (!s) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   const { universidad } = (await request.json().catch(() => ({}))) as { universidad?: string };
   if (universidad !== "upp" && universidad !== "uady") return NextResponse.json({ error: "Universidad inválida." }, { status: 400 });
-  const precio = (await preciosConfig(s.db))[universidad].mensual;
+  const precio = mensualDe(await planesConfig(s.db), universidad);
   const { data, error } = await s.db
     .from("agendas")
     .update({ precio_mensual: precio })

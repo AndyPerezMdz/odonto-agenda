@@ -784,6 +784,84 @@ create policy anuncios_select on public.anuncios for select to authenticated
 grant select on public.anuncios to authenticated;
 
 -- =====================================================================
+-- 2.0 · GRATIS + PRO, PLANES, CONFIRMACIÓN DEL PACIENTE, NOTIFICACIONES Y CALENDARIO
+-- =====================================================================
+
+-- Ya no hay "sólo lectura": sin Pro la agenda sigue funcionando en GRATIS.
+-- agenda_activa() ahora sólo pide tener agenda; lo de Pro lo revisa agenda_pro().
+create or replace function public.agenda_activa()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select public.mi_agenda() is not null
+$$;
+
+-- ¿La agenda tiene Pro? (prueba o pagada vigente; sin fecha = cortesía = Pro)
+create or replace function public.agenda_pro()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (select a.pagado_hasta is null or a.pagado_hasta >= (now() at time zone 'America/Merida')::date
+       from public.agendas a where a.id = public.mi_agenda()),
+    false)
+$$;
+grant execute on function public.agenda_pro() to authenticated;
+
+-- Lo que es de Pro también se cuida en la base: banco de pacientes y Mi material
+drop policy if exists pacientes_propios on public.pacientes;
+create policy pacientes_propios on public.pacientes for all to authenticated
+  using (owner_id = (select auth.uid()) and (select public.agenda_pro()))
+  with check (owner_id = (select auth.uid()) and agenda_id = (select public.mi_agenda()) and (select public.agenda_pro()));
+drop policy if exists material_insert on public.material;
+create policy material_insert on public.material for insert to authenticated
+  with check (owner_id = (select auth.uid()) and agenda_id = (select public.mi_agenda()) and (select public.agenda_pro())
+              and (select public.mi_universidad()) = 'uady');
+drop policy if exists material_update on public.material;
+create policy material_update on public.material for update to authenticated
+  using (agenda_id = (select public.mi_agenda()) and (owner_id = (select auth.uid()) or compartido) and (select public.agenda_pro()))
+  with check (agenda_id = (select public.mi_agenda()) and (owner_id = (select auth.uid()) or compartido));
+
+-- Código de creador: ahora da DÍAS extra (15 por defecto) en vez de meses
+alter table public.codigos add column if not exists dias_extra int not null default 15;
+alter table public.codigos drop constraint if exists codigos_dias_validos;
+alter table public.codigos add constraint codigos_dias_validos check (dias_extra between 1 and 120);
+
+-- El paciente confirma solo: cada cita tiene su link secreto
+alter table public.citas add column if not exists token_confirmar text default replace(gen_random_uuid()::text, '-', '');
+update public.citas set token_confirmar = replace(gen_random_uuid()::text, '-', '') where token_confirmar is null;
+create unique index if not exists citas_token_confirmar_idx on public.citas (token_confirmar);
+alter table public.citas add column if not exists confirmacion text;
+alter table public.citas drop constraint if exists citas_confirmacion_valida;
+alter table public.citas add constraint citas_confirmacion_valida check (confirmacion is null or confirmacion in ('confirmada', 'no_puede'));
+alter table public.citas add column if not exists confirmacion_at timestamptz;
+alter table public.citas add column if not exists aviso_push_at timestamptz; -- ya se mandó el "en 1 hora"
+
+-- Notificaciones en el celular (Web Push): una suscripción por navegador. Sólo el servidor la toca.
+create table if not exists public.push_subs (
+  endpoint   text primary key,
+  user_id    uuid not null references public.perfiles (id) on delete cascade,
+  p256dh     text not null,
+  auth       text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists push_subs_user_idx on public.push_subs (user_id);
+alter table public.push_subs enable row level security;
+
+-- Tu agenda en el calendario del cel: link secreto por persona (se puede regenerar)
+alter table public.perfiles add column if not exists cal_token text;
+create unique index if not exists perfiles_cal_token_idx on public.perfiles (cal_token);
+
+-- Pagos en línea: Mercado Pago no se registra dos veces el mismo pago
+create unique index if not exists pagos_mp_unico on public.pagos (referencia) where metodo = 'mercadopago';
+
+-- =====================================================================
 -- Listo. Las cuentas nuevas se registran solas en /registro.
 -- En Supabase: Authentication → Sign In / Providers → Email:
 --   "Enable email signups" y "Confirm email" ENCENDIDOS.

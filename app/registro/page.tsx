@@ -210,7 +210,7 @@ function Registro() {
           ? enlace
             ? `${enlace.dueno ?? "Tu compañero/a"} te invitó a compartir “${enlace.agenda}”.`
             : errorEnlace ?? "Revisando el link…"
-          : "Un mes gratis para probarla. Luego $200 al mes por pareja de clínica."
+          : "15 días de Pro gratis para probarla. Después sigues gratis con lo básico, o eliges un plan."
       }
     >
       {unir && enlace?.ocupada && <p className="mb-4 rounded-lg bg-panel-2 p-3 text-sm text-danger">Esa agenda ya tiene compañero/a. Si te registras, se te crea tu propia agenda.</p>}

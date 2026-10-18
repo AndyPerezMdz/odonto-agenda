@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AgendaAdmin } from "@/lib/admin";
 import type { AnuncioAdmin, CuentaAdmin, SugerenciaAdmin } from "@/lib/staff";
-import type { Precios } from "@/lib/precios";
+import { ahorroDe, type Plan, type Planes } from "@/lib/precios";
 import { diasEntre, estadoPago, pesos, sumarDias } from "@/lib/pagos";
 import { fechaLarga, hoyISO } from "@/lib/fechas";
 import { diasSinEntrar, enPruebaViva, hace, InsigniaUni, pagando, DIAS_FANTASMA } from "@/components/TableroAdmin";
@@ -174,7 +174,7 @@ export function CuentasAMedias({ cuentas, onCambio, onAviso }: { cuentas: Cuenta
                 ) : (
                   <>
                     <button className="btn btn-sec py-1 text-xs" disabled={trabajando === c.id} onClick={() => recordar(c)}>{trabajando === c.id ? "…" : boton}</button>
-                    <button className="px-1.5 text-xs text-muted hover:text-danger" onClick={() => setBorrar(c.id)} title="Borrar la cuenta (su mes gratis queda registrado)">Borrar</button>
+                    <button className="px-1.5 text-xs text-muted hover:text-danger" onClick={() => setBorrar(c.id)} title="Borrar la cuenta (su prueba queda registrada)">Borrar</button>
                   </>
                 )}
               </li>
@@ -216,7 +216,7 @@ export function CobrosQueVienen({ agendas, onVer }: { agendas: AgendaAdmin[]; on
   }
   cobros.sort((x, y) => x.fecha.localeCompare(y.fecha));
   const suma = (f: (c: Cobro) => boolean) => cobros.filter(f).reduce((n, c) => n + c.monto, 0);
-  const TIPO = { renueva: "Renueva", prueba: "Termina su mes gratis", gracia: "Vencida (en gracia)" };
+  const TIPO = { renueva: "Renueva", prueba: "Termina su prueba de Pro", gracia: "Vencida (en Gratis)" };
 
   return (
     <Tarjeta titulo="Cobros que vienen (30 días)">
@@ -419,77 +419,82 @@ export function AnunciosAdmin({ agendas, onAviso }: { agendas: AgendaAdmin[]; on
 }
 type AnunciosAdminLista = AnuncioAdmin[];
 
-/* ---------------- precios ---------------- */
+/* ---------------- planes y precios ---------------- */
 
 export function PreciosUni({ agendas, onAviso, onCambio }: { agendas: AgendaAdmin[]; onAviso: (m: string) => void; onCambio: () => void }) {
-  const [p, setP] = useState<Precios | null>(null);
+  const [p, setP] = useState<Planes | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [aplicar, setAplicar] = useState<"upp" | "uady" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api("/api/admin/config", "GET").then((r) => setP(r.data.precios as Precios));
+    api("/api/admin/config", "GET").then((r) => setP(r.data.planes as Planes));
   }, []);
 
-  if (!p) return <Tarjeta titulo="Precios por universidad"><p className="text-sm text-muted">Cargando…</p></Tarjeta>;
+  if (!p) return <Tarjeta titulo="Planes y precios"><p className="text-sm text-muted">Cargando…</p></Tarjeta>;
 
-  const cambiar = (u: "upp" | "uady", campo: "mensual" | "anual", v: string) =>
-    setP({ ...p, [u]: { ...p[u], [campo]: campo === "anual" && v === "" ? null : Number(v) } });
+  const cambiar = (u: "upp" | "uady", id: string, cambios: Partial<Plan>) =>
+    setP({ ...p, [u]: p[u].map((x) => (x.id === id ? { ...x, ...cambios } : x)) });
 
   async function guardar() {
     setGuardando(true);
     setError(null);
-    const r = await api("/api/admin/config", "PUT", { precios: p });
+    const r = await api("/api/admin/config", "PUT", { planes: p });
     setGuardando(false);
     if (r.error) return setError(r.error);
-    onAviso("Precios guardados. Las agendas nuevas ya los toman.");
+    onAviso("Planes guardados. Ya salen así en la suscripción de cada agenda.");
   }
   async function aplicarA(u: "upp" | "uady") {
     const r = await api("/api/admin/precios", "POST", { universidad: u });
     setAplicar(null);
     if (r.error) return setError(r.error);
-    onAviso(`${r.data.agendas} agenda${r.data.agendas === 1 ? "" : "s"} de la ${u.toUpperCase()} ahora pagan ${pesos(r.data.precio as number)} al mes.`);
+    onAviso(`${r.data.agendas} agenda${r.data.agendas === 1 ? "" : "s"} de la ${u.toUpperCase()} ahora tienen ${pesos(r.data.precio as number)} de mensual.`);
     onCambio();
   }
 
   return (
-    <Tarjeta titulo="Precios por universidad">
-      <p className="-mt-2 mb-3 text-sm text-muted">Las agendas <b>nuevas</b> toman el mensual de su universidad. Si activas el plan anual, el dueño puede pagar 12 meses de un jalón.</p>
-      <div className="grid gap-3 sm:grid-cols-2">
+    <Tarjeta titulo="Planes y precios">
+      <p className="-mt-2 mb-3 text-sm text-muted">Lo que paga cada agenda (pareja) por tener <b>Pro</b>. Sin pagar siguen en <b>Gratis</b>. El de “periodo” dura un cuatrimestre en la UPP y un semestre en la UADY.</p>
+      <div className="grid gap-3 lg:grid-cols-2">
         {(["upp", "uady"] as const).map((u) => {
+          const mensual = p[u][0].precio;
           const existentes = agendas.filter((a) => a.universidad === u && a.pagado_hasta);
-          const distintas = existentes.filter((a) => a.precio_mensual !== p[u].mensual).length;
-          const ahorro = p[u].anual ? p[u].mensual * 12 - p[u].anual! : 0;
+          const distintas = existentes.filter((a) => a.precio_mensual !== mensual).length;
           return (
             <div key={u} className="rounded-xl border border-line p-3">
               <p className="mb-2"><InsigniaUni uni={u} /></p>
-              <label className="mb-2 flex items-center gap-2 text-sm">
-                <span className="w-20 text-muted">Mensual</span>
-                <span className="text-muted">$</span>
-                <input type="number" min={0} className="campo py-1" style={{ width: "7rem" }} value={p[u].mensual} onChange={(e) => cambiar(u, "mensual", e.target.value)} />
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={p[u].anual != null} onChange={(e) => cambiar(u, "anual", e.target.checked ? String(p[u].mensual * 10) : "")} />
-                <span className="w-16 text-muted">Anual</span>
-                {p[u].anual != null && (
-                  <>
-                    <span className="text-muted">$</span>
-                    <input type="number" min={1} className="campo py-1" style={{ width: "7rem" }} value={p[u].anual ?? ""} onChange={(e) => cambiar(u, "anual", e.target.value)} />
-                  </>
-                )}
-              </label>
-              {p[u].anual != null && <p className="mt-1 text-xs text-muted">{ahorro > 0 ? `Se ahorran ${pesos(ahorro)} contra pagar mes por mes.` : "Ojo: no sale más barato que pagar mes por mes."}</p>}
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-muted"><th className="pb-1 font-medium">Plan</th><th className="pb-1 font-medium">Precio</th><th className="pb-1 text-right font-medium">Ahorran</th></tr>
+                </thead>
+                <tbody>
+                  {p[u].map((x) => (
+                    <tr key={x.id} className={x.activo ? "" : "opacity-50"}>
+                      <td className="py-1 pr-2">
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" checked={x.activo} disabled={x.id === "mes"} onChange={(e) => cambiar(u, x.id, { activo: e.target.checked })} />
+                          <span>{x.nombre} <span className="text-xs text-muted">· {x.meses} m</span></span>
+                        </label>
+                      </td>
+                      <td className="py-1 pr-2">
+                        <span className="flex items-center gap-1 text-muted">$<input type="number" min={1} className="campo py-1" style={{ width: "6.5rem" }} value={x.precio} onChange={(e) => cambiar(u, x.id, { precio: Number(e.target.value) })} /></span>
+                      </td>
+                      <td className="py-1 text-right text-xs tabular-nums text-muted">{x.id === "mes" ? "—" : ahorroDe(x, mensual) ? `${pesos(ahorroDe(x, mensual))} (${Math.round((ahorroDe(x, mensual) / (mensual * x.meses)) * 100)}%)` : "nada"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
               {distintas > 0 && (
                 <div className="mt-3 border-t border-line pt-2 text-xs">
                   {aplicar === u ? (
                     <span className="flex flex-wrap items-center gap-2">
-                      ¿Cambiar a {pesos(p[u].mensual)} las {distintas} agenda{distintas === 1 ? "" : "s"}? (guarda primero)
+                      ¿Poner {pesos(mensual)} de mensual a las {distintas} agenda{distintas === 1 ? "" : "s"}? (guarda primero)
                       <button className="btn bg-danger px-2 py-0.5 text-xs text-panel" onClick={() => aplicarA(u)}>Sí</button>
                       <button className="btn btn-sec px-2 py-0.5 text-xs" onClick={() => setAplicar(null)}>No</button>
                     </span>
                   ) : (
                     <button className="text-accent hover:underline" onClick={() => setAplicar(u)}>
-                      {distintas} agenda{distintas === 1 ? "" : "s"} de ya paga{distintas === 1 ? "" : "n"} otro precio · aplicar este
+                      {distintas} agenda{distintas === 1 ? "" : "s"} de ya tiene{distintas === 1 ? "" : "n"} otro mensual · aplicar este
                     </button>
                   )}
                 </div>
@@ -499,7 +504,7 @@ export function PreciosUni({ agendas, onAviso, onCambio }: { agendas: AgendaAdmi
         })}
       </div>
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
-      <button className="btn btn-primario mt-3" disabled={guardando} onClick={guardar}>{guardando ? "Guardando…" : "Guardar precios"}</button>
+      <button className="btn btn-primario mt-3" disabled={guardando} onClick={guardar}>{guardando ? "Guardando…" : "Guardar planes"}</button>
     </Tarjeta>
   );
 }

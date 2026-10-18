@@ -11,11 +11,13 @@ import { TEMAS, MARCADORES, aplicarTema, type MarcadorId } from "@/lib/tema";
 import MarcadorHoy from "@/components/MarcadorHoy";
 import TarjetaCompanero from "@/components/TarjetaCompanero";
 import TarjetaSuscripcion from "@/components/TarjetaSuscripcion";
+import TarjetaAvisos from "@/components/TarjetaAvisos";
+import Candado from "@/components/Candado";
 
 const PALETA = ["#2f5d50", "#6366f1", "#db2777", "#ea580c", "#0891b2", "#65a30d", "#9333ea", "#b45309"];
 
 export default function Personalizar({ userId }: { userId: string }) {
-  const { supabase, perfiles, clinicas, materias, ajustes, recargar } = useCatalogos();
+  const { supabase, perfiles, clinicas, materias, ajustes, recargar, pro } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
   const { horarios, recargar: recargarHorarios } = useHorarios();
   const esDueno = yo?.rol === "owner";
@@ -72,7 +74,8 @@ export default function Personalizar({ userId }: { userId: string }) {
 
       {/* Las pestañas se ocultan (no se desmontan) para no perder lo que llevas escrito */}
       <div className={`flex flex-col gap-5 ${pestana === "yo" ? "" : "hidden"}`}>
-        {yo && <MiPerfil key={yo.id} supabase={supabase} yo={yo} onGuardado={recargar} />}
+        {yo && <MiPerfil key={yo.id} supabase={supabase} yo={yo} onGuardado={recargar} pro={pro} esDueno={esDueno} />}
+        <TarjetaAvisos pro={pro} esDueno={esDueno} />
         <MiHorario supabase={supabase} userId={userId} horarios={horarios} clinicas={clinicas} materias={materias} conMateria={uady} onCambio={recargarHorarios} />
       </div>
 
@@ -85,7 +88,7 @@ export default function Personalizar({ userId }: { userId: string }) {
       <div className={`flex flex-col gap-5 ${pestana === "agenda" ? "" : "hidden"}`}>
         {esDueno && <TarjetaCompanero onCambio={recargar} />}
 
-        {uady && <AjustesCalendario ajustes={ajustes} perfiles={perfiles} userId={userId} onCambio={recargar} />}
+        {uady && <AjustesCalendario ajustes={ajustes} perfiles={perfiles} userId={userId} onCambio={recargar} pro={pro} esDueno={esDueno} />}
 
         <Catalogo
           titulo="Clínicas"
@@ -141,8 +144,10 @@ function Tarjeta({ titulo, descripcion, children }: { titulo: string; descripcio
 type Resultado = PromiseLike<{ error: { message: string; code?: string } | null }>;
 
 function MiPerfil({
-  supabase, yo, onGuardado,
+  supabase, yo, onGuardado, pro, esDueno,
 }: {
+  pro: boolean;
+  esDueno: boolean;
   supabase: ReturnType<typeof useCatalogos>["supabase"];
   yo: { id: string; nombre: string; color: string; preferencias: Preferencias };
   onGuardado: () => void;
@@ -277,7 +282,12 @@ function MiPerfil({
         </div>
       </div>
 
-      {/* Recordatorios por correo */}
+      {/* Recordatorios por correo (Pro) */}
+      {!pro ? (
+        <div className="mt-6 border-t border-line pt-5">
+          <Candado compacto titulo="Recordatorios por correo" texto="Un correo cada madrugada con tus citas próximas." esDueno={esDueno} />
+        </div>
+      ) : (
       <div className="mt-6 border-t border-line pt-5">
         <h3 className="font-semibold">Recordatorios por correo</h3>
         <p className="mb-3 mt-0.5 text-sm text-muted">
@@ -323,6 +333,7 @@ function MiPerfil({
         )}
         <BotonPrueba />
       </div>
+      )}
 
       <div className="mt-5 flex items-center justify-end gap-3">
         {estado === "ok" && <span className="text-sm text-accent">Guardado ✓</span>}

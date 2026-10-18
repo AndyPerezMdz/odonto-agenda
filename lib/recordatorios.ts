@@ -8,7 +8,7 @@ const ZONA = process.env.RECORDATORIOS_ZONA || "America/Merida";
 export const REMITENTE =
   process.env.RECORDATORIOS_REMITENTE || "Agenda de clínicas <agenda@tapiceriaautomotrizbynovo.com>";
 
-type Resultado = { persona: string; estado: "enviado" | "sin citas" | "desactivado" | "ya enviado" | "sin correo" | "error"; detalle?: string };
+type Resultado = { persona: string; estado: "enviado" | "sin citas" | "desactivado" | "ya enviado" | "sin correo" | "sin Pro" | "error"; detalle?: string };
 
 /** "YYYY-MM-DD" de hoy + n días, según la zona horaria configurada. */
 export function fechaEnZona(n = 0): string {
@@ -35,7 +35,7 @@ export async function enviarRecordatorios(opts: { soloUsuario?: string; prueba?:
   const dias = [0, 1, 2].map((n) => ({ n, fecha: fechaEnZona(n) }));
 
   // Datos base
-  let qPerfiles = db.from("perfiles").select("id,nombre,color,preferencias");
+  let qPerfiles = db.from("perfiles").select("id,nombre,color,preferencias,agenda_id");
   if (opts.soloUsuario) qPerfiles = qPerfiles.eq("id", opts.soloUsuario);
   const ayer = fechaEnZona(-1);
   const [{ data: perfiles, error: e1 }, { data: citas, error: e2 }, { data: clinicas }, { data: materias }, { data: usuarios, error: e3 }, { data: sinMarcar }] =
@@ -65,19 +65,23 @@ export async function enviarRecordatorios(opts: { soloUsuario?: string; prueba?:
   if (e1 || e2 || e3) throw new Error((e1 ?? e2 ?? e3)!.message);
 
   const correoDe = new Map(usuarios.users.map((u) => [u.id, u.email]));
+  // 2.0: los recordatorios por correo son de Pro
+  const { data: agendasPro } = await db.from("agendas").select("id,pagado_hasta");
+  const conPro = new Set((agendasPro ?? []).filter((a) => !a.pagado_hasta || a.pagado_hasta >= hoy).map((a) => a.id));
   const clinicaPorId = new Map((clinicas as Clinica[] | null ?? []).map((c) => [c.id, c]));
   const materiaPorId = new Map((materias as Materia[] | null ?? []).map((m) => [m.id, m]));
 
   const resultados: Resultado[] = [];
 
   // Doble candado: con soloUsuario jamás se le manda a otra persona
-  const destinatarios = ((perfiles as Perfil[]) ?? []).filter((x) => !opts.soloUsuario || x.id === opts.soloUsuario);
+  const destinatarios = ((perfiles as unknown as (Perfil & { agenda_id?: string })[]) ?? []).filter((x) => !opts.soloUsuario || x.id === opts.soloUsuario);
 
   for (const perfil of destinatarios) {
     const p = prefs(perfil.preferencias);
     const correo = correoDe.get(perfil.id);
     if (!correo) { resultados.push({ persona: perfil.nombre, estado: "sin correo" }); continue; }
     if (!opts.prueba && !p.recordatorios) { resultados.push({ persona: perfil.nombre, estado: "desactivado" }); continue; }
+    if (!conPro.has(perfil.agenda_id ?? "")) { resultados.push({ persona: perfil.nombre, estado: "sin Pro" }); continue; }
 
     const diasActivos = opts.prueba ? [0, 1, 2] : p.recordatorioDias;
     const bloques = dias
