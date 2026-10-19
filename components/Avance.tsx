@@ -77,7 +77,7 @@ export default function Avance({ userId }: { userId: string }) {
     return lista.map(({ materia, citas: deMateria }) => ({
       materia,
       meta: materia ? metas.get(`${persona}:${materia.id}`) ?? null : null,
-      enBanco: (pacientes ?? []).filter((x) => x.owner_id === persona && (x.materia_id ?? "") === (materia?.id ?? "") && (x.estado === "pendiente" || x.estado === "contactado")).length,
+      enBanco: !pro ? 0 : (pacientes ?? []).filter((x) => x.owner_id === persona && (x.materia_id ?? "") === (materia?.id ?? "") && (x.estado === "pendiente" || x.estado === "contactado")).length,
       pacientes: deMateria.filter((c) => c.estado === "asistio").sort((a, b) => a.fecha.localeCompare(b.fecha)),
       asistio: deMateria.filter((c) => c.estado === "asistio").length,
       falto: deMateria.filter((c) => c.estado === "falto").length,
@@ -90,7 +90,7 @@ export default function Avance({ userId }: { userId: string }) {
         : null,
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mias, materias, hoy, metas, persona, pacientes, conRitmo, horarios, citas, inicio, fin, turnos.modo, turnos.inicia]);
+  }, [mias, materias, hoy, metas, persona, pacientes, pro, conRitmo, horarios, citas, inicio, fin, turnos.modo, turnos.inicia]);
 
   async function guardarFin(v: string) {
     await supabase.from("perfiles").update({ fin_clinicas: v || null }).eq("id", userId);

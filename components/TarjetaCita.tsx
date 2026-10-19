@@ -39,7 +39,11 @@ export default function TarjetaCita({ cita: c, userId, hoy, dueno, clinica, mate
   }
   const est = estadoDe(c.estado);
   const cancelada = c.estado === "cancelo";
-  const puedeMarcar = !soloLectura && c.owner_id === userId && !c.estado && c.fecha <= hoy;
+  // De hoy, sólo cuando ya empezó (no preguntar "¿Llegó?" de una cita que todavía no es)
+  const ahora = new Date();
+  const horaAhora = `${String(ahora.getHours()).padStart(2, "0")}:${String(ahora.getMinutes()).padStart(2, "0")}`;
+  const yaEmpezo = c.fecha < hoy || (c.fecha === hoy && hhmm(c.hora_inicio) <= horaAhora);
+  const puedeMarcar = !soloLectura && c.owner_id === userId && !c.estado && yaEmpezo;
   const link = c.token_confirmar && typeof window !== "undefined" ? enlaceConfirmar(c.token_confirmar, window.location.origin) : undefined;
   const wa = pro && c.owner_id === userId && !cancelada && c.fecha >= hoy && !c.confirmacion ? enlaceWhatsApp(c.telefono, mensajeConfirmar(c, clinica?.numero, link)) : null;
 

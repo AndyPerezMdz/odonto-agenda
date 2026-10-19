@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import DocLegal from "@/components/DocLegal";
 import { LEGAL } from "@/lib/legal";
+import { PAGO_EN_LINEA } from "@/lib/plan";
 
 export const metadata: Metadata = { title: "Aviso de privacidad — Agenda de clínicas" };
 
@@ -21,7 +22,7 @@ export default function PrivacidadPage() {
         <li>Contraseña (se guarda cifrada; nadie, ni nosotros, puede verla).</li>
         <li>Tus preferencias dentro de la agenda (colores, recordatorios, etc.).</li>
         <li>Tu universidad (la eliges al registrarte) y lo que nos escribas en “¿Qué le falta a tu agenda?”.</li>
-        <li>Si eres dueño/a de una agenda: los registros de tus pagos (monto, fecha y clave de rastreo). Si pagas en línea, el pago lo procesa Mercado Pago: nosotros sólo recibimos el número de operación, el monto y si se aprobó; nunca los datos de tu tarjeta.</li>
+        <li>Si eres dueño/a de una agenda: los registros de tus pagos (monto, fecha y clave de rastreo).{PAGO_EN_LINEA ? " Si pagas en línea, el pago lo procesa Mercado Pago: nosotros sólo recibimos el número de operación, el monto y si se aprobó; nunca los datos de tu tarjeta." : " No recibimos ni guardamos datos de tarjetas ni contraseñas bancarias."}</li>
         <li>Si activas las notificaciones: un identificador técnico de tu navegador para poder mandártelas. Si usas “Tu agenda en tu calendario”: un link privado con un código aleatorio.</li>
       </ul>
       <p><b>De tus pacientes, que tú capturas:</b> nombre, fecha y hora de la cita, clínica, materia y las notas que tú escribas. Si le mandas a tu paciente su link para confirmar, guardamos sólo su respuesta (“sí voy” o “no puedo”) y la hora en que respondió.</p>
@@ -61,7 +62,7 @@ export default function PrivacidadPage() {
         <li><b>Tu compañero/a de agenda</b> ve las citas, nombres y catálogos de la agenda que comparten.</li>
         <li>
           <b>Proveedores que nos ayudan a operar</b> el servicio, sólo para ese fin: alojamiento de base de datos y autenticación
-          (Supabase), alojamiento de la página (Vercel), envío de correos (Resend), cobros en línea (Mercado Pago) y, si las activas, el servicio de notificaciones de tu navegador (Google, Apple o Mozilla), que sólo recibe el texto del aviso cifrado. Algunos de sus servidores pueden estar fuera de México.
+          (Supabase), alojamiento de la página (Vercel), envío de correos (Resend),{PAGO_EN_LINEA ? " cobros en línea (Mercado Pago)," : ""} y, si las activas, el servicio de notificaciones de tu navegador (Google, Apple o Mozilla), que sólo recibe el texto del aviso cifrado. Algunos de sus servidores pueden estar fuera de México.
         </li>
         <li><b>Autoridades</b>, sólo cuando una ley o una orden legal lo exija.</li>
       </ul>
