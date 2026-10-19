@@ -56,6 +56,16 @@ export default function PanelAdmin({ email }: { email: string }) {
     window.addEventListener("hashchange", leer);
     return () => window.removeEventListener("hashchange", leer);
   }, []);
+  // Consola: oscura por defecto (se recuerda en este navegador)
+  const [modo, setModoEstado] = useState<"oscuro" | "claro">("oscuro");
+  useEffect(() => {
+    try { if (localStorage.getItem("admin-modo") === "claro") setModoEstado("claro"); } catch {}
+  }, []);
+  function cambiarModo() {
+    const m = modo === "oscuro" ? "claro" : "oscuro";
+    setModoEstado(m);
+    try { localStorage.setItem("admin-modo", m); } catch {}
+  }
   function setUni(v: FiltroUni) {
     setUniEstado(v);
     try { localStorage.setItem("admin-universidad", v); } catch {}
@@ -130,44 +140,128 @@ export default function PanelAdmin({ email }: { email: string }) {
     ["negocio", "Negocio"],
     ["agendas", `Agendas${agendas ? ` · ${delaUni.length}` : ""}`],
     ["cuentas", "Cuentas", medias || undefined],
-    ...(hayUady && uni !== "upp" ? ([["uady", "UADY"]] as [Pestana, string][]) : []),
+    ...(hayUady && uni === "uady" ? ([["uady", "UADY"]] as [Pestana, string][]) : []),
     ["buzon", "Buzón", nuevas || undefined],
     ["anuncios", "Anuncios"],
     ["ajustes", "Ajustes"],
   ];
-  const actual = pestana === "uady" && !(hayUady && uni !== "upp") ? "hoy" : pestana;
+  const actual = pestana === "uady" && !(hayUady && uni === "uady") ? "hoy" : pestana;
+
+  const nUni = (u: "upp" | "uady") => (agendas ?? []).filter((a) => a.universidad === u).length;
+  const opcionesUni: [FiltroUni, string, number][] = [["todas", "Todas", agendas?.length ?? 0], ["upp", "UPP", nUni("upp")], ["uady", "UADY", nUni("uady")]];
 
   return (
-    <div className="mx-auto max-w-5xl px-3 py-4 sm:px-6 sm:py-6">
-      <header className="mb-5 flex flex-wrap items-center gap-3">
-        <div className="mr-auto">
-          <p className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-ink px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-panel">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            Sólo tú ves esto
-          </p>
-          <Saludo />
+    <div className="consola min-h-screen" data-modo={modo}>
+    <div className="lg:grid lg:grid-cols-[236px_minmax(0,1fr)]">
+      {/* Barra lateral (compu) */}
+      <aside className="sticky top-0 hidden h-screen flex-col border-r border-line bg-panel lg:flex">
+        <div className="flex items-center gap-2.5 border-b border-line px-4 py-3.5">
+          <span className="grid h-7 w-7 place-items-center rounded-md bg-accent text-panel" aria-hidden>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17l6-6-6-6M12 19h8"/></svg>
+          </span>
+          <div className="min-w-0 leading-tight">
+            <p className="consola-mono truncate text-[13px] font-semibold">agenda/staff</p>
+            <p className="consola-mono flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Sólo tú ves esto
+            </p>
+          </div>
         </div>
-        <span className="hidden text-sm text-muted sm:inline">{email}</span>
-        <button onClick={salir} className="btn btn-sec">Salir</button>
+
+        <div className="px-3 pt-4">
+          <p className="consola-etiqueta mb-1.5 px-1">Universidad</p>
+          <div className="grid grid-cols-3 gap-0.5 rounded-md border border-line bg-bg p-0.5 text-xs font-medium" role="tablist" aria-label="Universidad">
+            {opcionesUni.map(([id, t, n]) => (
+              <button
+                key={id}
+                role="tab"
+                aria-selected={uni === id}
+                onClick={() => setUni(id)}
+                className={`rounded px-1 py-1.5 transition ${uni === id ? "bg-panel-2 text-ink shadow-[inset_0_0_0_1px_var(--line)]" : "text-muted hover:text-ink"}`}
+              >
+                {t} <span className="consola-mono text-[10px] opacity-70">{n}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <nav className="mt-4 flex-1 overflow-y-auto px-3">
+          <p className="consola-etiqueta mb-1.5 px-1">Panel</p>
+          <ul className="flex flex-col gap-px text-sm">
+            {pestanas.map(([id, t, n]) => (
+              <li key={id}>
+                <button
+                  onClick={() => setPestana(id)}
+                  className={`group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition ${actual === id ? "bg-accent-soft text-accent" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={ICONO_PESTANA[id]} /></svg>
+                  <span className="mr-auto truncate">{t.replace(/ · \d+$/, "")}</span>
+                  {n ? (
+                    <span className="consola-mono rounded bg-danger px-1.5 text-[10px] font-semibold leading-4 text-panel">{n}</span>
+                  ) : id === "agendas" && agendas ? (
+                    <span className="consola-mono text-[11px] opacity-70">{delaUni.length}</span>
+                  ) : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <div className="border-t border-line px-3 py-3">
+          <p className="consola-mono mb-2 truncate px-1 text-[11px] text-muted" title={email}>{email}</p>
+          <div className="flex gap-1.5">
+            <button onClick={cambiarModo} className="btn btn-sec flex-1 py-1.5 text-xs" title={modo === "oscuro" ? "Modo claro" : "Modo oscuro"} aria-label={modo === "oscuro" ? "Modo claro" : "Modo oscuro"}>
+              {modo === "oscuro" ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+              )}
+            </button>
+            <button onClick={salir} className="btn btn-sec flex-[2] py-1.5 text-xs">Salir</button>
+          </div>
+        </div>
+      </aside>
+
+      <main className="min-w-0">
+      {/* Barra superior */}
+      <header className="border-b border-line bg-panel/60 px-3 py-3 backdrop-blur sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
+          <div className="mr-auto min-w-0">
+            <p className="consola-mono mb-0.5 inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted lg:hidden">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Sólo tú ves esto
+            </p>
+            <Saludo />
+          </div>
+          <div className="flex items-center gap-2 lg:hidden">
+            <button onClick={cambiarModo} className="btn btn-sec px-2.5" aria-label={modo === "oscuro" ? "Modo claro" : "Modo oscuro"}>{modo === "oscuro" ? "☀" : "☾"}</button>
+            <button onClick={salir} className="btn btn-sec">Salir</button>
+          </div>
+          <span className="consola-mono hidden rounded border border-line px-2 py-1 text-[11px] text-muted lg:inline">
+            {uni === "todas" ? "todas" : uni} / {actual}
+          </span>
+        </div>
       </header>
 
-      {agendas && <FiltroUniversidad valor={uni} agendas={agendas} onCambio={setUni} />}
-
-      {/* Pestañas (en el celular se deslizan de lado) */}
-      <nav className="-mx-3 mb-5 overflow-x-auto px-3 sm:mx-0 sm:px-0">
-        <div className="flex min-w-max gap-1 rounded-xl border border-line bg-panel p-1 text-sm font-medium">
-          {pestanas.map(([id, t, n]) => (
-            <button
-              key={id}
-              onClick={() => setPestana(id)}
-              className={`relative flex-1 whitespace-nowrap rounded-lg px-3 py-2 transition ${actual === id ? "bg-accent text-panel" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
-            >
-              {t}
-              {n ? <span className={`ml-1.5 rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums ${actual === id ? "bg-panel text-accent" : "bg-danger text-panel"}`}>{n}</span> : null}
-            </button>
-          ))}
-        </div>
-      </nav>
+      <div className="mx-auto max-w-6xl px-3 py-5 sm:px-6 lg:px-8">
+      {/* Celular: universidad y pestañas arriba (se deslizan de lado) */}
+      <div className="lg:hidden">
+        {agendas && <FiltroUniversidad valor={uni} agendas={agendas} onCambio={setUni} />}
+        <nav className="-mx-3 mb-5 overflow-x-auto px-3 sm:mx-0 sm:px-0">
+          <div className="flex min-w-max gap-1 rounded-md border border-line bg-panel p-1 text-sm font-medium">
+            {pestanas.map(([id, t, n]) => (
+              <button
+                key={id}
+                onClick={() => setPestana(id)}
+                className={`relative flex-1 whitespace-nowrap rounded px-3 py-1.5 transition ${actual === id ? "bg-accent-soft text-accent" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
+              >
+                {t}
+                {n ? <span className="consola-mono ml-1.5 rounded bg-danger px-1.5 py-px text-[10px] font-semibold text-panel">{n}</span> : null}
+              </button>
+            ))}
+          </div>
+        </nav>
+      </div>
 
       {aviso && <p className="sticky top-2 z-20 mb-4 rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent shadow-sm">{aviso}</p>}
       {error && <p className="mb-4 text-sm text-danger">{error}</p>}
@@ -292,9 +386,23 @@ export default function PanelAdmin({ email }: { email: string }) {
           </div>
         </>
       )}
+      </div>
+      </main>
+    </div>
     </div>
   );
 }
+
+const ICONO_PESTANA: Record<Pestana, string> = {
+  hoy: "M3 12h4l3 8 4-16 3 8h4",
+  negocio: "M3 3v18h18M7 15l4-4 3 3 6-6",
+  agendas: "M3 5h18v16H3zM3 10h18M8 3v4M16 3v4",
+  cuentas: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6",
+  uady: "M4 20V10l8-6 8 6v10M9 20v-6h6v6",
+  buzon: "M22 12h-6l-2 3h-4l-2-3H2M5.5 5h13L22 12v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-7z",
+  anuncios: "M3 11l15-6v14L3 13zM7 12v6a2 2 0 0 0 4 0v-4",
+  ajustes: "M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6",
+};
 
 const FILTROS = [
   ["todas", "Todas"],

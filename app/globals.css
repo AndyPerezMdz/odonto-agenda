@@ -1,6 +1,16 @@
 @import "tailwindcss";
 
-@custom-variant dark (@media (prefers-color-scheme: dark));
+/* dark: sigue al sistema, salvo dentro de la consola de staff, que elige su propio modo */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(:not(.consola[data-modo="claro"], .consola[data-modo="claro"] *)) {
+      @slot;
+    }
+  }
+  &:where(.consola[data-modo="oscuro"], .consola[data-modo="oscuro"] *) {
+    @slot;
+  }
+}
 
 :root {
   --bg: #f6f5f2;
@@ -220,3 +230,78 @@ textarea {
   .solo-imprimir { display: block; color: #000; }
   body { background: #fff !important; }
 }
+
+
+/* ------------------------------------------------------------------
+   CONSOLA DE STAFF (/admin): look técnico, denso, oscuro por defecto.
+   Reglas sin capa: le ganan a las utilidades de Tailwind sólo aquí adentro.
+   ------------------------------------------------------------------ */
+.consola {
+  --bg: #0a0c0b;
+  --panel: #111413;
+  --panel-2: #171b19;
+  --line: #232926;
+  --text: #e4e9e6;
+  --muted: #86918c;
+  --accent: #3ecf8e;
+  --accent-soft: #10291f;
+  --danger: #f2555a;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  color-scheme: dark;
+}
+.consola[data-modo="claro"] {
+  --bg: #f6f7f6;
+  --panel: #ffffff;
+  --panel-2: #f0f2f1;
+  --line: #e1e5e3;
+  --text: #0e1311;
+  --muted: #5d6863;
+  --accent: #0f7b57;
+  --accent-soft: #e1f3eb;
+  --danger: #d0353a;
+  color-scheme: light;
+}
+.consola-mono,
+.consola .tabular-nums,
+.consola .text-2xl,
+.consola .text-3xl {
+  font-family: var(--mono);
+  font-feature-settings: "tnum" 1, "zero" 1;
+  letter-spacing: -0.01em;
+}
+.consola-etiqueta {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+/* Esquinas más rectas, sin sombras, bordes finos */
+.consola .rounded-2xl { border-radius: 8px; }
+.consola .rounded-xl { border-radius: 6px; }
+.consola .rounded-lg { border-radius: 5px; }
+.consola .btn,
+.consola .campo { border-radius: 6px; }
+.consola .btn { padding: 0.4rem 0.75rem; font-size: 13px; }
+.consola .campo { padding: 0.45rem 0.65rem; background: var(--bg); }
+.consola .shadow-sm,
+.consola .shadow-xl { box-shadow: none; }
+.consola h2,
+.consola h3 { font-size: 13px; font-weight: 600; letter-spacing: 0.01em; }
+.consola h1 { font-size: 18px; letter-spacing: -0.01em; }
+.consola section > div:first-child > h2,
+.consola section > h2,
+.consola section > h3 { text-transform: none; }
+/* Tablas y listas más compactas */
+.consola .divide-y > * { border-color: var(--line); }
+.consola .p-4 { padding: 0.8rem; }
+.consola .py-3 { padding-top: 0.6rem; padding-bottom: 0.6rem; }
+.consola .gap-4 { gap: 0.85rem; }
+@media (min-width: 640px) {
+  .consola .sm\:p-5 { padding: 0.95rem; }
+}
+.consola ::-webkit-scrollbar { width: 8px; height: 8px; }
+.consola ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }

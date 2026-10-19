@@ -72,10 +72,11 @@ const TONO: Record<Tono, string> = {
 
 function Kpi({ titulo, valor, detalle, tono = "neutro", destacado }: { titulo: string; valor: string; detalle: string; tono?: Tono; destacado?: boolean }) {
   return (
-    <div className={`rounded-2xl border p-4 ${destacado ? "border-accent bg-accent text-panel" : "border-line bg-panel"}`}>
-      <p className={`text-xs ${destacado ? "text-panel/80" : "text-muted"}`}>{titulo}</p>
+    <div className={`relative overflow-hidden rounded-2xl border p-4 ${destacado ? "border-accent/60 bg-accent-soft" : "border-line bg-panel"}`}>
+      {destacado && <span className="absolute inset-x-0 top-0 h-0.5 bg-accent" aria-hidden />}
+      <p className={`text-xs ${destacado ? "text-accent" : "text-muted"}`}>{titulo}</p>
       <p className="mt-1 text-2xl font-semibold tabular-nums">{valor}</p>
-      <p className={`mt-1 text-xs font-medium ${destacado ? "text-panel/85" : TONO[tono]}`}>{detalle}</p>
+      <p className={`mt-1 text-xs font-medium ${destacado ? "text-muted" : TONO[tono]}`}>{detalle}</p>
     </div>
   );
 }
