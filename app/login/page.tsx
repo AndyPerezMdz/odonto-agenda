@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import AuthCard from "@/components/AuthCard";
+import PideEnlace from "@/components/personal/PideEnlace";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -100,12 +101,15 @@ export default function LoginPage() {
         <p className="mt-5 text-center text-sm text-muted">
           ¿No tienes cuenta? <Link href="/registro" className="font-medium text-accent hover:underline">Crea tu agenda</Link>
         </p>
+      </form>
+      <PideEnlace />
+      <div>
         <p className="mt-3 text-center text-xs text-muted">
           <Link href="/privacidad" className="hover:text-ink">Aviso de privacidad</Link> ·{" "}
           <Link href="/terminos" className="hover:text-ink">Términos</Link> ·{" "}
           <Link href="/novedades" className="hover:text-ink">Novedades</Link>
         </p>
-      </form>
+      </div>
     </AuthCard>
   );
 }

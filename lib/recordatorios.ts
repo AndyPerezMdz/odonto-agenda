@@ -129,7 +129,7 @@ export async function enviarRecordatorios(opts: { soloUsuario?: string; prueba?:
 
 /* ------------------------------------------------------------------ */
 
-export async function enviarConResend(m: { para: string; asunto: string; html: string; texto: string; idempotencia?: string; responderA?: string[] }) {
+export async function enviarConResend(m: { para: string; asunto: string; html: string; texto: string; idempotencia?: string; responderA?: string[]; nombreRemitente?: string }) {
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error("Falta la variable RESEND_API_KEY en Vercel.");
   const res = await fetch(`${process.env.RESEND_API_URL || "https://api.resend.com"}/emails`, {
@@ -139,7 +139,7 @@ export async function enviarConResend(m: { para: string; asunto: string; html: s
       "Content-Type": "application/json",
       ...(m.idempotencia ? { "Idempotency-Key": m.idempotencia } : {}),
     },
-    body: JSON.stringify({ from: REMITENTE, to: [m.para], subject: m.asunto, html: m.html, text: m.texto, ...(m.responderA?.length ? { reply_to: m.responderA } : {}) }),
+    body: JSON.stringify({ from: m.nombreRemitente ? REMITENTE.replace(/^[^<]*</, `${m.nombreRemitente} <`) : REMITENTE, to: [m.para], subject: m.asunto, html: m.html, text: m.texto, ...(m.responderA?.length ? { reply_to: m.responderA } : {}) }),
   });
   if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
 }

@@ -23,6 +23,7 @@ export default function PrivacidadPage() {
         <li>Tus preferencias dentro de la agenda (colores, recordatorios, etc.).</li>
         <li>Tu universidad (la eliges al registrarte) y lo que nos escribas en “¿Qué le falta a tu agenda?”.</li>
         <li>Si eres dueño/a de una agenda: los registros de tus pagos (monto, fecha y clave de rastreo).{PAGO_EN_LINEA ? " Si pagas en línea, el pago lo procesa Mercado Pago: nosotros sólo recibimos el número de operación, el monto y si se aprobó; nunca los datos de tu tarjeta." : " No recibimos ni guardamos datos de tarjetas ni contraseñas bancarias."}</li>
+        <li>Si tienes <b>agenda personal</b> (sólo por invitación): lo que captures en ella (eventos, viajes, entregas, recordatorios, categorías y notas). Sólo tú la ves; ni tu compañero/a de clínica ni nadie más.</li>
         <li>Si activas las notificaciones: un identificador técnico de tu navegador para poder mandártelas. Si usas “Tu agenda en tu calendario”: un link privado con un código aleatorio.</li>
       </ul>
       <p><b>De tus pacientes, que tú capturas:</b> nombre, fecha y hora de la cita, clínica, materia y las notas que tú escribas. Si le mandas a tu paciente su link para confirmar, guardamos sólo su respuesta (“sí voy” o “no puedo”) y la hora en que respondió.</p>

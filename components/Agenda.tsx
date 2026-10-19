@@ -89,6 +89,11 @@ export default function Agenda({ userId }: { userId: string }) {
 
   const { supabase, perfiles, clinicas, materias, nombreAgenda, pagadoHasta, ajustes, recargar: recargarCatalogos, pro, quedanPro, cargando } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
+  // ¿También tiene agenda personal? (botón para cambiar)
+  const [tienePersonal, setTienePersonal] = useState(false);
+  useEffect(() => {
+    supabase.from("personales").select("activo").eq("user_id", userId).maybeSingle().then(({ data }) => setTienePersonal(!!data?.activo));
+  }, [supabase, userId]);
   const p = prefs(yo?.preferencias);
   const sinLeer = !!yo && pendientes(yo.version_vista, ajustes.universidad).length > 0;
   const CLAVE_DESPUES = `novedades-despues-${APP_VERSION}`;
@@ -273,6 +278,12 @@ export default function Agenda({ userId }: { userId: string }) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg>
           <span className={uady ? "hidden 2xl:inline" : ""}>Manual</span>
         </a>
+        {tienePersonal && (
+          <Link href="/personal" className="btn btn-sec" title="Cambiar a tu agenda personal">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 16 3 12l4-4M3 12h13M17 8l4 4-4 4"/></svg>
+            <span className="hidden 2xl:inline">Mi agenda</span>
+          </Link>
+        )}
         <Link href="/personalizar" className="btn btn-sec">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
           Personalizar
@@ -305,6 +316,7 @@ export default function Agenda({ userId }: { userId: string }) {
                 </button>
                 <Link href="/pacientes" className="block px-4 py-2.5 hover:bg-panel-2">Pacientes</Link>
                 {uady && <Link href="/material" className="block px-4 py-2.5 hover:bg-panel-2">Mi material</Link>}
+                {tienePersonal && <Link href="/personal" className="block px-4 py-2.5 hover:bg-panel-2">Mi agenda personal</Link>}
                 <Link href="/personalizar" className="block px-4 py-2.5 hover:bg-panel-2">Personalizar</Link>
                 <button onClick={() => { setMenu(false); setVerInstalar(true); }} className="block w-full px-4 py-2.5 text-left hover:bg-panel-2">Instalar como app</button>
                 <a href={manualDe(ajustes.universidad)} target="_blank" rel="noopener noreferrer" className="block px-4 py-2.5 hover:bg-panel-2">Manual</a>

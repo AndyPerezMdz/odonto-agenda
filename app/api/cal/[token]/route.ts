@@ -2,6 +2,8 @@ import { type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fechaEnZona } from "@/lib/recordatorios";
 import { sumarDias } from "@/lib/pagos";
+import { expandir } from "@/lib/personal";
+import { eventosPersonalesDe, personalDe } from "@/lib/personalServer";
 
 export const dynamic = "force-dynamic";
 
@@ -40,14 +42,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   if (!/^[a-f0-9]{36}$/.test(limpio)) return new Response("No encontrado", { status: 404 });
   const db = createAdminClient();
   const { data: p } = await db.from("perfiles").select("id,agenda_id").eq("cal_token", limpio).maybeSingle();
-  if (!p?.agenda_id) return new Response("No encontrado", { status: 404 });
+  if (!p) return new Response("No encontrado", { status: 404 });
+  const personal = await personalDe(db, p.id);
+  if (!p.agenda_id && !personal) return new Response("No encontrado", { status: 404 });
 
   const hoy = fechaEnZona(0);
-  const cabeza = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Agenda de clinicas//ES", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:Agenda de clínicas", "X-WR-TIMEZONE:America/Merida", "REFRESH-INTERVAL;VALUE=DURATION:PT1H", "X-PUBLISHED-TTL:PT1H"];
-  const { data: a } = await db.from("agendas").select("pagado_hasta").eq("id", p.agenda_id).single();
-  if (a?.pagado_hasta && a.pagado_hasta < hoy) {
-    // Sin Pro: el calendario queda vacío (no tronamos la suscripción del cel; vuelve sola al renovar)
-    return ics([...cabeza, "END:VCALENDAR"]);
+  const nombreCal = p.agenda_id ? "Agenda de clínicas" : "Mi agenda";
+  const cabeza = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Agenda de clinicas//ES", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", `X-WR-CALNAME:${nombreCal}`, "X-WR-TIMEZONE:America/Merida", "REFRESH-INTERVAL;VALUE=DURATION:PT1H", "X-PUBLISHED-TTL:PT1H"];
+  const ahora = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
+  const personales = personal ? await eventosPersonales(db, p.id, hoy, ahora) : [];
+  const { data: a } = p.agenda_id ? await db.from("agendas").select("pagado_hasta").eq("id", p.agenda_id).single() : { data: null };
+  if (!p.agenda_id || (a?.pagado_hasta && a.pagado_hasta < hoy)) {
+    // Sin agenda de clínicas, o sin Pro: sólo lo personal (no tronamos la suscripción del cel; vuelve sola al renovar)
+    return ics([...cabeza, ...personales, "END:VCALENDAR"]);
   }
 
   const [{ data: citas }, { data: clinicas }, { data: materias }] = await Promise.all([
@@ -63,7 +70,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   ]);
   const cli = new Map((clinicas ?? []).map((c) => [c.id, c.numero as string]));
   const mat = new Map((materias ?? []).map((m) => [m.id, m.nombre as string]));
-  const ahora = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
   const eventos = (citas ?? []).flatMap((c) => {
     const ini = String(c.hora_inicio).slice(0, 5);
     const fin = c.hora_fin ? String(c.hora_fin).slice(0, 5) : `${String(Number(ini.slice(0, 2)) + 1).padStart(2, "0")}:${ini.slice(3)}`;
@@ -85,5 +91,44 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       "END:VEVENT",
     ];
   });
-  return ics([...cabeza, ...eventos, "END:VCALENDAR"]);
+  return ics([...cabeza, ...eventos, ...personales, "END:VCALENDAR"]);
+}
+
+const fechaIcs = (iso: string) => iso.replace(/-/g, "");
+
+/** Agenda personal: cada aparición como su propio evento (las series ya vienen desdobladas). */
+async function eventosPersonales(db: ReturnType<typeof createAdminClient>, userId: string, hoy: string, ahora: string) {
+  const filas = await eventosPersonalesDe(db, [userId]);
+  const desde = sumarDias(hoy, -30);
+  const hasta = sumarDias(hoy, 180);
+  // Los viajes van en un solo bloque de varios días, no día por día
+  const viajes = filas.filter((e) => e.tipo === "viaje" && (e.fecha_fin ?? e.fecha) >= desde && e.fecha <= hasta);
+  const otros = expandir(filas.filter((e) => e.tipo !== "viaje"), desde, hasta);
+  const alarma = (desc: string, trigger: string) => ["BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${esc(desc)}`, `TRIGGER:${trigger}`, "END:VALARM"];
+  const salida: string[] = [];
+  for (const v of viajes) {
+    salida.push(
+      "BEGIN:VEVENT", `UID:${v.id}@mi-agenda`, `DTSTAMP:${ahora}`,
+      `DTSTART;VALUE=DATE:${fechaIcs(v.fecha)}`, `DTEND;VALUE=DATE:${fechaIcs(sumarDias(v.fecha_fin ?? v.fecha, 1))}`,
+      `SUMMARY:${esc(`✈ ${v.titulo}`)}`, ...(v.lugar ? [`LOCATION:${esc(v.lugar)}`] : []), ...(v.notas ? [`DESCRIPTION:${esc(v.notas)}`] : []),
+      "END:VEVENT"
+    );
+  }
+  for (const o of otros) {
+    const titulo = o.tipo === "entrega" ? `${o.hecho ? "✓ " : "📌 "}Entregar: ${o.titulo}` : o.tipo === "recordatorio" ? `🔔 ${o.titulo}` : o.titulo;
+    const cuando = o.hora_inicio
+      ? [`DTSTART:${utc(o.dia, o.hora_inicio.slice(0, 5))}`, `DTEND:${utc(o.dia, (o.hora_fin ?? o.hora_inicio).slice(0, 5))}`]
+      : [`DTSTART;VALUE=DATE:${fechaIcs(o.dia)}`, `DTEND;VALUE=DATE:${fechaIcs(sumarDias(o.dia, 1))}`];
+    const aviso = o.tipo === "entrega" && !o.hecho
+      ? alarma(`Mañana: ${o.titulo}`, "-PT15H")
+      : o.hora_inicio
+        ? alarma(o.titulo, o.tipo === "recordatorio" ? "PT0M" : "-PT1H")
+        : [];
+    salida.push(
+      "BEGIN:VEVENT", `UID:${o.id}-${o.dia}@mi-agenda`, `DTSTAMP:${ahora}`, ...cuando,
+      `SUMMARY:${esc(titulo)}`, ...(o.lugar ? [`LOCATION:${esc(o.lugar)}`] : []), ...(o.notas ? [`DESCRIPTION:${esc(o.notas)}`] : []),
+      ...aviso, "END:VEVENT"
+    );
+  }
+  return salida;
 }

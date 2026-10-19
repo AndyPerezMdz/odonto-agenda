@@ -9,6 +9,7 @@ import type { CodigoAdmin } from "@/app/api/admin/codigos/route";
 import type { CuentaAdmin, SugerenciaAdmin } from "@/lib/staff";
 import { AnunciosAdmin, Buzon, CobrosQueVienen, CuentasAMedias, cuentasAMedias, Embudo, PreciosUni } from "@/components/StaffPiezas";
 import { estadoPago, pesos, codigoAgenda, sumarDias } from "@/lib/pagos";
+import PersonalesAdmin from "@/components/personal/PersonalesAdmin";
 import { fechaLarga, hoyISO } from "@/lib/fechas";
 
 async function api(url: string, method: string, body?: unknown): Promise<string | null> {
@@ -25,8 +26,8 @@ async function api(url: string, method: string, body?: unknown): Promise<string 
 const fechaCorta = (iso: string) =>
   new Date(iso).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
 
-type Pestana = "hoy" | "negocio" | "agendas" | "cuentas" | "uady" | "buzon" | "anuncios" | "ajustes";
-const PESTANAS: Pestana[] = ["hoy", "negocio", "agendas", "cuentas", "uady", "buzon", "anuncios", "ajustes"];
+type Pestana = "hoy" | "negocio" | "agendas" | "cuentas" | "uady" | "personales" | "buzon" | "anuncios" | "ajustes";
+const PESTANAS: Pestana[] = ["hoy", "negocio", "agendas", "cuentas", "uady", "personales", "buzon", "anuncios", "ajustes"];
 
 export default function PanelAdmin({ email }: { email: string }) {
   const router = useRouter();
@@ -141,6 +142,7 @@ export default function PanelAdmin({ email }: { email: string }) {
     ["agendas", `Agendas${agendas ? ` · ${delaUni.length}` : ""}`],
     ["cuentas", "Cuentas", medias || undefined],
     ...(hayUady && uni === "uady" ? ([["uady", "UADY"]] as [Pestana, string][]) : []),
+    ["personales", "Personales"],
     ["buzon", "Buzón", nuevas || undefined],
     ["anuncios", "Anuncios"],
     ["ajustes", "Ajustes"],
@@ -323,6 +325,8 @@ export default function PanelAdmin({ email }: { email: string }) {
 
       {actual === "uady" && agendas && <UsoUady agendas={delaUni} onVer={verAgenda} />}
 
+      {actual === "personales" && <PersonalesAdmin onAviso={setAviso} />}
+
       {actual === "buzon" && <Buzon sugerencias={sugerenciasUni} onCambio={recargar} />}
 
       {actual === "anuncios" && agendas && <AnunciosAdmin agendas={agendas} onAviso={setAviso} />}
@@ -399,6 +403,7 @@ const ICONO_PESTANA: Record<Pestana, string> = {
   agendas: "M3 5h18v16H3zM3 10h18M8 3v4M16 3v4",
   cuentas: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6",
   uady: "M4 20V10l8-6 8 6v10M9 20v-6h6v6",
+  personales: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
   buzon: "M22 12h-6l-2 3h-4l-2-3H2M5.5 5h13L22 12v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-7z",
   anuncios: "M3 11l15-6v14L3 13zM7 12v6a2 2 0 0 0 4 0v-4",
   ajustes: "M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6",

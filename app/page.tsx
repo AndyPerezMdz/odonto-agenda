@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { esSuperadmin } from "@/lib/admin";
+import { personalDe } from "@/lib/personalServer";
 import Agenda from "@/components/Agenda";
 import SinAgenda from "@/components/SinAgenda";
 import SoloNavegador from "@/components/SoloNavegador";
@@ -19,7 +20,10 @@ export default async function Home() {
 
   // Cuenta sin agenda: si es el superadmin, a su panel; si no, que cree la suya (o termine su registro)
   if (!perfil?.agenda_id) {
-    if (await esSuperadmin(createAdminClient(), user.id)) redirect("/admin");
+    const db = createAdminClient();
+    if (await esSuperadmin(db, user.id)) redirect("/admin");
+    // Sólo tiene agenda personal: para allá
+    if (await personalDe(db, user.id)) redirect("/personal");
     return <SinAgenda />;
   }
 

@@ -305,3 +305,34 @@ textarea {
 }
 .consola ::-webkit-scrollbar { width: 8px; height: 8px; }
 .consola ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+/* ------------------------------------------------------------------
+   MI AGENDA (agenda personal, /personal): índigo, para que no se confunda con la de clínicas.
+   ------------------------------------------------------------------ */
+.mi-agenda {
+  --bg: #f5f6f9;
+  --panel: #ffffff;
+  --panel-2: #f0f1f6;
+  --line: #e2e4ec;
+  --text: #15171e;
+  --muted: #646a7a;
+  --accent: #4f46e5;
+  --accent-soft: #eceafe;
+  --danger: #c43d3d;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100dvh;
+}
+@media (prefers-color-scheme: dark) {
+  .mi-agenda {
+    --bg: #111218;
+    --panel: #181a22;
+    --panel-2: #20232d;
+    --line: #2c2f3b;
+    --text: #e9eaf0;
+    --muted: #9a9fb0;
+    --accent: #8b85ff;
+    --accent-soft: #25234a;
+    --danger: #ec7b7b;
+  }
+}

@@ -862,6 +862,100 @@ create unique index if not exists perfiles_cal_token_idx on public.perfiles (cal
 create unique index if not exists pagos_mp_unico on public.pagos (referencia) where metodo = 'mercadopago';
 
 -- =====================================================================
+-- 2.1 · AGENDA PERSONAL (sólo invitados; aparte de la agenda de clínicas)
+--   Tú das de alta el correo desde tu panel (pestaña Personales). En /login
+--   "¿Tienes agenda propia?" le manda un link a /personal. Todo es privado:
+--   cada quien ve sólo lo suyo; el compa de clínica no ve nada de esto.
+-- =====================================================================
+create table if not exists public.personales (
+  user_id      uuid primary key references public.perfiles (id) on delete cascade,
+  nombre       text,
+  activo       boolean not null default true,
+  prefs        jsonb not null default '{}'::jsonb,   -- { correo: bool }
+  password_at  timestamptz,                          -- cuándo puso su contraseña
+  enlace_at    timestamptz,                          -- último link enviado (anti-spam)
+  ultimo_acceso timestamptz,
+  pagado_hasta date,                                 -- reservado (hoy es gratis)
+  created_at   timestamptz not null default now()
+);
+alter table public.personales enable row level security;
+
+-- ¿Esta sesión tiene agenda personal activa?
+create or replace function public.soy_personal()
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.personales p where p.user_id = auth.uid() and p.activo);
+$$;
+
+drop policy if exists personales_ver on public.personales;
+create policy personales_ver on public.personales for select to authenticated using (user_id = auth.uid());
+drop policy if exists personales_editar on public.personales;
+create policy personales_editar on public.personales for update to authenticated
+  using (user_id = auth.uid() and activo) with check (user_id = auth.uid() and activo);
+-- (activo, alta y baja sólo desde el servidor)
+create or replace function public.personales_proteger()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  if auth.role() = 'authenticated' then
+    new.activo := old.activo; new.user_id := old.user_id; new.pagado_hasta := old.pagado_hasta;
+    new.created_at := old.created_at; new.enlace_at := old.enlace_at; new.password_at := old.password_at;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists personales_proteger on public.personales;
+create trigger personales_proteger before update on public.personales for each row execute function public.personales_proteger();
+
+create table if not exists public.p_categorias (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null default auth.uid() references public.perfiles (id) on delete cascade,
+  nombre     text not null check (char_length(nombre) between 1 and 40),
+  color      text not null default '#6366f1',
+  orden      int not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists p_categorias_user_idx on public.p_categorias (user_id);
+alter table public.p_categorias enable row level security;
+drop policy if exists p_categorias_propias on public.p_categorias;
+create policy p_categorias_propias on public.p_categorias for all to authenticated
+  using (user_id = auth.uid() and public.soy_personal())
+  with check (user_id = auth.uid() and public.soy_personal());
+
+create table if not exists public.p_eventos (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null default auth.uid() references public.perfiles (id) on delete cascade,
+  tipo          text not null default 'evento' check (tipo in ('evento', 'viaje', 'entrega', 'recordatorio')),
+  titulo        text not null check (char_length(titulo) between 1 and 120),
+  fecha         date not null,
+  fecha_fin     date,                 -- viajes (varios días)
+  hora_inicio   time,                 -- null = todo el día
+  hora_fin      time,
+  lugar         text check (lugar is null or char_length(lugar) <= 120),
+  notas         text check (notas is null or char_length(notas) <= 1000),
+  categoria_id  uuid references public.p_categorias (id) on delete set null,
+  hecho         boolean not null default false,   -- entregas
+  hecho_at      timestamptz,
+  repetir       text not null default 'nunca' check (repetir in ('nunca', 'diario', 'semanal', 'quincenal', 'mensual')),
+  repetir_hasta date,
+  excepciones   date[] not null default '{}',     -- días borrados de una serie
+  aviso_push_at timestamptz,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+  constraint p_eventos_fechas check (fecha_fin is null or fecha_fin >= fecha),
+  constraint p_eventos_horas check (hora_fin is null or hora_inicio is null or hora_fin > hora_inicio)
+);
+create index if not exists p_eventos_user_fecha_idx on public.p_eventos (user_id, fecha);
+alter table public.p_eventos enable row level security;
+drop policy if exists p_eventos_propios on public.p_eventos;
+create policy p_eventos_propios on public.p_eventos for all to authenticated
+  using (user_id = auth.uid() and public.soy_personal())
+  with check (user_id = auth.uid() and public.soy_personal());
+drop trigger if exists p_eventos_updated_at on public.p_eventos;
+create trigger p_eventos_updated_at before update on public.p_eventos for each row execute function public.tocar_updated_at();
+
+grant select, insert, update, delete on public.p_categorias, public.p_eventos to authenticated;
+grant select, update on public.personales to authenticated;
+
+-- =====================================================================
 -- Listo. Las cuentas nuevas se registran solas en /registro.
 -- En Supabase: Authentication → Sign In / Providers → Email:
 --   "Enable email signups" y "Confirm email" ENCENDIDOS.

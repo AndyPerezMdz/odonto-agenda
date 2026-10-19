@@ -31,11 +31,14 @@ export async function listarCuentas(db: Db): Promise<CuentaAdmin[]> {
     db.from("superadmins").select("user_id"),
   ]);
   if (error) throw new Error(error.message);
+  // Quienes sólo tienen agenda personal no son "registros a medias"
+  const { data: pers } = await db.from("personales").select("user_id");
+  const soloPersonal = new Set((pers ?? []).map((x) => x.user_id as string));
   const staff = new Set((sa ?? []).map((x) => x.user_id));
   const perfil = new Map((perfiles ?? []).map((p) => [p.id, p]));
   const uniAgenda = new Map((agendas ?? []).map((a) => [a.id, (a.universidad === "uady" ? "uady" : "upp") as Universidad]));
   return usuarios.users
-    .filter((u) => !staff.has(u.id))
+    .filter((u) => !staff.has(u.id) && !(soloPersonal.has(u.id) && !perfil.get(u.id)?.agenda_id))
     .map((u) => {
       const p = perfil.get(u.id);
       const meta = (u.user_metadata ?? {}) as { nombre?: string; universidad?: string };

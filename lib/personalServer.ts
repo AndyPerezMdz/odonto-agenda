@@ -1,0 +1,221 @@
+import "server-only";
+import type { createAdminClient } from "@/lib/supabase/admin";
+import { enviarConResend, esc, fechaEnZona } from "@/lib/recordatorios";
+import { CATEGORIAS_INICIALES, entregasPendientes, expandir, textoHora, type PEvento } from "@/lib/personal";
+import { fechaLarga } from "@/lib/fechas";
+import { sumarDias } from "@/lib/pagos";
+
+type Db = ReturnType<typeof createAdminClient>;
+
+export type PersonalAdmin = {
+  user_id: string;
+  email: string | null;
+  nombre: string | null;
+  activo: boolean;
+  password: boolean; // ya puso contraseña
+  enlace_at: string | null;
+  ultimo_acceso: string | null;
+  ultimoLogin: string | null;
+  created_at: string;
+  eventos: number;
+  tieneClinica: boolean;
+};
+
+const normal = (e: string) => e.trim().toLowerCase();
+
+/** Correo con la marca de la agenda personal (no la de clínicas). */
+export const correoPersonal = (titulo: string, cuerpo: string, boton?: { texto: string; url: string }) => `<!doctype html><html lang="es"><body style="margin:0;background:#f4f5f7;">
+  <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#14161a;">
+    <div style="background:#fff;border:1px solid #e3e5ea;border-radius:16px;padding:24px;">
+      <p style="margin:0 0 4px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#4f46e5;font-weight:bold;">Mi agenda</p>
+      <h2 style="margin:0 0 12px;font-size:21px;">${titulo}</h2>
+      ${cuerpo}
+      ${boton ? `<p style="margin:22px 0 0;"><a href="${boton.url}" style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold;">${boton.texto}</a></p>` : ""}
+    </div>
+  </div></body></html>`;
+
+async function usuarioPorCorreo(db: Db, email: string) {
+  const { data } = await db.auth.admin.listUsers({ perPage: 1000 });
+  return (data?.users ?? []).find((u) => normal(u.email ?? "") === normal(email)) ?? null;
+}
+
+/** Fila de agenda personal activa de alguien (o null). */
+export async function personalDe(db: Db, userId: string) {
+  const { data } = await db.from("personales").select("user_id,nombre,activo,prefs,password_at").eq("user_id", userId).maybeSingle();
+  return data && data.activo ? data : null;
+}
+
+/**
+ * "¿Tienes agenda propia?": si el correo está dado de alta, le manda su link de entrada.
+ * Si no, no hace nada (y la respuesta es la misma, para no revelar quién tiene agenda).
+ */
+export async function enviarEnlacePersonal(db: Db, email: string, sitio: string, opts: { forzar?: boolean } = {}): Promise<"enviado" | "nada" | "espera"> {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return "nada";
+  const u = await usuarioPorCorreo(db, email);
+  if (!u) return "nada";
+  const { data: p } = await db.from("personales").select("activo,nombre,enlace_at,password_at").eq("user_id", u.id).maybeSingle();
+  if (!p?.activo) return "nada";
+  // Anti-spam: un link por minuto
+  if (!opts.forzar && p.enlace_at && Date.now() - new Date(p.enlace_at).getTime() < 60000) return "espera";
+
+  const { data: link, error } = await db.auth.admin.generateLink({ type: "magiclink", email: u.email! });
+  if (error || !link?.properties?.hashed_token) throw new Error(error?.message ?? "No se pudo generar el link.");
+  const url = `${sitio}/auth/confirm?token_hash=${encodeURIComponent(link.properties.hashed_token)}&type=magiclink&next=/personal`;
+  const nombre = (p.nombre ?? "").split(" ")[0];
+  const sinPassword = !p.password_at;
+  await enviarConResend({
+    para: u.email!,
+    nombreRemitente: "Mi agenda",
+    asunto: "Tu link para entrar a tu agenda",
+    html: correoPersonal(
+      `${nombre ? `Hola, ${esc(nombre)}` : "Hola"}`,
+      `<p style="margin:0 0 10px;color:#4a4d55;">Toca el botón para entrar a tu agenda personal. ${sinPassword ? "La primera vez te vamos a pedir que crees tu contraseña: <b>es importante</b>, con ella entras desde cualquier cel o compu." : ""}</p>
+       <p style="margin:0;color:#4a4d55;">Tu agenda vive en <a href="${sitio}/personal" style="color:#4f46e5;">${esc(sitio.replace(/^https?:\/\//, ""))}/personal</a>: guárdala en favoritos o instálala en tu cel. Este botón sirve una sola vez y caduca en 1 hora; si se te vence, pide otro desde la página de inicio.</p>`,
+      { texto: "Entrar a mi agenda", url }
+    ),
+    texto: `Entra a tu agenda personal: ${url}\n\nTu agenda vive en ${sitio}/personal (guárdala). Este link sirve una vez y caduca en 1 hora.`,
+  });
+  await db.from("personales").update({ enlace_at: new Date().toISOString() }).eq("user_id", u.id);
+  return "enviado";
+}
+
+/** Alta desde el panel: crea la cuenta si no existe (confirmada, sin contraseña) y le da agenda personal. */
+export async function altaPersonal(db: Db, email: string, nombre: string | null): Promise<{ error?: string; user_id?: string; nueva?: boolean }> {
+  const correo = normal(email);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return { error: "Ese correo no parece válido." };
+  let u = await usuarioPorCorreo(db, correo);
+  let nueva = false;
+  if (!u) {
+    const { data, error } = await db.auth.admin.createUser({ email: correo, email_confirm: true, user_metadata: { nombre: nombre ?? correo.split("@")[0], personal: true } });
+    if (error || !data.user) return { error: error?.message ?? "No se pudo crear la cuenta." };
+    u = data.user;
+    nueva = true;
+  }
+  const { data: ya } = await db.from("personales").select("user_id").eq("user_id", u.id).maybeSingle();
+  const { error } = ya
+    ? await db.from("personales").update({ activo: true, ...(nombre ? { nombre } : {}) }).eq("user_id", u.id)
+    : await db.from("personales").insert({ user_id: u.id, activo: true, nombre: nombre ?? (u.user_metadata as { nombre?: string })?.nombre ?? null, prefs: { correo: true } });
+  if (error) return { error: error.message };
+  const { count } = await db.from("p_categorias").select("id", { count: "exact", head: true }).eq("user_id", u.id);
+  if (!count) await db.from("p_categorias").insert(CATEGORIAS_INICIALES.map((c) => ({ ...c, user_id: u!.id })));
+  return { user_id: u.id, nueva };
+}
+
+export async function listarPersonales(db: Db): Promise<PersonalAdmin[]> {
+  const [{ data: filas }, { data: usuarios }, { data: perfiles }, { data: eventos }] = await Promise.all([
+    db.from("personales").select("user_id,nombre,activo,password_at,enlace_at,ultimo_acceso,created_at").order("created_at", { ascending: false }),
+    db.auth.admin.listUsers({ perPage: 1000 }),
+    db.from("perfiles").select("id,agenda_id"),
+    db.from("p_eventos").select("user_id"),
+  ]);
+  const usr = new Map((usuarios?.users ?? []).map((u) => [u.id, u]));
+  const agenda = new Map((perfiles ?? []).map((p) => [p.id, p.agenda_id]));
+  const n = new Map<string, number>();
+  for (const e of eventos ?? []) n.set(e.user_id, (n.get(e.user_id) ?? 0) + 1);
+  return (filas ?? []).map((f) => {
+    const u = usr.get(f.user_id);
+    return {
+      user_id: f.user_id,
+      email: u?.email ?? null,
+      nombre: f.nombre,
+      activo: f.activo,
+      password: !!f.password_at,
+      enlace_at: f.enlace_at,
+      ultimo_acceso: f.ultimo_acceso,
+      ultimoLogin: u?.last_sign_in_at ?? null,
+      created_at: f.created_at,
+      eventos: n.get(f.user_id) ?? 0,
+      tieneClinica: !!agenda.get(f.user_id),
+    };
+  });
+}
+
+/** Ids de quienes tienen agenda personal (para no contarlos como "registro a medias"). */
+export async function idsPersonales(db: Db) {
+  const { data } = await db.from("personales").select("user_id");
+  return new Set((data ?? []).map((x) => x.user_id as string));
+}
+
+/* ---------------- avisos ---------------- */
+
+type Fila = PEvento & { user_id: string };
+
+async function eventosDe(db: Db, ids: string[]) {
+  if (!ids.length) return [] as Fila[];
+  const { data } = await db
+    .from("p_eventos")
+    .select("id,user_id,tipo,titulo,fecha,fecha_fin,hora_inicio,hora_fin,lugar,notas,categoria_id,hecho,hecho_at,repetir,repetir_hasta,excepciones")
+    .in("user_id", ids);
+  return (data ?? []) as Fila[];
+}
+
+/** Lo de hoy para una persona: ocurrencias de hoy (sin entregas) y entregas pendientes. */
+export function resumenDia(eventos: PEvento[], hoy: string) {
+  const deHoy = expandir(eventos, hoy, hoy).filter((o) => o.tipo !== "entrega");
+  const { vencidas, proximas } = entregasPendientes(eventos, hoy, 3);
+  return { deHoy, vencidas, proximas };
+}
+
+/** Correo de la mañana de la agenda personal (va en el mismo cron que el de clínicas). */
+export async function correosPersonales(db: Db, sitio: string) {
+  const hoy = fechaEnZona(0);
+  const { data: filas } = await db.from("personales").select("user_id,nombre,prefs,activo").eq("activo", true);
+  const activos = (filas ?? []).filter((f) => (f.prefs as { correo?: boolean } | null)?.correo !== false);
+  if (!activos.length) return [];
+  const [eventos, { data: usuarios }] = await Promise.all([eventosDe(db, activos.map((f) => f.user_id)), db.auth.admin.listUsers({ perPage: 1000 })]);
+  const correo = new Map((usuarios?.users ?? []).map((u) => [u.id, u.email]));
+  const out: { persona: string; estado: string }[] = [];
+  for (const f of activos) {
+    const para = correo.get(f.user_id);
+    const mios = eventos.filter((e) => e.user_id === f.user_id);
+    const { deHoy, vencidas, proximas } = resumenDia(mios, hoy);
+    const persona = f.nombre ?? para ?? f.user_id;
+    if (!para) { out.push({ persona, estado: "sin correo" }); continue; }
+    if (!deHoy.length && !vencidas.length && !proximas.length) { out.push({ persona, estado: "nada hoy" }); continue; }
+    const li = (t: string) => `<li style="margin:0 0 6px;">${t}</li>`;
+    const bloque = (titulo: string, items: string[]) =>
+      items.length ? `<p style="margin:16px 0 6px;font-weight:bold;">${titulo}</p><ul style="margin:0;padding-left:18px;color:#4a4d55;">${items.join("")}</ul>` : "";
+    const html = correoPersonal(
+      `Tu día: ${esc(fechaLarga(hoy))}`,
+      bloque("Hoy", deHoy.map((o) => li(`<b>${esc(textoHora(o))}</b> · ${esc(o.titulo)}${o.lugar ? ` · ${esc(o.lugar)}` : ""}${o.tipo === "viaje" ? " ✈" : ""}`))) +
+        bloque("Se te pasó", vencidas.map((e) => li(`${esc(e.titulo)} <span style="color:#b4322b;">(era el ${esc(fechaLarga(e.fecha))})</span>`))) +
+        bloque("Por entregar", proximas.map((e) => li(`${esc(e.titulo)} · ${e.fecha === hoy ? "<b>hoy</b>" : e.fecha === sumarDias(hoy, 1) ? "mañana" : esc(fechaLarga(e.fecha))}`))),
+      { texto: "Abrir mi agenda", url: `${sitio}/personal` }
+    );
+    const texto = [
+      ...deHoy.map((o) => `${textoHora(o)} · ${o.titulo}`),
+      ...vencidas.map((e) => `Se te pasó: ${e.titulo}`),
+      ...proximas.map((e) => `Por entregar: ${e.titulo} (${e.fecha})`),
+    ].join("\n");
+    try {
+      await enviarConResend({ para, nombreRemitente: "Mi agenda", asunto: deHoy.length ? `Hoy: ${deHoy.length} en tu agenda` : "Tienes entregas pendientes", html, texto, idempotencia: `personal-${f.user_id}-${hoy}` });
+      out.push({ persona, estado: "enviado" });
+    } catch (e) {
+      out.push({ persona, estado: "error: " + (e as Error).message });
+    }
+  }
+  return out;
+}
+
+/** Para el push de la mañana: { userId → texto } */
+export async function resumenesPushPersonales(db: Db) {
+  const hoy = fechaEnZona(0);
+  const { data: filas } = await db.from("personales").select("user_id").eq("activo", true);
+  const ids = (filas ?? []).map((f) => f.user_id as string);
+  const eventos = await eventosDe(db, ids);
+  const r = new Map<string, { titulo: string; cuerpo: string }>();
+  for (const id of ids) {
+    const { deHoy, vencidas, proximas } = resumenDia(eventos.filter((e) => e.user_id === id), hoy);
+    const entHoy = proximas.filter((e) => e.fecha === hoy).length;
+    if (!deHoy.length && !vencidas.length && !entHoy) continue;
+    const partes = [
+      deHoy.length ? `${deHoy.length} en tu agenda${deHoy[0].hora_inicio ? ` (la primera a las ${deHoy[0].hora_inicio.slice(0, 5)})` : ""}` : null,
+      entHoy ? `${entHoy} entrega${entHoy === 1 ? "" : "s"} hoy` : null,
+      vencidas.length ? `${vencidas.length} pendiente${vencidas.length === 1 ? "" : "s"} atrasada${vencidas.length === 1 ? "" : "s"}` : null,
+    ].filter(Boolean);
+    r.set(id, { titulo: "Tu día", cuerpo: partes.join(" · ") });
+  }
+  return r;
+}
+
+export { eventosDe as eventosPersonalesDe };

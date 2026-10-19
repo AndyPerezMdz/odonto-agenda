@@ -32,7 +32,7 @@ export default function TarjetaAvisos({ pro, esDueno }: { pro: boolean; esDueno:
   );
 }
 
-function Notificaciones() {
+export function Notificaciones({ descripcion }: { descripcion?: React.ReactNode } = {}) {
   const [estado, setEstado] = useState<"cargando" | "no-soporta" | "ios" | "bloqueado" | "apagado" | "activo">("cargando");
   const [msg, setMsg] = useState("");
   const [ocupado, setOcupado] = useState(false);
@@ -102,7 +102,7 @@ function Notificaciones() {
     <div>
       <h2 className="font-semibold">Notificaciones en este celular</h2>
       <p className="mb-3 mt-0.5 text-sm text-muted">
-        Te avisamos {AVISO_1H && <><b>1 hora antes</b> de cada cita tuya, </>}<b>cuando tu paciente confirme</b> (o diga que no puede) y en la mañana cuántas citas tienes hoy.{!AVISO_1H && " ¿Quieres alarma 1 hora antes? Agrega tu agenda a tu calendario (aquí abajo)."} Se activa en cada celular o compu por separado.
+        {descripcion ?? <>Te avisamos {AVISO_1H && <><b>1 hora antes</b> de cada cita tuya, </>}<b>cuando tu paciente confirme</b> (o diga que no puede) y en la mañana cuántas citas tienes hoy.{!AVISO_1H && " ¿Quieres alarma 1 hora antes? Agrega tu agenda a tu calendario (aquí abajo)."} Se activa en cada celular o compu por separado.</>}
       </p>
       {estado === "ios" && <p className="rounded-xl bg-panel-2 p-3 text-sm">En iPhone primero instala la agenda: en Safari toca <b>Compartir → Agregar a inicio</b>, ábrela desde ese ícono y vuelve aquí.</p>}
       {estado === "no-soporta" && <p className="rounded-xl bg-panel-2 p-3 text-sm">Este navegador no acepta notificaciones. Prueba con Chrome en Android o con la agenda instalada en iPhone.</p>}
@@ -125,7 +125,7 @@ function Notificaciones() {
   );
 }
 
-function Calendario() {
+export function Calendario({ descripcion }: { descripcion?: React.ReactNode } = {}) {
   const [link, setLink] = useState<{ url: string; webcal: string } | null>(null);
   const [msg, setMsg] = useState("");
 
@@ -149,7 +149,7 @@ function Calendario() {
     <div>
       <h2 className="font-semibold">Tu agenda en tu calendario</h2>
       <p className="mb-3 mt-0.5 text-sm text-muted">
-        Tus citas aparecen solas en Google Calendar o en el calendario del iPhone, con alarma 1 hora antes. Sólo las tuyas; se actualiza cada pocas horas (lo decide tu calendario).
+        {descripcion ?? "Tus citas aparecen solas en Google Calendar o en el calendario del iPhone, con alarma 1 hora antes. Sólo las tuyas; se actualiza cada pocas horas (lo decide tu calendario)."}
       </p>
       {!link ? (
         <button type="button" className="btn btn-sec" onClick={() => cargar()}>Obtener mi link</button>
@@ -163,7 +163,7 @@ function Calendario() {
             <b>Google Calendar:</b> en la compu, “Otros calendarios” → “+” → “Desde URL” y pega el link. <b>iPhone:</b> toca “Agregar a mi calendario”.
           </p>
           <p className="text-xs text-muted">
-            Es privado: quien tenga el link ve tus horarios y el nombre de tus pacientes.{" "}
+            Es privado: quien tenga el link ve todo lo que agendaste (nombres incluidos).{" "}
             <button type="button" className="underline hover:text-ink" onClick={() => cargar(true)}>Cambiar link</button>
           </p>
         </div>

@@ -29,5 +29,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=navegador", origin));
   }
 
+  // Link de la agenda personal vencido: que lo pida otra vez ahí mismo
+  if (next.startsWith("/personal")) return NextResponse.redirect(new URL("/personal?error=enlace", origin));
   return NextResponse.redirect(new URL("/login?error=enlace", origin));
 }
