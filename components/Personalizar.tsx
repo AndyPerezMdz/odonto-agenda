@@ -1,5 +1,7 @@
 "use client";
 
+import Shell from "@/components/Shell";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useCatalogos, useHorarios } from "@/lib/useDatos";
@@ -13,121 +15,133 @@ import TarjetaCompanero from "@/components/TarjetaCompanero";
 import TarjetaSuscripcion from "@/components/TarjetaSuscripcion";
 import TarjetaAvisos from "@/components/TarjetaAvisos";
 import Candado from "@/components/Candado";
+import GanchoMiAgenda from "@/components/personal/GanchoMiAgenda";
 
 const PALETA = ["#2f5d50", "#6366f1", "#db2777", "#ea580c", "#0891b2", "#65a30d", "#9333ea", "#b45309"];
 
 export default function Personalizar({ userId }: { userId: string }) {
-  const { supabase, perfiles, clinicas, materias, ajustes, recargar, pro } = useCatalogos();
+  const { supabase, perfiles, clinicas, materias, ajustes, recargar, pro, nombreAgenda } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
   const { horarios, recargar: recargarHorarios } = useHorarios();
   const esDueno = yo?.rol === "owner";
   const uady = esUady(ajustes.universidad); // duración por materia, materia en el horario, turnos
-  const [pestana, setPestana] = useState<"yo" | "agenda" | "suscripcion">("yo");
+  const [panel, setPanelEstado] = useState<Panel | null>(null);
 
-  // /personalizar#suscripcion (o #agenda) abre directo esa pestaña
+  // /personalizar#suscripcion, #avisos, … abre directo esa sección (los links viejos #yo y #agenda también sirven)
   useEffect(() => {
     const leer = () => {
       const h = window.location.hash.replace("#", "");
-      if (h === "suscripcion" || h === "agenda" || h === "yo") setPestana(h);
+      const alias: Record<string, Panel> = { yo: "perfil", agenda: "clinicas" };
+      const v = (alias[h] ?? h) as Panel;
+      setPanelEstado(PANELES.includes(v) ? v : null);
     };
     leer();
     window.addEventListener("hashchange", leer);
     return () => window.removeEventListener("hashchange", leer);
   }, []);
 
-  function elegir(p: "yo" | "agenda" | "suscripcion") {
-    setPestana(p);
-    history.replaceState(null, "", `#${p}`);
+  function abrir(p: Panel | null) {
+    setPanelEstado(p);
+    history.replaceState(null, "", p ? `#${p}` : "/personalizar");
+    window.scrollTo({ top: 0 });
   }
 
-  const pestanas = [
-    ["yo", "Yo"],
-    ["agenda", "Agenda"],
-    ...(esDueno ? [["suscripcion", "Suscripción"]] : []),
-  ] as ["yo" | "agenda" | "suscripcion", string][];
+  const menu: { id: Panel; t: string; d: string; ico: string; solo?: boolean }[] = [
+    { id: "perfil", t: "Mi perfil y apariencia", d: "Tu nombre, tu color, el tema y los recordatorios por correo", ico: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" },
+    { id: "avisos", t: "Notificaciones y calendario", d: "Avisos en tu cel y tus citas en Google o iPhone", ico: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" },
+    { id: "horario", t: "Mi horario de clínica", d: "Tus bloques fijos de cada semana", ico: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2" },
+    { id: "clinicas", t: uady ? "Clínicas, materias y turnos" : "Clínicas y materias", d: uady ? "Catálogos, duración por materia y cómo se turnan" : "Los catálogos que comparten tú y tu compa", ico: "M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" },
+    { id: "companero", t: "Compañero/a", d: "Invita o cambia a quien comparte tu agenda", ico: "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21c.7-3.8 3.6-6 7-6s6.3 2.2 7 6M19 8v6M16 11h6", solo: true },
+    { id: "suscripcion", t: "Suscripción", d: pro ? "Tu plan Pro y tus pagos" : "Planes de Pro y cómo pagar", ico: "M2 7h20v12H2zM2 11h20", solo: true },
+    { id: "personal", t: "Mi agenda personal", d: "Viajes, cursos y entregas, en otra agenda que sólo tú ves", ico: "M7 16 3 12l4-4M3 12h13M17 8l4 4-4 4" },
+  ];
+  const visibles = menu.filter((m) => !m.solo || esDueno);
+  const actual = visibles.find((m) => m.id === panel);
 
   return (
+    <Shell actual="personalizar" titulo={actual ? actual.t : "Personalizar"} nombreAgenda={nombreAgenda} uady={uady} esDueno={esDueno}>
     <div className="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-6">
-      <header className="mb-6 flex items-center gap-3">
-        <Link href="/" className="btn btn-sec px-2.5" aria-label="Volver">‹</Link>
-        <div className="mr-auto">
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Personalizar</h1>
-          <p className="text-sm text-muted">Ajusta la agenda sin tocar código.</p>
-        </div>
-        <Link href="/nueva-contrasena" className="btn btn-sec" title="Cambiar contraseña">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          <span className="hidden sm:inline">Cambiar contraseña</span>
-        </Link>
-      </header>
-
-      <nav className="mb-5 flex gap-1 rounded-xl border border-line bg-panel p-1 text-sm font-medium">
-        {pestanas.map(([id, t]) => (
-          <button
-            key={id}
-            onClick={() => elegir(id)}
-            className={`flex-1 rounded-lg px-3 py-2 transition ${pestana === id ? "bg-accent text-panel" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
-          >
-            {t}
-          </button>
-        ))}
-      </nav>
-
-      {/* Las pestañas se ocultan (no se desmontan) para no perder lo que llevas escrito */}
-      <div className={`flex flex-col gap-5 ${pestana === "yo" ? "" : "hidden"}`}>
-        {yo && <MiPerfil key={yo.id} supabase={supabase} yo={yo} onGuardado={recargar} pro={pro} esDueno={esDueno} />}
-        <TarjetaAvisos pro={pro} esDueno={esDueno} />
-        <MiHorario supabase={supabase} userId={userId} horarios={horarios} clinicas={clinicas} materias={materias} conMateria={uady} onCambio={recargarHorarios} />
-      </div>
-
-      {esDueno && (
-        <div className={pestana === "suscripcion" ? "" : "hidden"}>
-          <TarjetaSuscripcion />
-        </div>
+      {!actual ? (
+        <>
+          <ul className="overflow-hidden rounded-2xl border border-line bg-panel">
+            {visibles.map((m, i) => (
+              <li key={m.id} className={i ? "border-t border-line" : ""}>
+                <button onClick={() => abrir(m.id)} className="flex w-full items-center gap-4 px-4 py-3.5 text-left hover:bg-panel-2">
+                  <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${m.id === "personal" ? "bg-[#eceafe] text-[#4f46e5]" : "bg-accent-soft text-accent"}`}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={m.ico} /></svg>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium">{m.t}{m.id === "personal" && <span className="ml-2 rounded-full bg-[#4f46e5] px-1.5 py-px align-middle text-[10px] font-bold text-white">NUEVO</span>}</span>
+                    <span className="block truncate text-sm text-muted">{m.d}</span>
+                  </span>
+                  <span className="text-muted" aria-hidden>›</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <Link href="/nueva-contrasena" className="mt-3 flex items-center gap-4 rounded-2xl border border-line bg-panel px-4 py-3.5 hover:bg-panel-2">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-panel-2 text-muted">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </span>
+            <span className="flex-1 font-medium">Cambiar contraseña</span>
+            <span className="text-muted" aria-hidden>›</span>
+          </Link>
+          <p className="mt-8 text-center text-xs text-muted">
+            <Link href="/privacidad" className="hover:text-ink">Aviso de privacidad</Link> ·{" "}
+            <Link href="/terminos" className="hover:text-ink">Términos y condiciones</Link>
+          </p>
+        </>
+      ) : (
+        <>
+          <button onClick={() => abrir(null)} className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline">‹ Personalizar</button>
+          <div className="flex flex-col gap-5">
+            {panel === "perfil" && yo && <MiPerfil key={yo.id} supabase={supabase} yo={yo} onGuardado={recargar} pro={pro} esDueno={esDueno} />}
+            {panel === "avisos" && <TarjetaAvisos pro={pro} esDueno={esDueno} />}
+            {panel === "horario" && <MiHorario supabase={supabase} userId={userId} horarios={horarios} clinicas={clinicas} materias={materias} conMateria={uady} onCambio={recargarHorarios} />}
+            {panel === "companero" && esDueno && <TarjetaCompanero onCambio={recargar} />}
+            {panel === "suscripcion" && esDueno && <TarjetaSuscripcion />}
+            {panel === "personal" && <GanchoMiAgenda />}
+            {panel === "clinicas" && (
+              <>
+                {uady && <AjustesCalendario ajustes={ajustes} perfiles={perfiles} userId={userId} onCambio={recargar} pro={pro} esDueno={esDueno} />}
+                <Catalogo
+                  titulo="Clínicas"
+                  descripcion="Número o nombre de cada clínica física. Compartidas entre los dos."
+                  placeholder="Ej. Clínica 3"
+                  items={clinicas.map((c) => ({ id: c.id, nombre: c.numero, activo: c.activo }))}
+                  onAgregar={(nombre) => supabase.from("clinicas").insert({ numero: nombre })}
+                  onRenombrar={(id, nombre) => supabase.from("clinicas").update({ numero: nombre }).eq("id", id)}
+                  onToggle={(id, activo) => supabase.from("clinicas").update({ activo }).eq("id", id)}
+                  onBorrar={(id) => supabase.from("clinicas").delete().eq("id", id)}
+                  onCambio={recargar}
+                />
+                <Catalogo
+                  titulo="Materias"
+                  descripcion={uady ? "Cada materia puede tener su color, cuánto dura una cita y su lista de material (qué llevar a sus citas)." : "Cada materia puede tener su color y su lista de material (qué llevar a sus citas)."}
+                  placeholder="Ej. Prostodoncia"
+                  conColor
+                  items={materias.map((m) => ({ id: m.id, nombre: m.nombre, activo: m.activo, color: m.color, material: m.material, duracion: m.duracion_min ?? null }))}
+                  onAgregar={(nombre) => supabase.from("materias").insert({ nombre, color: PALETA[materias.length % PALETA.length] })}
+                  onRenombrar={(id, nombre) => supabase.from("materias").update({ nombre }).eq("id", id)}
+                  onColor={(id, color) => supabase.from("materias").update({ color }).eq("id", id)}
+                  onMaterial={(id, material) => supabase.from("materias").update({ material }).eq("id", id)}
+                  onDuracion={uady ? (id, duracion_min) => supabase.from("materias").update({ duracion_min }).eq("id", id) : undefined}
+                  onToggle={(id, activo) => supabase.from("materias").update({ activo }).eq("id", id)}
+                  onBorrar={(id) => supabase.from("materias").delete().eq("id", id)}
+                  onCambio={recargar}
+                />
+              </>
+            )}
+          </div>
+        </>
       )}
-
-      <div className={`flex flex-col gap-5 ${pestana === "agenda" ? "" : "hidden"}`}>
-        {esDueno && <TarjetaCompanero onCambio={recargar} />}
-
-        {uady && <AjustesCalendario ajustes={ajustes} perfiles={perfiles} userId={userId} onCambio={recargar} pro={pro} esDueno={esDueno} />}
-
-        <Catalogo
-          titulo="Clínicas"
-          descripcion="Número o nombre de cada clínica física. Compartidas entre los dos."
-          placeholder="Ej. Clínica 3"
-          items={clinicas.map((c) => ({ id: c.id, nombre: c.numero, activo: c.activo }))}
-          onAgregar={(nombre) => supabase.from("clinicas").insert({ numero: nombre })}
-          onRenombrar={(id, nombre) => supabase.from("clinicas").update({ numero: nombre }).eq("id", id)}
-          onToggle={(id, activo) => supabase.from("clinicas").update({ activo }).eq("id", id)}
-          onBorrar={(id) => supabase.from("clinicas").delete().eq("id", id)}
-          onCambio={recargar}
-        />
-
-        <Catalogo
-          titulo="Materias"
-          descripcion={uady ? "Cada materia puede tener su color, cuánto dura una cita y su lista de material (qué llevar a sus citas)." : "Cada materia puede tener su color y su lista de material (qué llevar a sus citas)."}
-          placeholder="Ej. Prostodoncia"
-          conColor
-          items={materias.map((m) => ({ id: m.id, nombre: m.nombre, activo: m.activo, color: m.color, material: m.material, duracion: m.duracion_min ?? null }))}
-          onAgregar={(nombre) =>
-            supabase.from("materias").insert({ nombre, color: PALETA[materias.length % PALETA.length] })
-          }
-          onRenombrar={(id, nombre) => supabase.from("materias").update({ nombre }).eq("id", id)}
-          onColor={(id, color) => supabase.from("materias").update({ color }).eq("id", id)}
-          onMaterial={(id, material) => supabase.from("materias").update({ material }).eq("id", id)}
-          onDuracion={uady ? (id, duracion_min) => supabase.from("materias").update({ duracion_min }).eq("id", id) : undefined}
-          onToggle={(id, activo) => supabase.from("materias").update({ activo }).eq("id", id)}
-          onBorrar={(id) => supabase.from("materias").delete().eq("id", id)}
-          onCambio={recargar}
-        />
-      </div>
-
-      <p className="mt-8 text-center text-xs text-muted">
-        <Link href="/privacidad" className="hover:text-ink">Aviso de privacidad</Link> ·{" "}
-        <Link href="/terminos" className="hover:text-ink">Términos y condiciones</Link>
-      </p>
     </div>
+    </Shell>
   );
 }
+
+type Panel = "perfil" | "avisos" | "horario" | "clinicas" | "companero" | "suscripcion" | "personal";
+const PANELES: Panel[] = ["perfil", "avisos", "horario", "clinicas", "companero", "suscripcion", "personal"];
 
 /* ---------------------------------------------------------------- */
 

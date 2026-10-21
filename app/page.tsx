@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { esSuperadmin } from "@/lib/admin";
@@ -26,6 +27,9 @@ export default async function Home() {
     if (await personalDe(db, user.id)) redirect("/personal");
     return <SinAgenda />;
   }
+
+  // Tiene las dos agendas: entra a la última que usó (la cookie la pone cada agenda al abrirse)
+  if ((await cookies()).get("ultima_agenda")?.value === "personal" && (await personalDe(createAdminClient(), user.id))) redirect("/personal");
 
   return (
     <SoloNavegador>

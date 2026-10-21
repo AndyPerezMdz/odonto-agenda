@@ -1,5 +1,8 @@
 "use client";
 
+import Shell from "@/components/Shell";
+import { esUady } from "@/lib/universidades";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useCatalogos } from "@/lib/useDatos";
@@ -11,7 +14,7 @@ import BancoPacientes from "@/components/BancoPacientes";
 
 // /pacientes: los que ya atiendes (con historia y folios) y los que tienes por conseguir.
 export default function PaginaPacientes({ userId }: { userId: string }) {
-  const { supabase, perfiles, clinicas, materias, pro } = useCatalogos();
+  const { supabase, perfiles, clinicas, materias, pro, nombreAgenda, ajustes } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
   const p = prefs(yo?.preferencias);
   const [tab, setTab] = useState<"mis" | "banco">("mis");
@@ -30,11 +33,10 @@ export default function PaginaPacientes({ userId }: { userId: string }) {
   }
 
   return (
+    <Shell actual="pacientes" titulo="Pacientes" nombreAgenda={nombreAgenda} uady={esUady(ajustes.universidad)} esDueno={perfiles.find((x) => x.id === userId)?.rol === "owner"}>
     <div className="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-6">
       <header className="mb-5 flex items-center gap-3">
-        <Link href="/" className="btn btn-sec px-2.5" aria-label="Volver">‹</Link>
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Pacientes</h1>
+                <div>
           <p className="text-sm text-muted">{tab === "mis" ? "Tus pacientes con su No. de historia clínica y los folios de cada tratamiento." : "Gente por conseguir o en espera, para cuando te falte un caso."}</p>
         </div>
       </header>
@@ -67,5 +69,6 @@ export default function PaginaPacientes({ userId }: { userId: string }) {
         <BancoPacientes userId={userId} embebido />
       )}
     </div>
+    </Shell>
   );
 }

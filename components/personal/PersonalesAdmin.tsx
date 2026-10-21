@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { PersonalAdmin } from "@/lib/personalServer";
+import type { PersonalAdmin, SolicitudAdmin } from "@/lib/personalServer";
 
 const hace = (iso: string | null) => {
   if (!iso) return "nunca";
@@ -18,12 +18,15 @@ export default function PersonalesAdmin({ onAviso }: { onAviso: (m: string) => v
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [borrar, setBorrar] = useState<string | null>(null);
+  const [solicitudes, setSolicitudes] = useState<SolicitudAdmin[]>([]);
 
   const cargar = useCallback(async () => {
     const r = await fetch("/api/admin/personales", { cache: "no-store" });
     const d = await r.json().catch(() => ({}));
     if (r.ok) setLista(d.personales);
     else setError(d.error ?? "No se pudo cargar.");
+    const rs = await fetch("/api/admin/personales/solicitudes", { cache: "no-store" });
+    if (rs.ok) setSolicitudes((await rs.json()).solicitudes ?? []);
   }, []);
   useEffect(() => {
     cargar();
@@ -52,10 +55,28 @@ export default function PersonalesAdmin({ onAviso }: { onAviso: (m: string) => v
 
   return (
     <div className="flex flex-col gap-4">
+      {solicitudes.length > 0 && (
+        <section className="rounded-2xl border-2 border-accent bg-panel p-4 sm:p-5">
+          <h2 className="font-semibold">Quieren Mi agenda <span className="ml-1 rounded-full bg-danger px-1.5 text-[11px] text-panel">{solicitudes.length}</span></h2>
+          <p className="mb-3 mt-0.5 text-sm text-muted">Lo pidieron desde su agenda de clínicas (“La quiero”). Al aprobar se les activa y les llega su link.</p>
+          <ul className="divide-y divide-line rounded-xl border border-line">
+            {solicitudes.map((x) => (
+              <li key={x.user_id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{x.nombre || x.email}</p>
+                  <p className="truncate text-xs text-muted">{x.email} · pidió {hace(x.created_at)}{x.tieneClinica ? " · usa clínicas" : ""}</p>
+                </div>
+                <button className="btn btn-primario py-1 text-xs" disabled={!!ocupado} onClick={() => llamar("/api/admin/personales/solicitudes", "POST", { user_id: x.user_id, accion: "aprobar" }, `Aprobada: le llegó su link a ${x.email}.`, x.user_id)}>Aprobar</button>
+                <button className="btn btn-sec py-1 text-xs" disabled={!!ocupado} onClick={() => llamar("/api/admin/personales/solicitudes", "POST", { user_id: x.user_id, accion: "descartar" }, "Solicitud descartada.", x.user_id)}>Descartar</button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
         <h2 className="font-semibold">Dar de alta una agenda personal</h2>
         <p className="mb-3 mt-0.5 text-sm text-muted">
-          Sólo quien esté aquí puede pedir su link en “¿Tienes agenda propia?”. Si el correo ya tiene cuenta (por ejemplo, de clínicas), es la misma cuenta y puede cambiar entre sus dos agendas.
+          Sólo quien esté aquí tiene Mi agenda. Entra por el mismo login (o con “Entrar con un link a mi correo”). Si el correo ya tiene cuenta de clínicas, es la misma cuenta y cambia entre sus dos agendas.
         </p>
         <form onSubmit={alta} className="flex flex-wrap items-center gap-2">
           <input type="email" required className="campo min-w-0 flex-[2]" style={{ width: "auto" }} placeholder="correo@ejemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} />

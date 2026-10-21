@@ -1,5 +1,7 @@
 "use client";
 
+import Shell from "@/components/Shell";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useCatalogos, useCitas, useHorarios, usePacientes } from "@/lib/useDatos";
@@ -14,7 +16,7 @@ import { pesos, sumarDias } from "@/lib/pagos";
 
 // "Mi avance": cuántos casos lleva cada quien por materia en el cuatrimestre, contra la meta.
 export default function Avance({ userId }: { userId: string }) {
-  const { supabase, perfiles, materias, ajustes, recargar: recargarCatalogos, pro } = useCatalogos();
+  const { supabase, perfiles, materias, ajustes, recargar: recargarCatalogos, pro, nombreAgenda } = useCatalogos();
   const [pidePro, setPidePro] = useState<string | null>(null); // 2.0: historial, PDF, cobros y ritmo son de Pro
   const soloPro = (que: string, accion: () => void) => (pro ? accion() : setPidePro(que));
   const { horarios } = useHorarios();
@@ -125,11 +127,10 @@ export default function Avance({ userId }: { userId: string }) {
   }
 
   return (
+    <Shell actual="avance" titulo="Mi avance" nombreAgenda={nombreAgenda} uady={esUady(ajustes.universidad)} esDueno={perfiles.find((x) => x.id === userId)?.rol === "owner"}>
     <div className="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-6">
       <header className="no-imprimir mb-5 flex items-center gap-3">
-        <Link href="/" className="btn btn-sec px-2.5" aria-label="Volver">‹</Link>
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Mi avance</h1>
+                <div>
           <p className="text-sm text-muted">Casos atendidos por materia.</p>
         </div>
         <button onClick={() => soloPro("El PDF para tus doctores", () => window.print())} className="btn btn-sec ml-auto" title="Imprime o guarda en PDF la lista de casos atendidos">
@@ -329,6 +330,7 @@ export default function Avance({ userId }: { userId: string }) {
         <p style={{ fontSize: 10, color: "#999", marginTop: 24 }}>Generado con Agenda de clínicas. Sólo incluye citas marcadas como “Asistió”.</p>
       </div>
     </div>
+    </Shell>
   );
 }
 

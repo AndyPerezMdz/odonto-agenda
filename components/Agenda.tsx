@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCatalogos, useCitas, useHorarios, usePacientes } from "@/lib/useDatos";
 import { bloquesDelDia, huecos } from "@/lib/horario";
-import { prefs, type Cita, type Horario } from "@/lib/types";
+import { prefs, type Cita, type Clinica, type Horario, type Materia, type Perfil } from "@/lib/types";
 import { rangoDe } from "@/lib/cuatrimestre";
 import { inicioClinicas, rolDelBloque, tramosPorHora, type Turnos } from "@/lib/ritmo";
 import AvisosMaterial from "@/components/AvisosMaterial";
@@ -22,6 +22,7 @@ import { aplicarTema, type MarcadorId } from "@/lib/tema";
 import MarcadorHoy from "@/components/MarcadorHoy";
 import CuatriModal from "@/components/CuatriModal";
 import BannerPlan from "@/components/BannerPlan";
+import Shell from "@/components/Shell";
 import PanelHoy from "@/components/PanelHoy";
 import AceptarTerminos from "@/components/AceptarTerminos";
 import { sumarDias } from "@/lib/pagos";
@@ -57,6 +58,13 @@ export default function Agenda({ userId }: { userId: string }) {
   const [buscando, setBuscando] = useState(false);
   const [sugerir, setSugerir] = useState(false);
   const [vista, setVista] = useState<"mes" | "lista">("mes");
+  // 2.2: "Hoy" (inicio) y "Agenda" (calendario) viven en la misma página
+  const [seccion, setSeccionEstado] = useState<"hoy" | "agenda">("hoy");
+  function setSeccion(s: "hoy" | "agenda") {
+    setSeccionEstado(s);
+    history.replaceState(null, "", s === "agenda" ? "/?v=agenda" : "/");
+    window.scrollTo({ top: 0 });
+  }
 
   // Recuerda si prefieres ver el mes o la lista (sólo en este navegador)
   useEffect(() => {
@@ -84,11 +92,16 @@ export default function Agenda({ userId }: { userId: string }) {
     setMes(d.getMonth());
     setSeleccionado(iso);
     setBuscando(false);
+    setSeccion("agenda");
     if (vista === "lista") cambiarVista("mes");
   }
 
   const { supabase, perfiles, clinicas, materias, nombreAgenda, pagadoHasta, ajustes, recargar: recargarCatalogos, pro, quedanPro, cargando } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
+  // Recordar que la última agenda que usó fue la de clínicas (para el login único)
+  useEffect(() => {
+    document.cookie = "ultima_agenda=clinicas; path=/; max-age=31536000; samesite=lax";
+  }, []);
   // ¿También tiene agenda personal? (botón para cambiar)
   const [tienePersonal, setTienePersonal] = useState(false);
   useEffect(() => {
@@ -147,7 +160,11 @@ export default function Agenda({ userId }: { userId: string }) {
   );
   const columnas = p.ocultarFinDeSemana ? 5 : 7;
 
-  const { citas, recargar: recargarCitas } = useCitas(aISO(dias[0]), aISO(dias[dias.length - 1]));
+  // El mes que ves + una semana antes y después de hoy (para "Hoy")
+  const hoyRango = hoyISO();
+  const desdeC = [aISO(dias[0]), sumarDias(hoyRango, -7)].sort()[0];
+  const hastaC = [aISO(dias[dias.length - 1]), sumarDias(hoyRango, 7)].sort()[1];
+  const { citas, recargar: recargarCitas } = useCitas(desdeC, hastaC);
   const { horarios } = useHorarios();
   const { pacientes } = usePacientes();
   const duenoFiltro = filtro === "todos" ? undefined : filtro;
@@ -172,8 +189,14 @@ export default function Agenda({ userId }: { userId: string }) {
       setMes(d.getMonth());
       setSeleccionado(dia);
       setVista("mes");
-      history.replaceState(null, "", "/");
+      setSeccionEstado("agenda");
+      history.replaceState(null, "", "/?v=agenda");
+      return;
     }
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("v") === "agenda") setSeccionEstado("agenda");
+    if (q.get("buscar") === "1") { setBuscando(true); history.replaceState(null, "", "/"); }
+    if (q.get("nueva") === "1") { setModal({ cita: null, fecha: hoyISO() }); history.replaceState(null, "", "/"); }
   }, []);
 
   // Turnos de la pareja: ¿a quién le toca operar en cada bloque?
@@ -205,6 +228,11 @@ export default function Agenda({ userId }: { userId: string }) {
   }, [citasFiltradas]);
 
   const citasDelDia = porDia.get(seleccionado) ?? [];
+  const porDiaTodos = useMemo(() => {
+    const m = new Map<string, Cita[]>();
+    for (const c of citas) m.set(c.fecha, [...(m.get(c.fecha) ?? []), c]);
+    return m;
+  }, [citas]);
 
   function moverMes(delta: number) {
     const d = new Date(anio, mes + delta, 1);
@@ -227,113 +255,47 @@ export default function Agenda({ userId }: { userId: string }) {
   const hoyStr = hoyISO();
 
   return (
-    <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6">
-      {/* Encabezado */}
-      <header className="mb-5 flex flex-wrap items-center gap-3">
-        <div className="mr-auto">
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{nombreAgenda || "Agenda"}</h1>
-          {yo && <p className="text-sm text-muted">Hola, {yo.nombre}</p>}
-        </div>
-        {yo?.rol === "owner" && !cortesia && !cargando && (
-          <span className="hidden sm:contents">
-          <Link
-            href="/personalizar#suscripcion"
-            className={`btn btn-sec ${!pro ? "border-accent text-accent" : urgePlan ? "border-danger text-danger" : ""}`}
-            title="Suscripción y pagos"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
-            {etiquetaPlan}
-          </Link>
-          </span>
-        )}
-        {sinLeer && (
-          <span className="hidden sm:contents">
-            <button onClick={() => setNovedades("nuevas")} className="btn btn-sec relative border-accent text-accent" title="Lo nuevo de la agenda">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>
-              Novedades
-              <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-accent" />
-            </button>
-          </span>
-        )}
-        <button onClick={() => setBuscando(true)} className="btn btn-sec" title="Buscar paciente">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          <span className={uady ? "hidden 2xl:inline" : "hidden sm:inline"}>Buscar</span>
-        </button>
-        <span className="hidden sm:contents">
-          <Link href="/pacientes" className="btn btn-sec" title="Mis pacientes y banco de pacientes">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.4 3.2-5.5 6.5-5.5s5.9 2.1 6.5 5.5"/><path d="M19 8v6M16 11h6"/></svg>
-            Pacientes
-          </Link>
-          {uady && <Link href="/material" className="btn btn-sec" title="Mi material y CEyE">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M12 11v5M9.5 13.5h5"/></svg>
-            Material
-          </Link>}
-        </span>
-        <Link href="/avance" className="btn btn-sec" title="Mi avance por materia">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
-          <span className="hidden sm:inline">Mi avance</span>
-        </Link>
-        <span className="hidden sm:contents">
-        <a href={manualDe(ajustes.universidad)} target="_blank" rel="noopener noreferrer" className="btn btn-sec" title="Manual de usuario">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg>
-          <span className={uady ? "hidden 2xl:inline" : ""}>Manual</span>
-        </a>
-        {tienePersonal && (
-          <Link href="/personal" className="btn btn-sec" title="Cambiar a tu agenda personal">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 16 3 12l4-4M3 12h13M17 8l4 4-4 4"/></svg>
-            <span className="hidden 2xl:inline">Mi agenda</span>
-          </Link>
-        )}
-        <Link href="/personalizar" className="btn btn-sec">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
-          Personalizar
-        </Link>
-        <button onClick={salir} className="btn btn-sec" title="Cerrar sesión">Salir</button>
-        </span>
-
-        {/* Celular: lo demás va en un menú */}
-        <div className="relative sm:hidden">
-          <button onClick={() => setMenu(!menu)} className="btn btn-sec relative" aria-label="Más opciones" aria-expanded={menu}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
-            {yo?.rol === "owner" && urgePlan ? (
-              <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-danger" />
-            ) : sinLeer ? (
-              <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-accent" />
-            ) : null}
-          </button>
-          {menu && (
+    <Shell
+      actual={seccion}
+      titulo={seccion === "hoy" ? "Hoy" : "Agenda"}
+      nombreAgenda={nombreAgenda}
+      uady={uady}
+      esDueno={yo?.rol === "owner"}
+      onSeccion={setSeccion}
+      onNueva={() => setModal({ cita: null, fecha: seccion === "agenda" && seleccionado >= hoyStr ? seleccionado : hoyStr })}
+      onBuscar={() => setBuscando(true)}
+      novedadesSinLeer={sinLeer}
+      onNovedades={() => setNovedades(sinLeer ? "nuevas" : "todas")}
+      tourListo={!!yo?.acepto_terminos_at && !sinLeer && novedades === null && cuatriAbierto !== true && invitacionAbierta !== true && !modal}
+    >
+      {seccion === "hoy" && yo && (
+        <SeccionHoy
+          nombre={yo.nombre}
+          hoy={hoyStr}
+          citas={citas}
+          userId={userId}
+          porDia={porDiaTodos}
+          perfilPorId={perfilPorId}
+          clinicaPorId={clinicaPorId}
+          materiaPorId={materiaPorId}
+          supabase={supabase}
+          pro={pro}
+          onAbrir={(c) => setModal({ cita: c, fecha: c.fecha })}
+          onCambio={recargarCitas}
+          onAgenda={() => setSeccion("agenda")}
+          ganchoPersonal={!tienePersonal}
+          antes={
             <>
-              <div className="fixed inset-0 z-30" onClick={() => setMenu(false)} />
-              <div className="absolute right-0 z-40 mt-2 w-56 overflow-hidden rounded-xl border border-line bg-panel py-1 text-sm shadow-xl">
-                {yo?.rol === "owner" && !cortesia && !cargando && (
-                  <Link href="/personalizar#suscripcion" className={`block px-4 py-2.5 hover:bg-panel-2 ${urgePlan ? "text-accent" : ""}`}>
-                    {etiquetaPlan}
-                  </Link>
-                )}
-                <button onClick={() => { setMenu(false); setNovedades(sinLeer ? "nuevas" : "todas"); }} className="flex w-full items-center justify-between px-4 py-2.5 text-left hover:bg-panel-2">
-                  Novedades
-                  {sinLeer && <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-medium text-panel">Nuevo</span>}
-                </button>
-                <Link href="/pacientes" className="block px-4 py-2.5 hover:bg-panel-2">Pacientes</Link>
-                {uady && <Link href="/material" className="block px-4 py-2.5 hover:bg-panel-2">Mi material</Link>}
-                {tienePersonal && <Link href="/personal" className="block px-4 py-2.5 hover:bg-panel-2">Mi agenda personal</Link>}
-                <Link href="/personalizar" className="block px-4 py-2.5 hover:bg-panel-2">Personalizar</Link>
-                <button onClick={() => { setMenu(false); setVerInstalar(true); }} className="block w-full px-4 py-2.5 text-left hover:bg-panel-2">Instalar como app</button>
-                <a href={manualDe(ajustes.universidad)} target="_blank" rel="noopener noreferrer" className="block px-4 py-2.5 hover:bg-panel-2">Manual</a>
-                <button onClick={() => { setMenu(false); setSugerir(true); }} className="block w-full px-4 py-2.5 text-left hover:bg-panel-2">¿Qué le falta?</button>
-                <button onClick={salir} className="block w-full border-t border-line px-4 py-2.5 text-left text-danger hover:bg-panel-2">Salir</button>
-              </div>
+              <BannerPlan pro={pro} quedan={quedanPro} esDueno={yo?.rol === "owner"} cargando={cargando} />
+              {uady && pro && <AvisosMaterial userId={userId} horarios={horarios} perfiles={perfiles} compacto />}
             </>
-          )}
-        </div>
-      </header>
+          }
+          panel={<PanelHoy citas={citas} userId={userId} hoy={hoyStr} clinicaPorId={clinicaPorId} materiaPorId={materiaPorId} onAbrir={(c) => setModal({ cita: c, fecha: c.fecha })} />}
+        />
+      )}
 
-      <BannerPlan pro={pro} quedan={quedanPro} esDueno={yo?.rol === "owner"} cargando={cargando} />
-      <Anuncios supabase={supabase} />
-      {uady && pro && <AvisosMaterial userId={userId} horarios={horarios} perfiles={perfiles} compacto />}
-      <InstalarApp />
-      <PanelHoy citas={citas} userId={userId} hoy={hoyStr} clinicaPorId={clinicaPorId} materiaPorId={materiaPorId} onAbrir={(c) => setModal({ cita: c, fecha: c.fecha })} />
-
+      {seccion === "agenda" && (
+      <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-5">
       <div className={`grid gap-5 ${vista === "mes" ? "lg:grid-cols-[1fr_340px]" : ""}`}>
         {/* Calendario */}
         <section className="rounded-2xl border border-line bg-panel p-3 sm:p-4">
@@ -355,9 +317,6 @@ export default function Agenda({ userId }: { userId: string }) {
                 </button>
               ))}
             </div>
-            {vista === "lista" && !soloLectura && (
-              <button className="btn btn-primario py-1 text-xs" onClick={() => setModal({ cita: null, fecha: hoyStr })}>+ Cita</button>
-            )}
 
             {/* Filtro por persona */}
             <div className="ml-auto flex flex-wrap gap-1.5">
@@ -391,7 +350,6 @@ export default function Agenda({ userId }: { userId: string }) {
                   onCambio={recargarCitas}
                 />
               )}
-              onNueva={soloLectura ? undefined : (iso) => setModal({ cita: null, fecha: iso })}
               extra={(iso) =>
                 bloquesDelDia(horarios, iso, duenoFiltro).map((b) => (
                   <p key={b.id} className="mb-1.5 flex items-center gap-2 text-xs text-muted">
@@ -490,8 +448,8 @@ export default function Agenda({ userId }: { userId: string }) {
               <p className="text-xs uppercase tracking-wide text-muted">Día seleccionado</p>
               <h3 className="text-lg font-semibold first-letter:uppercase">{fechaLarga(seleccionado)}</h3>
             </div>
-            <button className="btn btn-primario shrink-0" disabled={soloLectura} title={soloLectura ? "Agenda en sólo lectura" : undefined} onClick={() => setModal({ cita: null, fecha: seleccionado })}>
-              + Cita
+            <button className="btn btn-sec shrink-0 px-2.5" disabled={soloLectura} title="Agendar este día" aria-label="Agendar este día" onClick={() => setModal({ cita: null, fecha: seleccionado })}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
             </button>
           </div>
 
@@ -532,6 +490,7 @@ export default function Agenda({ userId }: { userId: string }) {
           {citasDelDia.length === 0 ? (
             <div className="rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted">
               {filtro === "todos" ? "Nadie tiene citas este día." : "Sin citas este día."}
+              <br /><span className="text-xs">Toca <b>+</b> para agendar.</span>
             </div>
           ) : (
             <ul className="flex flex-col gap-2">
@@ -558,19 +517,8 @@ export default function Agenda({ userId }: { userId: string }) {
         )}
       </div>
 
-      {/* Pie: versión, novedades e instalar (siempre a la mano) */}
-      <footer className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-muted">
-        <Link href={`/novedades${uady ? "?u=uady" : ""}`} className="hover:text-ink">Agenda de clínicas · versión {APP_VERSION}</Link>
-        <span aria-hidden>·</span>
-        <button onClick={() => setNovedades(sinLeer ? "nuevas" : "todas")} className="inline-flex items-center gap-1 hover:text-ink">
-          Novedades
-          {sinLeer && <span className="h-2 w-2 rounded-full bg-accent" />}
-        </button>
-        <span aria-hidden>·</span>
-        <button onClick={() => setVerInstalar(true)} className="hover:text-ink">Instalar como app</button>
-        <span aria-hidden>·</span>
-        <button onClick={() => setSugerir(true)} className="font-medium text-accent hover:underline">¿Qué le falta a tu agenda?</button>
-      </footer>
+      </div>
+      )}
 
       {yo && !yo.acepto_terminos_at && (
         <AceptarTerminos supabase={supabase} userId={userId} onAceptado={recargarCatalogos} />
@@ -635,7 +583,7 @@ export default function Agenda({ userId }: { userId: string }) {
           }}
         />
       )}
-    </div>
+    </Shell>
   );
 }
 
@@ -723,5 +671,117 @@ function ChipTurno({ rol, b, mio, nombre, inicia }: { rol: "opera" | "asiste" | 
     <span className={`ml-1 inline-block rounded-full px-2 py-0.5 align-middle text-[10px] font-medium ${rol === "opera" ? "bg-accent-soft text-accent" : "bg-panel-2 text-muted"}`}>
       {rol === "opera" ? (mio ? "Operas tú" : `Opera ${quien}`) : mio ? "Te toca asistir" : `${quien} asiste`}
     </span>
+  );
+}
+
+/* ---------------------------------------------------------------- */
+
+/** 2.2 · Inicio: tu día, lo que falta marcar y los próximos días. */
+function SeccionHoy({
+  nombre, hoy, citas, userId, porDia, perfilPorId, clinicaPorId, materiaPorId, supabase, pro, onAbrir, onCambio, onAgenda, antes, panel, ganchoPersonal,
+}: {
+  ganchoPersonal: boolean;
+  nombre: string;
+  hoy: string;
+  citas: Cita[];
+  userId: string;
+  porDia: Map<string, Cita[]>;
+  perfilPorId: Map<string, Perfil>;
+  clinicaPorId: Map<string, Clinica>;
+  materiaPorId: Map<string, Materia>;
+  supabase: ReturnType<typeof useCatalogos>["supabase"];
+  pro: boolean;
+  onAbrir: (c: Cita) => void;
+  onCambio: () => void;
+  onAgenda: () => void;
+  antes: React.ReactNode;
+  panel: React.ReactNode;
+}) {
+  const misHoy = citas.filter((c) => c.fecha === hoy && c.owner_id === userId && c.estado !== "cancelo");
+  const sinMarcar = citas
+    .filter((c) => c.owner_id === userId && !c.estado && c.fecha < hoy && c.fecha >= sumarDias(hoy, -7))
+    .sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const proximos = Array.from({ length: 8 }, (_, i) => sumarDias(hoy, i)).filter((d) => (porDia.get(d)?.length ?? 0) > 0);
+  const tarjeta = (c: Cita) => (
+    <TarjetaCita
+      key={c.id}
+      cita={c}
+      userId={userId}
+      hoy={hoy}
+      dueno={perfilPorId.get(c.owner_id)}
+      clinica={c.clinica_id ? clinicaPorId.get(c.clinica_id) : null}
+      materia={c.materia_id ? materiaPorId.get(c.materia_id) : null}
+      supabase={supabase}
+      pro={pro}
+      onAbrir={() => onAbrir(c)}
+      onCambio={onCambio}
+    />
+  );
+
+  return (
+    <div className="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-5">
+      <p className="mb-4 text-sm text-muted first-letter:uppercase">
+        Hola, <b className="text-ink">{nombre.split(" ")[0]}</b> · {fechaLarga(hoy)}
+      </p>
+      {antes}
+
+      {misHoy.length > 0 ? (
+        panel
+      ) : (
+        <section className="mb-5 rounded-2xl border border-dashed border-line bg-panel p-5 text-center">
+          <p className="font-semibold">Hoy no tienes citas</p>
+          <p className="mt-1 text-sm text-muted">Toca <b className="text-ink">+</b> abajo para agendar una.</p>
+        </section>
+      )}
+
+      {sinMarcar.length > 0 && (
+        <section className="mb-6">
+          <h2 className="mb-1 font-semibold">Te falta marcar</h2>
+          <p className="mb-2 text-sm text-muted">¿Llegaron? Sólo cuentan para tu avance las que marques como <b className="text-ink">Asistió</b>.</p>
+          <div className="flex flex-col gap-2">{sinMarcar.slice(0, 5).map(tarjeta)}</div>
+        </section>
+      )}
+
+      <section>
+        <div className="mb-2 flex items-baseline justify-between">
+          <h2 className="font-semibold">Próximos días</h2>
+          <button onClick={onAgenda} className="text-sm font-medium text-accent hover:underline">Ver la agenda completa</button>
+        </div>
+        {proximos.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted">Nada agendado esta semana.</p>
+        ) : (
+          <div className="flex flex-col gap-5">
+            {proximos.map((d) => (
+              <div key={d}>
+                <p className="mb-1.5 text-sm font-semibold first-letter:uppercase">
+                  {d === hoy ? "Hoy · " : d === sumarDias(hoy, 1) ? "Mañana · " : ""}
+                  {fechaLarga(d)}
+                </p>
+                <div className="flex flex-col gap-2">{(porDia.get(d) ?? []).map(tarjeta)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+      {ganchoPersonal && <PistaMiAgenda />}
+    </div>
+  );
+}
+
+/** De vez en cuando, en Hoy: "¿Tienes entregas esta semana?" → Mi agenda. Se cierra por un mes. */
+function PistaMiAgenda() {
+  const clave = `pista-mi-agenda-${new Date().toISOString().slice(0, 7)}`;
+  const [ver, setVer] = useState(false);
+  useEffect(() => {
+    try { setVer(localStorage.getItem(clave) !== "1"); } catch { setVer(false); }
+  }, [clave]);
+  if (!ver) return null;
+  return (
+    <div className="mt-8 flex items-center gap-3 rounded-2xl border border-[#4f46e5]/30 bg-[#eceafe] px-4 py-3 text-sm text-[#15123a] dark:bg-[#25234a] dark:text-[#e9eaf0]">
+      <span className="rounded-full bg-[#4f46e5] px-1.5 py-px text-[10px] font-bold text-white">NUEVO</span>
+      <p className="min-w-0 flex-1">¿Tienes entregas o viajes esta semana? Llévalos en <b>Mi agenda</b>, aparte de tus pacientes.</p>
+      <Link href="/personalizar#personal" className="shrink-0 font-semibold text-[#4f46e5] hover:underline dark:text-[#b3afff]">Ver</Link>
+      <button onClick={() => { try { localStorage.setItem(clave, "1"); } catch {} setVer(false); }} className="shrink-0 px-1 text-lg leading-none opacity-60 hover:opacity-100" aria-label="Cerrar">×</button>
+    </div>
   );
 }

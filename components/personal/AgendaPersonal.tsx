@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePersonal } from "@/lib/usePersonal";
 import { aISO, deISO, diasDelMes, DIAS_CORTOS_LUNES, fechaLarga, hoyISO, MESES } from "@/lib/fechas";
@@ -10,8 +10,8 @@ import EventoModal from "@/components/personal/EventoModal";
 
 type Modal = { evento: PEvento | Ocurrencia | null; fecha: string; tipo?: TipoEvento };
 
-export default function AgendaPersonal({ userId, nombre, tieneClinica }: { userId: string; nombre: string; tieneClinica: boolean }) {
-  const { supabase, eventos, categorias, error, recargar } = usePersonal();
+export default function AgendaPersonal({ userId, nombre, tieneClinica, demo = false }: { userId: string; nombre: string; tieneClinica: boolean; demo?: boolean }) {
+  const { supabase, eventos, categorias, error, recargar, setEventos } = usePersonal(demo);
   const hoy = hoyISO();
   const [anio, setAnio] = useState(deISO(hoy).getFullYear());
   const [mes, setMes] = useState(deISO(hoy).getMonth());
@@ -20,6 +20,11 @@ export default function AgendaPersonal({ userId, nombre, tieneClinica }: { userI
   const [ocultas, setOcultas] = useState<Set<string>>(new Set());
   const [modal, setModal] = useState<Modal | null>(null);
   const [menu, setMenu] = useState(false);
+
+  useEffect(() => {
+    if (!demo) document.cookie = "ultima_agenda=personal; path=/; max-age=31536000; samesite=lax";
+  }, [demo]);
+  const aClinicas = () => { document.cookie = "ultima_agenda=clinicas; path=/; max-age=31536000; samesite=lax"; };
 
   const catPorId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias]);
   const visibles = useMemo(() => (eventos ?? []).filter((e) => !e.categoria_id || !ocultas.has(e.categoria_id)), [eventos, ocultas]);
@@ -54,6 +59,10 @@ export default function AgendaPersonal({ userId, nombre, tieneClinica }: { userI
     recargar();
   }
   async function marcar(e: PEvento, hecho: boolean) {
+    if (demo) {
+      setEventos((l) => (l ?? []).map((x) => (x.id === e.id ? { ...x, hecho } : x)));
+      return;
+    }
     await supabase.from("p_eventos").update({ hecho, hecho_at: hecho ? new Date().toISOString() : null }).eq("id", e.id);
     recargar();
   }
@@ -66,13 +75,14 @@ export default function AgendaPersonal({ userId, nombre, tieneClinica }: { userI
 
   return (
     <div className="mx-auto max-w-6xl px-3 py-4 sm:px-6 sm:py-6">
+      {demo && <BannerDemo />}
       <header className="mb-5 flex flex-wrap items-center gap-3">
         <div className="mr-auto">
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Mi agenda</h1>
           <p className="text-sm text-muted">{nombre ? `Hola, ${nombre}` : "Tu agenda personal"}</p>
         </div>
-        <div className="hidden items-center gap-2 sm:flex">
-          {tieneClinica && <Link href="/" className="btn btn-sec" title="Cambiar a tu agenda de clínicas">🦷 Agenda de clínicas</Link>}
+        {!demo && <><div className="hidden items-center gap-2 sm:flex">
+          {tieneClinica && <Link href="/" onClick={aClinicas} className="btn btn-sec" title="Cambiar a tu agenda de clínicas">Agenda de clínicas</Link>}
           <Link href="/personal/ajustes" className="btn btn-sec">Ajustes</Link>
           <form action="/auth/salir" method="post"><button className="btn btn-sec">Salir</button></form>
         </div>
@@ -84,13 +94,13 @@ export default function AgendaPersonal({ userId, nombre, tieneClinica }: { userI
             <>
               <div className="fixed inset-0 z-30" onClick={() => setMenu(false)} />
               <div className="absolute right-0 z-40 mt-2 w-56 overflow-hidden rounded-xl border border-line bg-panel py-1 text-sm shadow-xl">
-                {tieneClinica && <Link href="/" className="block px-4 py-2.5 hover:bg-panel-2">🦷 Agenda de clínicas</Link>}
+                {tieneClinica && <Link href="/" onClick={aClinicas} className="block px-4 py-2.5 hover:bg-panel-2">Agenda de clínicas</Link>}
                 <Link href="/personal/ajustes" className="block px-4 py-2.5 hover:bg-panel-2">Ajustes</Link>
                 <form action="/auth/salir" method="post"><button className="block w-full px-4 py-2.5 text-left hover:bg-panel-2">Salir</button></form>
               </div>
             </>
           )}
-        </div>
+        </div></>}
       </header>
 
       {error && <p className="mb-4 rounded-xl bg-panel-2 p-3 text-sm text-danger">No se pudo cargar tu agenda: {error}</p>}
@@ -202,7 +212,7 @@ export default function AgendaPersonal({ userId, nombre, tieneClinica }: { userI
         )}
       </div>
 
-      <p className="mt-8 text-center text-xs text-muted">Mi agenda · sólo tú la ves</p>
+      <p className="mt-8 text-center text-xs text-muted">{demo ? "Demo con datos de ejemplo · no se guarda nada" : "Mi agenda · sólo tú la ves"}</p>
 
       {modal && (
         <EventoModal
@@ -215,6 +225,7 @@ export default function AgendaPersonal({ userId, nombre, tieneClinica }: { userI
           categorias={categorias}
           onClose={() => setModal(null)}
           onGuardado={guardado}
+          demo={demo}
         />
       )}
     </div>
@@ -363,6 +374,32 @@ function VistaLista({ os, hoy, catPorId, onAbrir, onMarcar }: { os: Ocurrencia[]
           </ul>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Barra de la demo: es de mentiritas, y el botón para pedirla de verdad. */
+function BannerDemo() {
+  const [estado, setEstado] = useState<"" | "enviando" | "pendiente" | "tiene">("");
+  async function pedir() {
+    setEstado("enviando");
+    const r = await fetch("/api/personal/solicitud", { method: "POST" }).catch(() => null);
+    const d = r ? await r.json().catch(() => ({})) : {};
+    setEstado(d.estado === "tiene" ? "tiene" : "pendiente");
+  }
+  return (
+    <div className="sticky top-2 z-30 mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-accent/40 bg-accent-soft px-4 py-3 text-sm">
+      <p className="w-full text-accent sm:w-auto sm:flex-1">
+        <b>Esto es una demo</b> con datos de ejemplo: pícale a todo, no se guarda nada.
+      </p>
+      {estado === "pendiente" ? (
+        <span className="font-medium text-accent">¡Listo! Te avisamos por correo cuando esté.</span>
+      ) : estado === "tiene" ? (
+        <a href="/personal" className="btn btn-primario py-1.5 text-xs">Abrir mi agenda</a>
+      ) : (
+        <button onClick={pedir} disabled={estado === "enviando"} className="btn btn-primario py-1.5 text-xs">{estado === "enviando" ? "Pidiendo…" : "La quiero"}</button>
+      )}
+      <a href="/personalizar#personal" className="btn btn-sec py-1.5 text-xs">Salir de la demo</a>
     </div>
   );
 }

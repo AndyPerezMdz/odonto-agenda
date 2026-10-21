@@ -34,7 +34,8 @@ export default function AvisosMaterial({
   }, [material, ahora, perfiles, userId, horarios, compacto]);
 
   if (!avisos.length) return null;
-  const visibles = compacto ? avisos.slice(0, 2) : avisos;
+  // 2.2: en Hoy sólo el más urgente; el resto, en Mi material
+  const visibles = compacto ? avisos.slice(0, 1) : avisos;
 
   return (
     <div className={`flex flex-col gap-2 ${compacto ? "mb-4" : "mb-5"}`}>
@@ -51,9 +52,9 @@ export default function AvisosMaterial({
           )}
         </div>
       ))}
-      {compacto && avisos.length > 2 && (
+      {compacto && avisos.length > 1 && (
         <Link href="/material" className="self-start text-xs font-medium text-accent hover:underline">
-          +{avisos.length - 2} aviso{avisos.length - 2 === 1 ? "" : "s"} más de tu material
+          +{avisos.length - 1} aviso{avisos.length - 1 === 1 ? "" : "s"} más de tu material
         </Link>
       )}
     </div>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import AuthCard from "@/components/AuthCard";
-import PideEnlace from "@/components/personal/PideEnlace";
+import EnlaceCorreo from "@/components/EnlaceCorreo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -64,7 +64,7 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthCard titulo="Agenda de clínicas" subtitulo="Inicia sesión para ver la agenda.">
+    <AuthCard titulo="Entra a tu agenda" subtitulo="Agenda de clínicas · Mi agenda">
       <form onSubmit={entrar}>
         <label className="mb-1 block text-sm font-medium" htmlFor="email">Correo</label>
         <input
@@ -102,7 +102,7 @@ export default function LoginPage() {
           ¿No tienes cuenta? <Link href="/registro" className="font-medium text-accent hover:underline">Crea tu agenda</Link>
         </p>
       </form>
-      <PideEnlace />
+      <EnlaceCorreo correoInicial={email} />
       <div>
         <p className="mt-3 text-center text-xs text-muted">
           <Link href="/privacidad" className="hover:text-ink">Aviso de privacidad</Link> ·{" "}

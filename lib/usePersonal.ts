@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { PCategoria, PEvento } from "@/lib/personal";
+import { ejemploPersonal, type PCategoria, type PEvento } from "@/lib/personal";
+import { hoyISO } from "@/lib/fechas";
 
 export const CAMPOS_P = "id,user_id,tipo,titulo,fecha,fecha_fin,hora_inicio,hora_fin,lugar,notas,categoria_id,hecho,hecho_at,repetir,repetir_hasta,excepciones";
 
 /** Todo lo de la agenda personal de quien está viendo (es poco: se carga completo). */
-export function usePersonal() {
+export function usePersonal(demo = false) {
   const supabase = useMemo(() => createClient(), []);
   const [eventos, setEventos] = useState<PEvento[] | null>(null);
   const [categorias, setCategorias] = useState<PCategoria[]>([]);
@@ -15,6 +16,12 @@ export function usePersonal() {
   const [error, setError] = useState<string | null>(null);
 
   const recargar = useCallback(async () => {
+    if (demo) {
+      // Demo: datos de ejemplo; sólo se cargan la primera vez (lo que palomees se queda mientras no recargues)
+      setEventos((x) => x ?? ejemploPersonal(hoyISO()).eventos);
+      setCategorias((x) => (x.length ? x : ejemploPersonal(hoyISO()).categorias));
+      return;
+    }
     const [e, c, p] = await Promise.all([
       supabase.from("p_eventos").select(CAMPOS_P).order("fecha"),
       supabase.from("p_categorias").select("id,nombre,color,orden").order("orden").order("created_at"),
@@ -27,7 +34,7 @@ export function usePersonal() {
     }
     setCategorias((c.data ?? []) as PCategoria[]);
     setPrefs(((p.data?.prefs ?? {}) as { correo?: boolean }) || {});
-  }, [supabase]);
+  }, [supabase, demo]);
 
   useEffect(() => {
     recargar();
@@ -37,5 +44,5 @@ export function usePersonal() {
     return () => document.removeEventListener("visibilitychange", alVolver);
   }, [recargar]);
 
-  return { supabase, eventos, categorias, prefs, error, recargar };
+  return { supabase, eventos, categorias, prefs, error, recargar, setEventos };
 }

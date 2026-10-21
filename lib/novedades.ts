@@ -2,12 +2,23 @@
 // 1) sube APP_VERSION, 2) agrega su bloque ARRIBA de la lista. Cada quien la ve una vez.
 // 3) Si es sólo para una universidad, ponle solo: "upp" o solo: "uady". Sin "solo" le sale a las dos.
 
-export const APP_VERSION = "2.0";
+export const APP_VERSION = "2.2";
 
 export type Novedad = { titulo: string; texto: string; icono: keyof typeof ICONOS };
 export type Version = { version: string; fecha: string; items: Novedad[]; solo?: "upp" | "uady" }; // solo = sólo la ve esa universidad
 
 export const NOVEDADES: Version[] = [
+  {
+    version: "2.2",
+    fecha: "octubre 2026",
+    items: [
+      { icono: "lista", titulo: "Todo en su lugar", texto: "La agenda se reorganizó: abajo tienes Hoy, Agenda, el botón + para agendar, Pacientes y Más. En la compu, lo mismo a la izquierda. Mi avance y Personalizar están en Más." },
+      { icono: "reloj", titulo: "Hoy es tu inicio", texto: "Al abrir ves tu día, lo que te falta marcar y los próximos días. El calendario completo está en Agenda." },
+      { icono: "campana", titulo: "La campanita", texto: "Los avisos y las novedades ya no se amontonan arriba: viven en la campanita." },
+      { icono: "enlace", titulo: "Entrar sin contraseña", texto: "¿Se te olvidó? En el inicio de sesión toca “Entrar con un link a mi correo”." },
+      { icono: "estrella", titulo: "Mi agenda", texto: "¿Viajes, cursos, entregas? Hay una agenda personal aparte que sólo tú ves. Mírala en Personalizar → Mi agenda personal." },
+    ],
+  },
   {
     version: "2.0",
     fecha: "octubre 2026",

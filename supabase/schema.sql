@@ -956,6 +956,21 @@ grant select, insert, update, delete on public.p_categorias, public.p_eventos to
 grant select, update on public.personales to authenticated;
 
 -- =====================================================================
+-- 2.2 · "La quiero": solicitudes de agenda personal desde la de clínicas
+-- =====================================================================
+create table if not exists public.p_solicitudes (
+  user_id     uuid primary key references public.perfiles (id) on delete cascade,
+  estado      text not null default 'pendiente' check (estado in ('pendiente', 'aprobada', 'descartada')),
+  created_at  timestamptz not null default now(),
+  resuelta_at timestamptz
+);
+alter table public.p_solicitudes enable row level security;
+drop policy if exists p_solicitudes_ver on public.p_solicitudes;
+create policy p_solicitudes_ver on public.p_solicitudes for select to authenticated using (user_id = auth.uid());
+grant select on public.p_solicitudes to authenticated;
+-- (las crea y resuelve sólo el servidor)
+
+-- =====================================================================
 -- Listo. Las cuentas nuevas se registran solas en /registro.
 -- En Supabase: Authentication → Sign In / Providers → Email:
 --   "Enable email signups" y "Confirm email" ENCENDIDOS.

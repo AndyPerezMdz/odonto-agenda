@@ -114,3 +114,27 @@ export const ICONO_TIPO: Record<TipoEvento, string> = {
   entrega: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
   recordatorio: "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0",
 };
+
+/** 2.2 · Datos de ejemplo para la demo de Mi agenda (no se guardan en ningún lado). */
+export function ejemploPersonal(hoy: string): { eventos: PEvento[]; categorias: PCategoria[] } {
+  const categorias: PCategoria[] = CATEGORIAS_INICIALES.map((c, i) => ({ id: `demo-c${i}`, ...c }));
+  const [esc, cons, viaj, pers] = categorias.map((c) => c.id);
+  const base = (id: string, o: Partial<PEvento>): PEvento => ({
+    id, user_id: "demo", tipo: "evento", titulo: "", fecha: hoy, fecha_fin: null, hora_inicio: null, hora_fin: null, lugar: null, notas: null,
+    categoria_id: null, hecho: false, hecho_at: null, repetir: "nunca", repetir_hasta: null, excepciones: [], ...o,
+  });
+  const d = (n: number) => sumarDias(hoy, n);
+  return {
+    categorias,
+    eventos: [
+      base("demo-1", { titulo: "Gym", hora_inicio: "07:00:00", hora_fin: "08:00:00", categoria_id: pers, repetir: "diario", fecha: d(-20) }),
+      base("demo-2", { titulo: "Pacientes en consultorio Dr. Pech", hora_inicio: "16:00:00", hora_fin: "19:00:00", lugar: "Consultorio Dr. Pech", categoria_id: cons, repetir: "semanal", fecha: d(-7) }),
+      base("demo-3", { titulo: "Curso de fotografía clínica", fecha: d(2), hora_inicio: "09:00:00", hora_fin: "13:00:00", lugar: "Colegio de Cirujanos Dentistas", categoria_id: esc }),
+      base("demo-4", { tipo: "viaje", titulo: "Cancún", fecha: d(9), fecha_fin: d(12), lugar: "Hotel Riviera · vuelo VB1234", categoria_id: viaj }),
+      base("demo-5", { tipo: "entrega", titulo: "Caso clínico de Endodoncia", fecha: d(1), categoria_id: esc }),
+      base("demo-6", { tipo: "entrega", titulo: "Reporte de prácticas", fecha: d(-1), categoria_id: esc }),
+      base("demo-7", { tipo: "recordatorio", titulo: "Pagar inscripción", fecha: hoy, hora_inicio: "10:00:00", categoria_id: pers }),
+      base("demo-8", { tipo: "entrega", titulo: "Historia clínica firmada", fecha: d(4), categoria_id: esc, hecho: true }),
+    ],
+  };
+}

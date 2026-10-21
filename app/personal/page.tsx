@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { personalDe } from "@/lib/personalServer";
 import AuthCard from "@/components/AuthCard";
 import SoloNavegador from "@/components/SoloNavegador";
-import EntrarPersonal from "@/components/personal/EntrarPersonal";
 import CrearPassword from "@/components/personal/CrearPassword";
 import AgendaPersonal from "@/components/personal/AgendaPersonal";
 
@@ -18,7 +18,7 @@ export default async function PersonalPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return <EntrarPersonal />;
+  if (!user) redirect("/login");
 
   const db = createAdminClient();
   const p = await personalDe(db, user.id);

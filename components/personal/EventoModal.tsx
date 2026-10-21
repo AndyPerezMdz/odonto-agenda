@@ -14,9 +14,10 @@ type Props = {
   categorias: PCategoria[];
   onClose: () => void;
   onGuardado: (fecha: string) => void;
+  demo?: boolean;
 };
 
-export default function EventoModal({ supabase, userId, evento, fechaInicial, tipoInicial, categorias, onClose, onGuardado }: Props) {
+export default function EventoModal({ supabase, userId, evento, fechaInicial, tipoInicial, categorias, onClose, onGuardado, demo = false }: Props) {
   const nuevo = !evento;
   const dia = evento && "dia" in evento ? evento.dia : null; // la aparición que se abrió (series)
   const [tipo, setTipo] = useState<TipoEvento>(evento?.tipo ?? tipoInicial ?? "evento");
@@ -54,6 +55,7 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
     if (tipo === "viaje" && fechaFin < fecha) return setError("El regreso no puede ser antes de la ida.");
     if (conHora && tipo === "evento" && fin <= inicio) return setError("La hora de fin debe ser después de la de inicio.");
     if (puedeRepetir && repetir !== "nunca" && hasta && hasta < fecha) return setError("“Hasta” no puede ser antes de la primera fecha.");
+    if (demo) return setError("En la demo no se guarda nada. Pide tu agenda para usarla de verdad (botón “La quiero” arriba).");
     setGuardando(true);
     const datos = {
       tipo,
@@ -80,6 +82,7 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
 
   async function quitar(soloEste: boolean) {
     if (!evento) return;
+    if (demo) return setError("En la demo no se borra nada.");
     setGuardando(true);
     const { error } = soloEste && dia
       ? await supabase.from("p_eventos").update({ excepciones: [...(evento.excepciones ?? []), dia] }).eq("id", evento.id)

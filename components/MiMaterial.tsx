@@ -1,5 +1,7 @@
 "use client";
 
+import Shell from "@/components/Shell";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -24,7 +26,7 @@ const NIVELES: { id: NivelMaterial; nombre: string }[] = [
 
 // Mi material: tu instrumental (listo / usado / en la CEyE) y los consumibles que compran entre los dos.
 export default function MiMaterial({ userId }: { userId: string }) {
-  const { supabase, perfiles, materias, ajustes, cargando, pro } = useCatalogos();
+  const { supabase, perfiles, materias, ajustes, cargando, pro, nombreAgenda } = useCatalogos();
   const router = useRouter();
   const uady = esUady(ajustes.universidad);
   // Mi material es sólo de la UADY
@@ -65,10 +67,9 @@ export default function MiMaterial({ userId }: { userId: string }) {
   if (cargando || !uady) return null;
   if (!pro)
     return (
+      <Shell actual="material" titulo="Mi material" nombreAgenda={nombreAgenda} uady={esUady(ajustes.universidad)} esDueno={perfiles.find((x) => x.id === userId)?.rol === "owner"}>
       <div className="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-6">
         <header className="mb-5 flex items-center gap-3">
-          <Link href="/" className="btn btn-sec px-2.5" aria-label="Volver">‹</Link>
-          <h1 className="text-xl font-semibold tracking-tight">Mi material</h1>
         </header>
         <Candado
           esDueno={yo?.rol === "owner"}
@@ -77,14 +78,14 @@ export default function MiMaterial({ userId }: { userId: string }) {
           beneficios
         />
       </div>
+      </Shell>
     );
 
   return (
+    <Shell actual="material" titulo="Mi material" nombreAgenda={nombreAgenda} uady={esUady(ajustes.universidad)} esDueno={perfiles.find((x) => x.id === userId)?.rol === "owner"}>
     <div className="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-6">
       <header className="mb-5 flex items-center gap-3">
-        <Link href="/" className="btn btn-sec px-2.5" aria-label="Volver">‹</Link>
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Mi material</h1>
+                <div>
           <p className="text-sm text-muted">Tu instrumental y la CEyE, y lo que compran entre los dos.</p>
         </div>
       </header>
@@ -172,6 +173,7 @@ export default function MiMaterial({ userId }: { userId: string }) {
         La lista de qué llevar a cada materia está en <Link href="/personalizar#agenda" className="text-accent hover:underline">Personalizar → Materias</Link>.
       </p>
     </div>
+    </Shell>
   );
 }
 

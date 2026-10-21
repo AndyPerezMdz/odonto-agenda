@@ -219,3 +219,99 @@ export async function resumenesPushPersonales(db: Db) {
 }
 
 export { eventosDe as eventosPersonalesDe };
+
+/* ---------------- 2.2 · Link de entrada (para cualquier cuenta) ---------------- */
+
+/**
+ * "Entrar con un link a mi correo": sirve para quien olvidó su contraseña, para quien entra por
+ * primera vez a Mi agenda y para quien no la quiere teclear. Lleva a "/", que decide a cuál agenda.
+ * No revela si el correo existe. Un link por minuto por cuenta.
+ */
+export async function enviarEnlaceEntrada(db: Db, email: string, sitio: string): Promise<"enviado" | "nada" | "espera"> {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return "nada";
+  const u = await usuarioPorCorreo(db, email);
+  if (!u?.email) return "nada";
+  const meta = (u.app_metadata ?? {}) as { enlace_at?: string };
+  if (meta.enlace_at && Date.now() - new Date(meta.enlace_at).getTime() < 60000) return "espera";
+
+  const [{ data: perfil }, { data: pers }] = await Promise.all([
+    db.from("perfiles").select("nombre,agenda_id").eq("id", u.id).maybeSingle(),
+    db.from("personales").select("activo,nombre,password_at").eq("user_id", u.id).maybeSingle(),
+  ]);
+  const soloPersonal = !perfil?.agenda_id && !!pers?.activo;
+  const { data: link, error } = await db.auth.admin.generateLink({ type: "magiclink", email: u.email });
+  if (error || !link?.properties?.hashed_token) throw new Error(error?.message ?? "No se pudo generar el link.");
+  const url = `${sitio}/auth/confirm?token_hash=${encodeURIComponent(link.properties.hashed_token)}&type=magiclink&next=/`;
+  const nombre = ((soloPersonal ? pers?.nombre : null) ?? perfil?.nombre ?? "").split(" ")[0];
+  const cuerpo = `<p style="margin:0 0 10px;color:#4a4d55;">Toca el botón para entrar a tu agenda, sin contraseña.${soloPersonal && !pers?.password_at ? " La primera vez te vamos a pedir que crees tu contraseña: <b>es importante</b>, con ella entras desde cualquier cel o compu." : ""}</p>
+     <p style="margin:0;color:#4a4d55;">El botón sirve una sola vez y caduca en 1 hora. Si no pediste este correo, ignóralo: nadie entra sin abrirlo.</p>`;
+  const titulo = nombre ? `Hola, ${esc(nombre)}` : "Hola";
+  const boton = { texto: "Entrar a mi agenda", url };
+  let html: string;
+  if (soloPersonal) html = correoPersonal(titulo, cuerpo, boton);
+  else {
+    const { envolver } = await import("@/lib/pagosServer");
+    html = envolver(titulo, cuerpo, boton);
+  }
+  await enviarConResend({
+    para: u.email,
+    ...(soloPersonal ? { nombreRemitente: "Mi agenda" } : {}),
+    asunto: "Tu link para entrar",
+    html,
+    texto: `Entra a tu agenda: ${url}\n\nSirve una vez y caduca en 1 hora.`,
+  });
+  await db.auth.admin.updateUserById(u.id, { app_metadata: { ...meta, enlace_at: new Date().toISOString() } });
+  return "enviado";
+}
+
+/* ---------------- 2.2 · Solicitudes "La quiero" ---------------- */
+
+export type SolicitudAdmin = { user_id: string; email: string | null; nombre: string | null; created_at: string; tieneClinica: boolean };
+
+/** Alguien de clínicas pide su agenda personal: queda pendiente y te llega un correo. */
+export async function solicitarPersonal(db: Db, userId: string, sitio: string): Promise<"ya-tiene" | "pendiente" | "creada"> {
+  if (await personalDe(db, userId)) return "ya-tiene";
+  const { data: ya } = await db.from("p_solicitudes").select("estado").eq("user_id", userId).maybeSingle();
+  if (ya?.estado === "pendiente") return "pendiente";
+  if (ya) await db.from("p_solicitudes").update({ estado: "pendiente", created_at: new Date().toISOString(), resuelta_at: null }).eq("user_id", userId);
+  else await db.from("p_solicitudes").insert({ user_id: userId, estado: "pendiente" });
+  try {
+    const [{ data: u }, { data: p }] = await Promise.all([db.auth.admin.getUserById(userId), db.from("perfiles").select("nombre").eq("id", userId).maybeSingle()]);
+    const { correosSuperadmin, envolver } = await import("@/lib/pagosServer");
+    const para = await correosSuperadmin(db);
+    for (const c of para) {
+      await enviarConResend({
+        para: c,
+        asunto: `Quieren Mi agenda: ${p?.nombre ?? u.user?.email ?? ""}`,
+        html: envolver("Nueva solicitud de Mi agenda", `<p style="margin:0;color:#4a4843;"><b>${esc(p?.nombre ?? "")}</b> (${esc(u.user?.email ?? "")}) pidió su agenda personal desde la de clínicas.</p>`, { texto: "Revisar en el panel", url: `${sitio}/admin#personales` }),
+        texto: `${p?.nombre ?? ""} (${u.user?.email ?? ""}) pidió su agenda personal. ${sitio}/admin#personales`,
+      });
+    }
+  } catch (e) {
+    console.error("[solicitud personal]", e);
+  }
+  return "creada";
+}
+
+export async function listarSolicitudes(db: Db): Promise<SolicitudAdmin[]> {
+  const { data } = await db.from("p_solicitudes").select("user_id,created_at").eq("estado", "pendiente").order("created_at");
+  if (!data?.length) return [];
+  const [{ data: usuarios }, { data: perfiles }] = await Promise.all([db.auth.admin.listUsers({ perPage: 1000 }), db.from("perfiles").select("id,nombre,agenda_id").in("id", data.map((d) => d.user_id))]);
+  const usr = new Map((usuarios?.users ?? []).map((u) => [u.id, u.email ?? null]));
+  const per = new Map((perfiles ?? []).map((p) => [p.id, p]));
+  return data.map((d) => ({ user_id: d.user_id, email: usr.get(d.user_id) ?? null, nombre: per.get(d.user_id)?.nombre ?? null, created_at: d.created_at, tieneClinica: !!per.get(d.user_id)?.agenda_id }));
+}
+
+/** Aprobar = dar de alta y mandarle su link. Descartar = sólo cerrarla. */
+export async function resolverSolicitud(db: Db, userId: string, accion: "aprobar" | "descartar", sitio: string) {
+  if (accion === "aprobar") {
+    const { data: u } = await db.auth.admin.getUserById(userId);
+    if (!u.user?.email) return { error: "No encontré esa cuenta." };
+    const { data: p } = await db.from("perfiles").select("nombre").eq("id", userId).maybeSingle();
+    const r = await altaPersonal(db, u.user.email, p?.nombre ?? null);
+    if (r.error) return { error: r.error };
+    await enviarEnlacePersonal(db, u.user.email, sitio, { forzar: true }).catch((e) => console.error("[aprobar]", e));
+  }
+  await db.from("p_solicitudes").update({ estado: accion === "aprobar" ? "aprobada" : "descartada", resuelta_at: new Date().toISOString() }).eq("user_id", userId);
+  return { ok: true };
+}
