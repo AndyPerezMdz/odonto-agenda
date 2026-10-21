@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { clavePaciente } from "@/lib/pacientes";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Cita, Clinica, Materia, Perfil } from "@/lib/types";
 import { CAMPOS_CITA } from "@/lib/useDatos";
@@ -58,7 +59,7 @@ export default function BuscarPaciente({ supabase, userId, perfiles, clinicas, m
   const grupos = useMemo(() => {
     const m = new Map<string, Cita[]>();
     for (const c of citas ?? []) {
-      const k = c.paciente.trim().toLowerCase().replace(/\s+/g, " ");
+      const k = clavePaciente(c.paciente);
       m.set(k, [...(m.get(k) ?? []), c]);
     }
     return [...m.values()];

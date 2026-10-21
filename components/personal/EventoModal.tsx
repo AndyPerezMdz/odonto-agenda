@@ -100,7 +100,7 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
         className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-line bg-panel p-5 shadow-xl sm:rounded-2xl"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{nuevo ? "Nuevo" : "Editar"}</h2>
+          <h2 className="serif text-2xl">{nuevo ? "Nuevo" : "Editar"}</h2>
           <button type="button" onClick={onClose} className="btn btn-sec px-2.5" aria-label="Cerrar">✕</button>
         </div>
 

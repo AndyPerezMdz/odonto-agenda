@@ -7,6 +7,7 @@ export type Preferencias = {
   recordatorioDias?: number[]; // con cuántos días de anticipación: 2, 1 y/o 0 (el mismo día)
   tema?: string;             // ver lib/tema.ts
   marcadorHoy?: string;      // forma del día de hoy: circulo, muela, corazon, flor, cuadro
+  noDuplicados?: string[];   // 2.3 · pares de pacientes que "no son la misma persona" (clavePar)
 };
 
 export type Perfil = {
@@ -118,6 +119,7 @@ export const PREFERENCIAS_DEFAULT: Required<Preferencias> = {
   recordatorioDias: [2, 1, 0],
   tema: "verde",
   marcadorHoy: "circulo",
+  noDuplicados: [],
 };
 
 export function prefs(p?: Preferencias): Required<Preferencias> {

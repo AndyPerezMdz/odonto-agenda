@@ -20,17 +20,27 @@ export default function GanchoMiAgenda() {
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-panel">
       {/* Vista previa en miniatura (no son datos reales) */}
-      <div className="relative bg-gradient-to-br from-[#2a2563] to-[#0f0d2c] px-5 pb-0 pt-5 text-white" aria-hidden>
-        <p className="text-[11px] font-bold uppercase tracking-widest text-[#b3afff]">Mi agenda</p>
-        <p className="mt-1 max-w-sm font-semibold leading-snug">Tu vida fuera de la clínica, también en orden.</p>
-        <div className="mx-auto mt-4 max-w-sm rounded-t-2xl bg-white p-3 text-[12px] text-[#15171e] shadow-2xl">
-          <p className="mb-1.5 font-semibold">Hoy</p>
+      <div
+        className="relative px-5 pb-0 pt-5 text-[#2b2520]"
+        style={{ backgroundColor: "#f3ede2", backgroundImage: "radial-gradient(#ddd2bf 1px, transparent 1.3px)", backgroundSize: "18px 18px" }}
+        aria-hidden
+      >
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7d7265]">Mi agenda</p>
+        <p className="mt-0.5 max-w-sm text-xl leading-snug" style={{ fontFamily: '"Iowan Old Style", "Palatino Linotype", Georgia, serif' }}>Tu vida fuera de la clínica, también en orden.</p>
+        <div className="mx-auto mt-4 max-w-sm rounded-t-2xl border border-b-0 border-[#e0d5c2] bg-[#fbf8f2] p-3 text-[12px] shadow-xl">
+          <p className="mb-1 text-[22px] leading-none" style={{ fontFamily: '"Iowan Old Style", "Palatino Linotype", Georgia, serif' }}>Miércoles</p>
+          <p className="mb-2 text-[11px] italic text-[#b4472e]" style={{ fontFamily: 'Georgia, serif' }}>21 de octubre</p>
           <Fila color="#9333ea" hora="07:00" t="Gym" />
           <Fila color="#2563eb" hora="09:00" t="Curso de fotografía clínica" />
           <Fila color="#059669" hora="16:00" t="Pacientes en consultorio" />
-          <p className="mb-1.5 mt-3 font-semibold">Por entregar</p>
-          <p className="flex items-center gap-2"><span className="h-3 w-3 rounded border border-[#c9ccd6]" />Caso clínico de Endodoncia <span className="ml-auto text-[#c43d3d]">mañana</span></p>
-          <p className="mt-2 rounded-md bg-[#ea580c] px-2 py-0.5 text-[11px] font-medium text-white">✈ Cancún · 4 días</p>
+          <div className="mt-2.5 -rotate-1 rounded-sm bg-[#f8eab0] px-2.5 py-1.5 text-[#4f4415]">
+            <p className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm border border-[#4f4415]/50" />Caso clínico de Endodoncia <span className="ml-auto font-semibold text-[#b4322b]">mañana</span></p>
+          </div>
+          <div className="mt-2.5 flex overflow-hidden rounded-lg border border-[#e0d5c2]">
+            <span className="w-1 bg-[#ea580c]" />
+            <span className="flex-1 px-2 py-1"><span className="block text-[9px] font-semibold uppercase tracking-widest text-[#7d7265]">✈ Pase de abordar</span><span className="font-semibold uppercase tracking-wide">Cancún</span></span>
+            <span className="border-l-2 border-dashed border-[#e0d5c2] px-2.5 py-1 text-center"><span className="block text-[9px] uppercase text-[#7d7265]">Faltan</span><b className="text-[#b4472e]">9 días</b></span>
+          </div>
         </div>
       </div>
       <div className="p-4 sm:p-5">

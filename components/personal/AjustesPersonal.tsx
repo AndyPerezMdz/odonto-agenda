@@ -14,7 +14,7 @@ export default function AjustesPersonal({ userId, email }: { userId: string; ema
       <header className="mb-6 flex items-center gap-3">
         <Link href="/personal" className="btn btn-sec px-2.5" aria-label="Volver">‹</Link>
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Ajustes</h1>
+          <h1 className="serif text-4xl leading-none">Ajustes</h1>
           <p className="text-sm text-muted">{email}</p>
         </div>
       </header>
@@ -23,7 +23,7 @@ export default function AjustesPersonal({ userId, email }: { userId: string; ema
         <Categorias supabase={supabase} userId={userId} categorias={categorias} onCambio={recargar} />
 
         <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
-          <h2 className="font-semibold">Correo de la mañana</h2>
+          <h2 className="serif text-xl">Correo de la mañana</h2>
           <p className="mb-3 mt-0.5 text-sm text-muted">Cada madrugada, un correo con lo de hoy y lo que tienes por entregar. Si no hay nada, no llega.</p>
           <label className="inline-flex items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm">
             <input
@@ -64,13 +64,13 @@ function Categorias({ supabase, userId, categorias, onCambio }: { supabase: Retu
 
   return (
     <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
-      <h2 className="font-semibold">Categorías</h2>
+      <h2 className="serif text-xl">Categorías</h2>
       <p className="mb-3 mt-0.5 text-sm text-muted">Para darle color a tu agenda. Si borras una, sus eventos se quedan sin categoría.</p>
       <ul className="mb-3 divide-y divide-line rounded-xl border border-line">
         {categorias.map((c) => (
           <li key={c.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
             <input
-              className="campo min-w-0 flex-1 py-1.5"
+              className="campo w-full min-w-0 py-1.5 sm:w-auto sm:flex-1"
               defaultValue={c.nombre}
               maxLength={40}
               onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== c.nombre && correr(supabase.from("p_categorias").update({ nombre: e.target.value.trim() }).eq("id", c.id))}
@@ -88,7 +88,7 @@ function Categorias({ supabase, userId, categorias, onCambio }: { supabase: Retu
                 />
               ))}
             </div>
-            <button type="button" onClick={() => correr(supabase.from("p_categorias").delete().eq("id", c.id))} className="text-sm text-danger hover:underline">Borrar</button>
+            <button type="button" onClick={() => correr(supabase.from("p_categorias").delete().eq("id", c.id))} className="ml-auto text-sm text-danger hover:underline">Borrar</button>
           </li>
         ))}
         {categorias.length === 0 && <li className="px-3 py-3 text-sm text-muted">Sin categorías todavía.</li>}
@@ -116,7 +116,7 @@ function CambiarPassword() {
   const [guardando, setGuardando] = useState(false);
   return (
     <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
-      <h2 className="font-semibold">Cambiar contraseña</h2>
+      <h2 className="serif text-xl">Cambiar contraseña</h2>
       <form
         className="mt-3 flex flex-wrap gap-2"
         onSubmit={async (e) => {

@@ -112,7 +112,7 @@ export default function Personalizar({ userId }: { userId: string }) {
                   onAgregar={(nombre) => supabase.from("clinicas").insert({ numero: nombre })}
                   onRenombrar={(id, nombre) => supabase.from("clinicas").update({ numero: nombre }).eq("id", id)}
                   onToggle={(id, activo) => supabase.from("clinicas").update({ activo }).eq("id", id)}
-                  onBorrar={(id) => supabase.from("clinicas").delete().eq("id", id)}
+                  tipo="clinica"
                   onCambio={recargar}
                 />
                 <Catalogo
@@ -127,7 +127,7 @@ export default function Personalizar({ userId }: { userId: string }) {
                   onMaterial={(id, material) => supabase.from("materias").update({ material }).eq("id", id)}
                   onDuracion={uady ? (id, duracion_min) => supabase.from("materias").update({ duracion_min }).eq("id", id) : undefined}
                   onToggle={(id, activo) => supabase.from("materias").update({ activo }).eq("id", id)}
-                  onBorrar={(id) => supabase.from("materias").delete().eq("id", id)}
+                  tipo="materia"
                   onCambio={recargar}
                 />
               </>
@@ -381,8 +381,9 @@ type Item = { id: string; nombre: string; activo: boolean; color?: string; mater
 
 function Catalogo({
   titulo, descripcion, placeholder, items, conColor,
-  onAgregar, onRenombrar, onToggle, onBorrar, onColor, onMaterial, onDuracion, onCambio,
+  onAgregar, onRenombrar, onToggle, tipo, onColor, onMaterial, onDuracion, onCambio,
 }: {
+  tipo: "clinica" | "materia";
   onDuracion?: (id: string, min: number | null) => Resultado;
   titulo: string;
   descripcion: string;
@@ -392,7 +393,6 @@ function Catalogo({
   onAgregar: (nombre: string) => Resultado;
   onRenombrar: (id: string, nombre: string) => Resultado;
   onToggle: (id: string, activo: boolean) => Resultado;
-  onBorrar: (id: string) => Resultado;
   onColor?: (id: string, color: string) => Resultado;
   onMaterial?: (id: string, material: string | null) => Resultado;
   onCambio: () => void;
@@ -401,6 +401,39 @@ function Catalogo({
   const [nuevo, setNuevo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [editando, setEditando] = useState<{ id: string; nombre: string } | null>(null);
+  // 2.3 · Borrar sin dejar citas huérfanas: primero se ve cuántas la usan y a cuál pasarlas
+  const [borrando, setBorrando] = useState<{ id: string; citas: number | null; pasarA: string; enviando?: boolean } | null>(null);
+  const sin = tipo === "clinica" ? "clínica" : "materia";
+
+  async function empezarBorrar(id: string) {
+    setError(null);
+    const otra = items.find((x) => x.id !== id && x.activo)?.id ?? "";
+    setBorrando({ id, citas: null, pasarA: otra });
+    const r = await fetch(`/api/catalogo?tipo=${tipo}&id=${id}`).then((r) => r.json()).catch(() => null);
+    if (typeof r?.citas !== "number") {
+      setBorrando(null);
+      setError(r?.error ?? "No se pudo revisar. Intenta de nuevo.");
+      return;
+    }
+    setBorrando((b) => (b?.id === id ? { ...b, citas: r.citas } : b));
+  }
+  async function borrar() {
+    if (!borrando) return;
+    setBorrando({ ...borrando, enviando: true });
+    const res = await fetch("/api/catalogo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tipo, id: borrando.id, pasarA: borrando.citas ? borrando.pasarA || null : null }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(d.error ?? "No se pudo borrar.");
+      setBorrando({ ...borrando, enviando: false });
+      return;
+    }
+    setBorrando(null);
+    onCambio();
+  }
 
   async function correr(accion: Resultado) {
     setError(null);
@@ -462,9 +495,19 @@ function Catalogo({
                   }}
                 />
               ) : (
-                <button className="mr-auto truncate text-left text-sm" onClick={() => setEditando({ id: it.id, nombre: it.nombre })} title="Clic para renombrar">
-                  {it.nombre}
-                </button>
+                <span className="mr-auto flex min-w-0 items-center gap-1">
+                  <button className="truncate text-left text-sm" onClick={() => setEditando({ id: it.id, nombre: it.nombre })} title="Cambiar nombre">
+                    {it.nombre}
+                  </button>
+                  <button
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-muted hover:bg-panel-2 hover:text-ink"
+                    onClick={() => setEditando({ id: it.id, nombre: it.nombre })}
+                    title="Cambiar nombre"
+                    aria-label={`Cambiar nombre de ${it.nombre}`}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+                  </button>
+                </span>
               )}
               <button
                 className="btn btn-sec shrink-0 px-2 py-1 text-xs"
@@ -494,8 +537,37 @@ function Catalogo({
                   Material{it.material?.trim() ? ` · ${it.material.split("\n").filter((x) => x.trim()).length}` : ""}
                 </button>
               )}
-              <BotonBorrar onConfirmar={() => correr(onBorrar(it.id))} />
+              <button className="btn btn-peligro shrink-0 px-2 py-1 text-xs" onClick={() => (borrando?.id === it.id ? setBorrando(null) : empezarBorrar(it.id))}>
+                Borrar
+              </button>
              </div>
+              {borrando?.id === it.id && (
+                <div className="mt-2 rounded-xl border border-danger/40 bg-panel-2 p-3 text-sm">
+                  {borrando.citas === null ? (
+                    <p className="text-muted">Revisando qué citas la usan…</p>
+                  ) : borrando.citas === 0 ? (
+                    <p>Ninguna cita usa <b>{it.nombre}</b>. ¿La borro?</p>
+                  ) : (
+                    <>
+                      <p className="mb-2">
+                        <b>{borrando.citas} cita{borrando.citas === 1 ? "" : "s"}</b> (tuyas y de tu compa) usa{borrando.citas === 1 ? "" : "n"} <b>{it.nombre}</b>. ¿A cuál {tipo === "clinica" ? "clínica" : "materia"} las paso?
+                      </p>
+                      <select className="campo py-2 text-sm" value={borrando.pasarA} onChange={(e) => setBorrando({ ...borrando, pasarA: e.target.value })}>
+                        {items.filter((x) => x.id !== it.id).map((x) => <option key={x.id} value={x.id}>{x.nombre}{x.activo ? "" : " (oculta)"}</option>)}
+                        <option value="">Dejarlas sin {sin}</option>
+                      </select>
+                      {!borrando.pasarA && <p className="mt-1.5 text-xs text-danger">Esas citas quedarán sin {sin} y tendrías que ponérsela una por una.</p>}
+                      <p className="mt-1.5 text-xs text-muted">¿Sólo ya no la usan? Mejor <b>Ocultar</b>: no se borra nada.</p>
+                    </>
+                  )}
+                  <div className="mt-2.5 flex justify-end gap-2">
+                    <button className="btn btn-sec px-3 py-1.5 text-xs" onClick={() => setBorrando(null)}>Cancelar</button>
+                    <button className="btn btn-peligro px-3 py-1.5 text-xs" disabled={borrando.citas === null || borrando.enviando} onClick={borrar}>
+                      {borrando.enviando ? "Borrando…" : borrando.citas && borrando.pasarA ? "Pasar citas y borrar" : "Borrar"}
+                    </button>
+                  </div>
+                </div>
+              )}
               {onMaterial && material?.id === it.id && (
                 <div className="mt-2">
                   <textarea
@@ -521,24 +593,6 @@ function Catalogo({
         </ul>
       )}
     </Tarjeta>
-  );
-}
-
-function BotonBorrar({ onConfirmar }: { onConfirmar: () => void }) {
-  const [confirmar, setConfirmar] = useState(false);
-  useEffect(() => {
-    if (!confirmar) return;
-    const t = setTimeout(() => setConfirmar(false), 3000);
-    return () => clearTimeout(t);
-  }, [confirmar]);
-  return (
-    <button
-      className="btn btn-peligro shrink-0 px-2 py-1 text-xs"
-      onClick={() => (confirmar ? onConfirmar() : setConfirmar(true))}
-      title="Borrar (las citas que la usan se quedan sin ese dato)"
-    >
-      {confirmar ? "¿Seguro?" : "Borrar"}
-    </button>
   );
 }
 

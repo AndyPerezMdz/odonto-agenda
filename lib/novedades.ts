@@ -17,6 +17,8 @@ export const NOVEDADES: Version[] = [
       { icono: "campana", titulo: "La campanita", texto: "Los avisos y las novedades ya no se amontonan arriba: viven en la campanita." },
       { icono: "enlace", titulo: "Entrar sin contraseña", texto: "¿Se te olvidó? En el inicio de sesión toca “Entrar con un link a mi correo”." },
       { icono: "estrella", titulo: "Mi agenda", texto: "¿Viajes, cursos, entregas? Hay una agenda personal aparte que sólo tú ves. Mírala en Personalizar → Mi agenda personal." },
+      { icono: "pacientes", titulo: "Sin pacientes repetidos", texto: "Si escribes un nombre parecido a uno que ya tienes (Angela Martínez y Angela Martínez Martínez), la agenda te pregunta si es la misma persona. Y si ya se te habían duplicado, en Pacientes te sale el aviso para fusionarlos." },
+      { icono: "lista", titulo: "Clínicas y materias sin perder citas", texto: "Cámbiales el nombre con el lapicito. Y si borras una, primero te pregunta a cuál pasar sus citas para que no se queden en blanco." },
     ],
   },
   {

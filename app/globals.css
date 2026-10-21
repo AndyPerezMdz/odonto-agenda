@@ -310,29 +310,76 @@ textarea {
    MI AGENDA (agenda personal, /personal): índigo, para que no se confunda con la de clínicas.
    ------------------------------------------------------------------ */
 .mi-agenda {
-  --bg: #f5f6f9;
-  --panel: #ffffff;
-  --panel-2: #f0f1f6;
-  --line: #e2e4ec;
-  --text: #15171e;
-  --muted: #646a7a;
-  --accent: #4f46e5;
-  --accent-soft: #eceafe;
-  --danger: #c43d3d;
-  background: var(--bg);
+  --bg: #f3ede2;
+  --panel: #fbf8f2;
+  --panel-2: #efe7d9;
+  --line: #e0d5c2;
+  --text: #2b2520;
+  --muted: #7d7265;
+  --accent: #b4472e;
+  --accent-soft: #f5e1d6;
+  --danger: #b4322b;
+  --punto: #ddd2bf;
+  --nota: #f8eab0;
+  --nota-ink: #4f4415;
+  --tinta: #2f4a7a;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--punto) 1px, transparent 1.3px);
+  background-size: 22px 22px;
   color: var(--text);
   min-height: 100dvh;
 }
 @media (prefers-color-scheme: dark) {
   .mi-agenda {
-    --bg: #111218;
-    --panel: #181a22;
-    --panel-2: #20232d;
-    --line: #2c2f3b;
-    --text: #e9eaf0;
-    --muted: #9a9fb0;
-    --accent: #8b85ff;
-    --accent-soft: #25234a;
-    --danger: #ec7b7b;
+    --bg: #1c1915;
+    --panel: #25211c;
+    --panel-2: #2e2923;
+    --line: #3b352d;
+    --text: #efe7da;
+    --muted: #a99d8c;
+    --accent: #e48a6a;
+    --accent-soft: #3d2a21;
+    --danger: #ec8a80;
+    --punto: #2c2822;
+    --nota: #3b3420;
+    --nota-ink: #f1e2a8;
+    --tinta: #9db5e3;
   }
+}
+/* 2.3 · Agenda de papel: letra de libro, versalitas, pase de abordar y post-it */
+.mi-agenda .serif {
+  font-family: var(--font-papel), "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+.mi-agenda .versalitas {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.mi-agenda .boleto-corte {
+  position: relative;
+  border-left: 2px dashed var(--line);
+}
+.mi-agenda .boleto-corte::before,
+.mi-agenda .boleto-corte::after {
+  content: "";
+  position: absolute;
+  left: -11px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+.mi-agenda .boleto-corte::before {
+  top: -11px;
+}
+.mi-agenda .boleto-corte::after {
+  bottom: -11px;
+}
+.mi-agenda .nota {
+  background: var(--nota);
+  color: var(--nota-ink);
 }

@@ -7,6 +7,7 @@ import { CAMPOS_CITA } from "@/lib/useDatos";
 import { hoyISO, MESES } from "@/lib/fechas";
 import { estadoDe } from "@/lib/estados";
 import { enlaceWhatsApp, IcoWhatsApp } from "@/lib/whatsapp";
+import { clavePaciente, clavePar, parecidos } from "@/lib/pacientes";
 
 type Paciente = {
   clave: string;
@@ -19,7 +20,7 @@ type Paciente = {
   ultima: string;
 };
 
-const clave = (n: string) => n.trim().toLowerCase().replace(/\s+/g, " ");
+const clave = clavePaciente;
 const fechaCorta = (iso: string) => {
   const [y, m, d] = iso.split("-").map(Number);
   return `${d} ${MESES[m - 1].slice(0, 3).toLowerCase()} ${y}`;
@@ -43,7 +44,6 @@ function agrupar(citas: Cita[]): Paciente[] {
     }
     if (c.fecha > p.ultima) p.ultima = c.fecha;
   }
-  for (const p of mapa.values()) p.citas.sort((a, z) => z.fecha.localeCompare(a.fecha) || z.hora_inicio.localeCompare(a.hora_inicio));
   for (const p of mapa.values()) p.citas.sort((a, z) => z.fecha.localeCompare(a.fecha) || z.hora_inicio.localeCompare(a.hora_inicio));
   return [...mapa.values()].sort((a, z) => z.ultima.localeCompare(a.ultima));
 }
@@ -76,6 +76,24 @@ export default function MisPacientes({
     if (filtro === "sinfolio") return p.sinFolio > 0;
     return true;
   });
+  // 2.3 · Posibles duplicados (sólo en los tuyos): Angela Martínez ↔ Angela Martínez Martínez
+  const yo = perfiles.find((pf) => pf.id === userId);
+  const [descartados, setDescartados] = useState<string[]>([]);
+  useEffect(() => setDescartados(yo?.preferencias?.noDuplicados ?? []), [yo]);
+  const duplicados = useMemo(() => {
+    if (!esMio) return [];
+    const pares: [Paciente, Paciente][] = [];
+    for (let i = 0; i < pacientes.length; i++)
+      for (let j = i + 1; j < pacientes.length; j++)
+        if (!descartados.includes(clavePar(pacientes[i].clave, pacientes[j].clave)) && parecidos(pacientes[i].clave, pacientes[j].clave)) pares.push([pacientes[i], pacientes[j]]);
+    return pares;
+  }, [pacientes, descartados, esMio]);
+  async function noSonLaMisma(a: Paciente, b: Paciente) {
+    const lista = [...descartados, clavePar(a.clave, b.clave)];
+    setDescartados(lista);
+    await supabase.from("perfiles").update({ preferencias: { ...(yo?.preferencias ?? {}), noDuplicados: lista } }).eq("id", userId);
+  }
+
   const totalSinFolio = pacientes.reduce((n, p) => n + p.sinFolio, 0);
   const atendidos = pacientes.filter((p) => p.atendidas > 0).length;
 
@@ -109,6 +127,10 @@ export default function MisPacientes({
           </button>
         ))}
       </div>
+
+      {duplicados.length > 0 && (
+        <Duplicados pares={duplicados} supabase={supabase} userId={userId} onNoSon={noSonLaMisma} onCambio={cargar} idsDe={(k) => (citas ?? []).filter((c) => clave(c.paciente) === k).map((c) => c.id)} />
+      )}
 
       {!citas && <p className="text-sm text-muted">Cargando…</p>}
       {citas && visibles.length === 0 && (
@@ -264,6 +286,80 @@ function FilaCita({
         />
         {editable && cambio && <button className="rounded-lg border border-line px-2 py-1 text-xs font-medium hover:bg-panel-2" disabled={guardando}>{guardando ? "…" : "Guardar"}</button>}
       </form>
+    </li>
+  );
+}
+
+/** 2.3 · "Pacientes duplicados, ¿deseas fusionarlos?": junta las citas de los dos en uno solo. */
+function Duplicados({
+  pares, supabase, userId, onNoSon, onCambio, idsDe,
+}: { pares: [Paciente, Paciente][]; supabase: SupabaseClient; userId: string; onNoSon: (a: Paciente, b: Paciente) => void; onCambio: () => void; idsDe: (clave: string) => string[] }) {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <section className="mb-4 rounded-2xl border border-[#e0c070] bg-[#fdf6e3] p-4 text-[#5c4712] dark:border-[#5c4712] dark:bg-[#2a2415] dark:text-[#ecd9a4]">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="mr-auto text-sm">
+          <b>{pares.length === 1 ? "Un paciente parece estar dos veces" : `${pares.length} pacientes parecen estar repetidos`}.</b> ¿Deseas fusionarlos? Sus citas quedan juntas en uno solo.
+        </p>
+        <button onClick={() => setAbierto(!abierto)} className="btn btn-sec shrink-0 px-3 py-1.5 text-sm">{abierto ? "Ocultar" : "Revisar"}</button>
+      </div>
+      {abierto && (
+        <ul className="mt-3 flex flex-col gap-2">
+          {pares.map(([a, b]) => (
+            <ParDuplicado key={a.clave + "|" + b.clave} a={a} b={b} ids={[...idsDe(a.clave), ...idsDe(b.clave)]} supabase={supabase} userId={userId} onNoSon={() => onNoSon(a, b)} onCambio={onCambio} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function ParDuplicado({
+  a, b, ids, supabase, userId, onNoSon, onCambio,
+}: { a: Paciente; b: Paciente; ids: string[]; supabase: SupabaseClient; userId: string; onNoSon: () => void; onCambio: () => void }) {
+  // Por defecto se queda el nombre más completo
+  const [queda, setQueda] = useState<"a" | "b">(b.nombre.length > a.nombre.length ? "b" : "a");
+  const [fusionando, setFusionando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function fusionar() {
+    setFusionando(true);
+    setError(null);
+    const [k, o] = queda === "a" ? [a, b] : [b, a];
+    const historia = k.historias[0] ?? o.historias[0] ?? null;
+    const telefono = k.telefono ?? o.telefono;
+    const r1 = await supabase.from("citas").update({ paciente: k.nombre }).in("id", ids).eq("owner_id", userId);
+    if (!r1.error && historia) await supabase.from("citas").update({ historia }).in("id", ids).eq("owner_id", userId);
+    if (!r1.error && telefono) await supabase.from("citas").update({ telefono }).in("id", ids).eq("owner_id", userId).is("telefono", null);
+    setFusionando(false);
+    if (r1.error) return setError("No se pudo fusionar. Intenta de nuevo.");
+    onCambio();
+  }
+
+  const fila = (p: Paciente, id: "a" | "b") => (
+    <label className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2 ${queda === id ? "border-accent bg-accent-soft/50" : "border-line"}`}>
+      <input type="radio" className="mt-1" checked={queda === id} onChange={() => setQueda(id)} />
+      <span className="min-w-0">
+        <span className="block truncate font-medium">{p.nombre}</span>
+        <span className="block truncate text-xs text-muted">
+          {p.citas.length} cita{p.citas.length === 1 ? "" : "s"} · {p.historias.length ? `Historia ${p.historias.join(" / ")}` : "sin historia"} · última {fechaCorta(p.ultima)}
+        </span>
+      </span>
+    </label>
+  );
+
+  return (
+    <li className="rounded-xl border border-line bg-panel p-3 text-sm text-ink">
+      <p className="mb-2 text-xs text-muted">Elige con qué nombre se queda:</p>
+      <div className="grid gap-1.5 sm:grid-cols-2">
+        {fila(a, "a")}
+        {fila(b, "b")}
+      </div>
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+      <div className="mt-2.5 flex flex-wrap items-center justify-end gap-2">
+        <button onClick={onNoSon} className="btn btn-sec px-3 py-1.5 text-xs">No son la misma persona</button>
+        <button onClick={fusionar} disabled={fusionando} className="btn btn-primario px-3 py-1.5 text-xs">{fusionando ? "Fusionando…" : "Fusionar"}</button>
+      </div>
     </li>
   );
 }

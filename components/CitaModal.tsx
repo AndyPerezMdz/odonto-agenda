@@ -8,6 +8,9 @@ import { ChipPro } from "@/components/Candado";
 import { fechaLarga, hhmm, sumarMinutos } from "@/lib/fechas";
 import { sumarDias } from "@/lib/pagos";
 import { ESTADOS } from "@/lib/estados";
+import { clavePaciente, parecidos } from "@/lib/pacientes";
+
+type Conocido = { nombre: string; clave: string; historia: string | null; telefono: string | null; citas: number };
 
 type Props = {
   supabase: SupabaseClient;
@@ -53,10 +56,47 @@ export default function CitaModal({
   const materiaSel = materias.find((m) => m.id === materiaId);
   const misPacientes = pacientes.filter((p) => p.owner_id === userId && p.estado !== "descartado");
 
+  // 2.3 · Tus pacientes de siempre (de tus citas), para no duplicarlos
+  const [conocidos, setConocidos] = useState<Conocido[]>([]);
+  const [noEs, setNoEs] = useState<string[]>([]); // "No, es otra persona" (claves descartadas)
+  useEffect(() => {
+    if (!esMia) return;
+    supabase
+      .from("citas")
+      .select("paciente,historia,telefono,fecha")
+      .eq("owner_id", userId)
+      .order("fecha", { ascending: false })
+      .limit(3000)
+      .then(({ data }) => {
+        const m = new Map<string, Conocido>();
+        for (const c of (data as { paciente: string; historia: string | null; telefono: string | null }[]) ?? []) {
+          const k = clavePaciente(c.paciente);
+          const x = m.get(k) ?? { nombre: c.paciente.trim(), clave: k, historia: null, telefono: null, citas: 0 };
+          x.citas++;
+          x.historia ??= c.historia;
+          x.telefono ??= c.telefono;
+          m.set(k, x);
+        }
+        setConocidos([...m.values()]);
+      });
+  }, [supabase, userId, esMia]);
+  const claveActual = clavePaciente(paciente);
+  const editandoMismo = !esNueva && cita && clavePaciente(cita.paciente) === claveActual;
+  const exacto = conocidos.find((c) => c.clave === claveActual);
+  const similares =
+    esMia && !editandoMismo && !exacto && claveActual.includes(" ")
+      ? conocidos.filter((c) => !noEs.includes(c.clave) && parecidos(claveActual, c.clave, true)).sort((a, z) => z.citas - a.citas).slice(0, 3)
+      : [];
+  function esElla(c: Conocido) {
+    setPaciente(c.nombre);
+    if (c.historia && !historia) setHistoria(c.historia);
+    if (c.telefono && !telefono) setTelefono(c.telefono);
+  }
+
   // Al escribir un nombre que está en tu banco de pacientes, trae su teléfono y materia
   function cambiarPaciente(v: string) {
     setPaciente(v);
-    const p = misPacientes.find((x) => x.nombre.toLowerCase() === v.trim().toLowerCase());
+    const p = misPacientes.find((x) => clavePaciente(x.nombre) === clavePaciente(v));
     if (p) {
       if (p.telefono && !telefono) setTelefono(p.telefono);
       if (p.materia_id && !materiaId) cambiarMateria(p.materia_id);
@@ -121,8 +161,10 @@ export default function CitaModal({
     if (fin <= inicio) return setError("La hora de fin debe ser después de la de inicio.");
 
     setGuardando(true);
+    // Mismo paciente escrito distinto (acentos, mayúsculas): se guarda como ya lo tenías
+    const nombreFinal = exacto && !editandoMismo ? exacto.nombre : paciente.trim().replace(/\s+/g, " ");
     const datos = {
-      paciente: paciente.trim(),
+      paciente: nombreFinal,
       fecha,
       hora_inicio: inicio,
       hora_fin: fin,
@@ -240,8 +282,11 @@ export default function CitaModal({
           <Campo label="Paciente">
             <input className="campo" list="banco-pacientes" value={paciente} onChange={(e) => cambiarPaciente(e.target.value)} onBlur={buscarHistoria} autoFocus={esNueva} required />
             <datalist id="banco-pacientes">
-              {misPacientes.map((p) => <option key={p.id} value={p.nombre} />)}
+              {[...new Set([...conocidos.map((c) => c.nombre), ...misPacientes.map((p) => p.nombre)])].map((n) => <option key={n} value={n} />)}
             </datalist>
+            {esMia && exacto && !editandoMismo && (
+              <p className="mt-1 text-xs text-accent">Ya es tu paciente · {exacto.citas} cita{exacto.citas === 1 ? "" : "s"}. Se junta con las demás.</p>
+            )}
           </Campo>
           <Campo label="Teléfono (opcional)">
             <div className="flex gap-1.5">
@@ -260,6 +305,28 @@ export default function CitaModal({
               )}
             </div>
           </Campo>
+
+          {similares.length > 0 && (
+            <div className="col-span-2 rounded-xl border border-[#e0c070] bg-[#fdf6e3] p-3 text-sm text-[#5c4712] dark:border-[#5c4712] dark:bg-[#2a2415] dark:text-[#ecd9a4]">
+              <p className="mb-2 font-medium">{similares.length === 1 ? "Ya tienes a alguien con un nombre parecido. ¿Es la misma persona?" : "Ya tienes pacientes con nombres parecidos. ¿Es alguno de ellos?"}</p>
+              <div className="flex flex-col gap-1.5">
+                {similares.map((c) => (
+                  <button key={c.clave} type="button" onClick={() => esElla(c)} className="flex items-center gap-2 rounded-lg border border-[#e0c070] bg-panel px-3 py-2 text-left text-ink hover:bg-panel-2 dark:border-[#5c4712]">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">Sí, es {c.nombre}</span>
+                      <span className="block truncate text-xs text-muted">
+                        {c.citas} cita{c.citas === 1 ? "" : "s"}{c.historia ? ` · Historia ${c.historia}` : ""}{c.telefono ? ` · ${c.telefono}` : ""}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-accent">Elegir</span>
+                  </button>
+                ))}
+              </div>
+              <button type="button" onClick={() => setNoEs((l) => [...l, ...similares.map((c) => c.clave)])} className="mt-2 text-xs font-medium underline underline-offset-2">
+                No, es otra persona
+              </button>
+            </div>
+          )}
 
           <Campo label="Fecha" className="col-span-2">
             <input type="date" className="campo" value={fecha} onChange={(e) => setFecha(e.target.value)} required />
