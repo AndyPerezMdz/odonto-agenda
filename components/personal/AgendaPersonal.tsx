@@ -7,6 +7,9 @@ import { aISO, deISO, diasDelMes, DIAS_CORTOS_LUNES, hoyISO, MESES } from "@/lib
 import { sumarDias, diasEntre } from "@/lib/pagos";
 import { entregasPendientes, expandir, hm, ICONO_TIPO, TIPOS, type Ocurrencia, type PCategoria, type PEvento, type TipoEvento } from "@/lib/personal";
 import EventoModal from "@/components/personal/EventoModal";
+import BotonActivar from "@/components/personal/BotonActivar";
+import { BENEFICIOS_MI_PRO, type EstadoMi } from "@/lib/planMi";
+import { fechaLarga } from "@/lib/fechas";
 
 // 2.3 · Mi agenda con cara de agenda de papel: Hoy (línea del tiempo), Semana (o mes) y Viajes (pases de abordar).
 
@@ -44,14 +47,21 @@ const I = {
   salir: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
   lugar: "M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12zM12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z",
   repite: "M17 2l4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3",
+  estrella: "m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z",
+  candado: "M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4",
 };
 
-export default function AgendaPersonal({ userId, nombre, tieneClinica, demo = false }: { userId: string; nombre: string; tieneClinica: boolean; demo?: boolean }) {
-  const { supabase, eventos, categorias, error, recargar, setEventos } = usePersonal(demo);
+export default function AgendaPersonal({
+  userId, nombre, tieneClinica, demo = false, odonto = true, publico = false, estado = null,
+}: { userId: string; nombre: string; tieneClinica: boolean; demo?: boolean; odonto?: boolean; publico?: boolean; estado?: EstadoMi | null }) {
+  // 2.3 · Gratis / Pro (la demo enseña todo)
+  const pro = demo || !estado || estado.pro;
+  // odonto: textos y ejemplos de estudiante de odonto; si no, de cualquier persona. publico: demo sin cuenta (/mi-agenda/demo).
+  const { supabase, eventos, categorias, error, recargar, setEventos } = usePersonal(demo, odonto ? "odonto" : "general");
   const hoy = hoyISO();
   const [seccion, setSeccion] = useState<Seccion>("hoy");
   const [modal, setModal] = useState<Modal | null>(null);
-  const [hoja, setHoja] = useState<"nuevo" | "mas" | null>(null);
+  const [hoja, setHoja] = useState<"nuevo" | "mas" | "pro" | null>(null);
   const [fechaNuevo, setFechaNuevo] = useState(hoy);
   const [ocultas, setOcultas] = useState<Set<string>>(new Set());
 
@@ -97,8 +107,10 @@ export default function AgendaPersonal({ userId, nombre, tieneClinica, demo = fa
   const extras = !demo && (
     <>
       {tieneClinica && <ItemMenu href="/" onClick={aClinicas} d={I.clinicas} t="Agenda de clínicas" />}
+      <ItemMenu href="/personal/ajustes#plan" d={I.estrella} t={estado?.tipo === "gratis" ? "Pásate a Pro" : "Tu plan"} />
       <ItemMenu href="/personal/ajustes" d={I.ajustes} t="Ajustes y categorías" />
       <form action="/auth/salir" method="post">
+        <input type="hidden" name="a" value="mi" />
         <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-danger hover:bg-panel-2">
           <Ico d={I.salir} /> Salir
         </button>
@@ -132,16 +144,17 @@ export default function AgendaPersonal({ userId, nombre, tieneClinica, demo = fa
 
       {/* ---------- Contenido ---------- */}
       <main className="mx-auto w-full max-w-2xl px-4 pb-32 pt-5 sm:px-6 lg:pb-12 lg:pt-8">
-        {demo && <BannerDemo />}
+        {demo && <BannerDemo publico={publico} />}
+        {!demo && estado && <AvisoPlan e={estado} />}
         {error && <p className="mb-4 rounded-xl bg-panel-2 p-3 text-sm text-danger">No se pudo cargar tu agenda: {error}</p>}
         {!eventos ? (
           <p className="serif py-24 text-center text-2xl text-muted">Abriendo tu agenda…</p>
         ) : seccion === "hoy" ? (
-          <SeccionHoy eventos={visibles} todos={eventos} hoy={hoy} nombre={nombre} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo} onSemana={() => setSeccion("semana")} onViajes={() => setSeccion("viajes")} />
+          <SeccionHoy odonto={odonto} eventos={visibles} todos={eventos} hoy={hoy} nombre={nombre} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo} onSemana={() => setSeccion("semana")} onViajes={() => setSeccion("viajes")} />
         ) : seccion === "semana" ? (
           <SeccionSemana eventos={visibles} hoy={hoy} categorias={categorias} ocultas={ocultas} setOcultas={setOcultas} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo} />
         ) : (
-          <SeccionViajes eventos={eventos} hoy={hoy} catPorId={catPorId} onAbrir={(e) => abrir({ ...e, dia: e.fecha, serie: false })} onNuevo={() => setModal({ evento: null, fecha: hoy, tipo: "viaje" })} />
+          <SeccionViajes eventos={eventos} hoy={hoy} catPorId={catPorId} onAbrir={(e) => abrir({ ...e, dia: e.fecha, serie: false })} onNuevo={() => (pro ? setModal({ evento: null, fecha: hoy, tipo: "viaje" }) : setHoja("pro"))} />
         )}
         <p className="serif mt-12 text-center text-sm italic text-muted">{demo ? "Demo con datos de ejemplo" : "Mi agenda · sólo tú la ves"}</p>
       </main>
@@ -164,19 +177,33 @@ export default function AgendaPersonal({ userId, nombre, tieneClinica, demo = fa
       {hoja === "nuevo" && (
         <Hoja onClose={() => setHoja(null)} titulo="¿Qué anotamos?">
           <div className="grid grid-cols-2 gap-2.5">
-            {TIPOS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => { setHoja(null); setModal({ evento: null, fecha: fechaNuevo, tipo: t.id }); }}
-                className="flex flex-col items-start gap-2 rounded-2xl border border-line bg-panel p-4 text-left transition hover:border-accent hover:bg-accent-soft/40"
-              >
-                <span className="grid h-10 w-10 place-items-center rounded-full bg-accent-soft text-accent"><Ico d={ICONO_TIPO[t.id]} size={20} /></span>
-                <span className="serif text-xl leading-none">{t.nombre}</span>
-                <span className="text-xs text-muted">{t.detalle}</span>
-              </button>
-            ))}
+            {TIPOS.map((t) => {
+              const candado = !pro && (t.id === "viaje" || t.id === "recordatorio");
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => (candado ? setHoja("pro") : (setHoja(null), setModal({ evento: null, fecha: fechaNuevo, tipo: t.id })))}
+                  className={`relative flex flex-col items-start gap-2 rounded-2xl border border-line bg-panel p-4 text-left transition hover:border-accent hover:bg-accent-soft/40 ${candado ? "opacity-70" : ""}`}
+                >
+                  {candado && <span className="versalitas absolute right-3 top-3 flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-accent"><Ico d={I.candado} size={11} />Pro</span>}
+                  <span className="grid h-10 w-10 place-items-center rounded-full bg-accent-soft text-accent"><Ico d={ICONO_TIPO[t.id]} size={20} /></span>
+                  <span className="serif text-xl leading-none">{t.nombre}</span>
+                  <span className="text-xs text-muted">{t.detalle}</span>
+                </button>
+              );
+            })}
           </div>
           {fechaNuevo !== hoy && <p className="mt-3 text-center text-xs text-muted">Para el {DIAS_LARGOS[deISO(fechaNuevo).getDay()].toLowerCase()} {corta(fechaNuevo)}</p>}
+        </Hoja>
+      )}
+      {hoja === "pro" && (
+        <Hoja onClose={() => setHoja(null)} titulo="Eso es de Pro">
+          <p className="-mt-2 mb-3 text-sm text-muted">Estás en <b className="text-ink">Gratis</b>: eventos y entregas. Con Pro también tienes:</p>
+          <ul className="mb-5 flex flex-col gap-1.5 text-sm">
+            {BENEFICIOS_MI_PRO.map((b) => <li key={b} className="flex gap-2"><span className="text-accent">✓</span>{b}</li>)}
+          </ul>
+          <Link href="/personal/ajustes#plan" className="btn btn-primario w-full rounded-full py-2.5">Ver planes</Link>
+          {tieneClinica && <p className="mt-3 text-center text-xs text-muted">Si tu agenda de clínicas es Pro, tu Mi agenda también, sin pagar extra.</p>}
         </Hoja>
       )}
       {hoja === "mas" && (
@@ -202,6 +229,9 @@ export default function AgendaPersonal({ userId, nombre, tieneClinica, demo = fa
           onClose={() => setModal(null)}
           onGuardado={guardado}
           demo={demo}
+          odonto={odonto}
+          pro={pro}
+          onPro={() => { setModal(null); setHoja("pro"); }}
         />
       )}
     </div>
@@ -244,9 +274,9 @@ const colorDe = (o: { categoria_id: string | null }, catPorId: Map<string, PCate
 /* ------------------------------ HOY ------------------------------ */
 
 function SeccionHoy({
-  eventos, todos, hoy, nombre, catPorId, onAbrir, onMarcar, onNuevo, onSemana, onViajes,
+  odonto, eventos, todos, hoy, nombre, catPorId, onAbrir, onMarcar, onNuevo, onSemana, onViajes,
 }: {
-  eventos: PEvento[]; todos: PEvento[]; hoy: string; nombre: string; catPorId: Map<string, PCategoria>;
+  odonto: boolean; eventos: PEvento[]; todos: PEvento[]; hoy: string; nombre: string; catPorId: Map<string, PCategoria>;
   onAbrir: (o: Ocurrencia) => void; onMarcar: (e: PEvento, h: boolean) => void; onNuevo: (f?: string) => void; onSemana: () => void; onViajes: () => void;
 }) {
   const [ahora, setAhora] = useState(ahoraHM);
@@ -308,7 +338,7 @@ function SeccionHoy({
         {conHora.length === 0 && todoElDia.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-line px-5 py-10 text-center">
             <p className="serif text-2xl">Día libre.</p>
-            <p className="mt-1 text-sm text-muted">Disfrútalo… o adelanta ese caso clínico.</p>
+            <p className="mt-1 text-sm text-muted">{odonto ? "Disfrútalo… o adelanta ese caso clínico." : "Disfrútalo… o adelanta pendientes. Tú sabes."}</p>
             <button onClick={() => onNuevo()} className="btn btn-sec mt-4 rounded-full">Anotar algo para hoy</button>
           </div>
         ) : (
@@ -686,29 +716,34 @@ function SeccionViajes({ eventos, hoy, catPorId, onAbrir, onNuevo }: { eventos: 
 
 /* ------------------------------ DEMO ------------------------------ */
 
-/** Barra de la demo: es de mentiritas, y el botón para pedirla de verdad. */
-function BannerDemo() {
-  const [estado, setEstado] = useState<"" | "enviando" | "pendiente" | "tiene">("");
-  async function pedir() {
-    setEstado("enviando");
-    const r = await fetch("/api/personal/solicitud", { method: "POST" }).catch(() => null);
-    const d = r ? await r.json().catch(() => ({})) : {};
-    setEstado(d.estado === "tiene" ? "tiene" : "pendiente");
-  }
+/** Barra de la demo: es de mentiritas, y el botón para tenerla de verdad (2.3: al instante). */
+function BannerDemo({ publico = false }: { publico?: boolean }) {
   return (
     <div className="nota sticky top-2 z-20 mb-6 flex flex-wrap items-center gap-3 rounded-sm px-4 py-3 text-sm shadow-[0_10px_20px_-14px_rgba(60,45,10,0.5)]">
       <p className="w-full sm:w-auto sm:flex-1">
         <b>Esto es una demo</b> con datos de ejemplo: pícale a todo, no se guarda nada.
       </p>
-      {estado === "pendiente" ? (
-        <span className="font-semibold">¡Listo! Te avisamos por correo cuando esté.</span>
-      ) : estado === "tiene" ? (
-        <a href="/personal" className="btn btn-primario rounded-full py-1.5 text-xs">Abrir mi agenda</a>
+      {publico ? (
+        <a href="/mi-agenda/registro" className="btn btn-primario rounded-full py-1.5 text-xs">La quiero</a>
       ) : (
-        <button onClick={pedir} disabled={estado === "enviando"} className="btn btn-primario rounded-full py-1.5 text-xs">{estado === "enviando" ? "Pidiendo…" : "La quiero"}</button>
+        <span><BotonActivar texto="La quiero" className="btn btn-primario rounded-full py-1.5 text-xs" /></span>
       )}
-      <a href="/personalizar#personal" className="btn btn-sec rounded-full py-1.5 text-xs">Salir de la demo</a>
+      <a href={publico ? "/mi-agenda" : "/personalizar#personal"} className="btn btn-sec rounded-full py-1.5 text-xs">Salir de la demo</a>
     </div>
   );
 }
 
+/** 2.3 · Aviso del plan arriba de todo: últimos días de Pro, o que está en Gratis. */
+function AvisoPlan({ e }: { e: EstadoMi }) {
+  let texto: React.ReactNode = null;
+  if ((e.tipo === "prueba" || e.tipo === "pro") && e.dias <= 3)
+    texto = e.dias === 0 ? <>Hoy es tu <b>último día de {e.tipo === "prueba" ? "prueba de " : ""}Pro</b>. Mañana sigues en Gratis.</> : <>Te quedan <b>{e.dias} día{e.dias === 1 ? "" : "s"} de {e.tipo === "prueba" ? "prueba de " : ""}Pro</b> (hasta el {fechaLarga(e.hasta)}).</>;
+  else if (e.tipo === "gratis") texto = <>Estás en <b>Gratis</b>: tus cosas siguen aquí. Viajes, recordatorios, repetir, tus colores y los avisos vuelven con Pro.</>;
+  if (!texto) return null;
+  return (
+    <div className="nota mb-6 flex flex-wrap items-center gap-3 rounded-sm px-4 py-3 text-sm shadow-[0_10px_20px_-14px_rgba(60,45,10,0.5)]">
+      <p className="min-w-0 flex-1">{texto}</p>
+      <Link href="/personal/ajustes#plan" className="btn btn-primario shrink-0 rounded-full py-1.5 text-xs">{e.tipo === "gratis" ? "Pásate a Pro" : "Elegir plan"}</Link>
+    </div>
+  );
+}

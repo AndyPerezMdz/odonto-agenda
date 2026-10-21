@@ -1,8 +1,10 @@
-import { DM_Serif_Display } from "next/font/google";
+import { fuentePapel } from "@/lib/fuentePapel";
+import { metaMiAgenda, viewportMiAgenda } from "@/lib/metaMiAgenda";
 
-// 2.3 · Mi agenda tiene su propia letra (de libro): sólo se carga aquí, no en la de clínicas.
-const serif = DM_Serif_Display({ weight: "400", style: ["normal", "italic"], subsets: ["latin"], variable: "--font-papel" });
+// 2.3 · Mi agenda: su propia letra (de libro), su ícono y su nombre al instalarla.
+export const metadata = metaMiAgenda;
+export const viewport = viewportMiAgenda;
 
 export default function LayoutPersonal({ children }: { children: React.ReactNode }) {
-  return <div className={serif.variable}>{children}</div>;
+  return <div className={fuentePapel.variable}>{children}</div>;
 }

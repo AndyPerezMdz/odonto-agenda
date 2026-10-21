@@ -21,8 +21,11 @@ export async function GET(request: NextRequest) {
     const vencimientos = await avisosVencimiento(createAdminClient(), sitio).catch((e) => [{ agenda: "-", aviso: "error: " + e.message }]);
     // Y el de la agenda personal (2.1)
     const personales = await correosPersonales(createAdminClient(), sitio).catch((e) => [{ persona: "-", estado: "error: " + e.message }]);
-    console.log("[recordatorios]", JSON.stringify({ resultados, vencimientos, personales }));
-    return NextResponse.json({ ok: true, resultados, vencimientos, personales });
+    // Y los avisos del plan de Mi agenda (2.3): "te quedan 3 días de Pro" y "hoy es el último"
+    const { avisosPlanMi } = await import("@/lib/planMiServer");
+    const planesMi = await avisosPlanMi(createAdminClient(), sitio).catch((e) => [{ persona: "-", aviso: "error: " + e.message }]);
+    console.log("[recordatorios]", JSON.stringify({ resultados, vencimientos, personales, planesMi }));
+    return NextResponse.json({ ok: true, resultados, vencimientos, personales, planesMi });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[recordatorios]", msg);

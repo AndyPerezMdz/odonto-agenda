@@ -2,20 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import BotonActivar from "@/components/personal/BotonActivar";
 
-/** 2.2 · El gancho de Mi agenda dentro de la de clínicas: mini vista previa, demo y "La quiero". */
+/** El gancho de Mi agenda dentro de la de clínicas: mini vista previa, demo y (2.3) "Activarla" al instante. */
 export default function GanchoMiAgenda() {
-  const [estado, setEstado] = useState<"cargando" | "nada" | "pendiente" | "tiene" | "enviando">("cargando");
+  const [estado, setEstado] = useState<"cargando" | "nada" | "pendiente" | "tiene">("cargando");
   useEffect(() => {
-    fetch("/api/personal/solicitud").then((r) => r.json()).then((d) => setEstado(d.estado ?? "nada")).catch(() => setEstado("nada"));
+    fetch("/api/personal/solicitud").then((r) => r.json()).then((d) => setEstado(d.estado === "tiene" ? "tiene" : "nada")).catch(() => setEstado("nada"));
   }, []);
-
-  async function pedir() {
-    setEstado("enviando");
-    const r = await fetch("/api/personal/solicitud", { method: "POST" }).catch(() => null);
-    const d = r ? await r.json().catch(() => ({})) : {};
-    setEstado(d.estado === "tiene" ? "tiene" : "pendiente");
-  }
 
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-panel">
@@ -54,15 +48,11 @@ export default function GanchoMiAgenda() {
           ) : (
             <>
               <Link href="/personal/demo" className="btn btn-sec">Ver cómo se ve</Link>
-              {estado === "pendiente" ? (
-                <span className="rounded-xl bg-accent-soft px-3 py-2 text-sm text-accent">Ya la pediste. Te llega un correo cuando esté lista.</span>
-              ) : (
-                <button onClick={pedir} disabled={estado === "enviando" || estado === "cargando"} className="btn btn-primario">{estado === "enviando" ? "Pidiendo…" : "La quiero"}</button>
-              )}
+              <BotonActivar texto="Activarla" className="btn btn-primario" />
             </>
           )}
         </div>
-        {estado !== "tiene" && <p className="mt-3 text-xs text-muted">Por ahora es por invitación: la activamos a mano y te avisamos por correo.</p>}
+        {estado !== "tiene" && <p className="mt-3 text-xs text-muted">Si tu agenda de clínicas es Pro, tu Mi agenda también, sin pagar extra. En Gratis tienes eventos y entregas.</p>}
       </div>
     </section>
   );

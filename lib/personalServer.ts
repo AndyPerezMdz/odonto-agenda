@@ -1,7 +1,8 @@
 import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { enviarConResend, esc, fechaEnZona } from "@/lib/recordatorios";
-import { CATEGORIAS_INICIALES, entregasPendientes, expandir, textoHora, type PEvento } from "@/lib/personal";
+import { estadoMi, type EstadoMi } from "@/lib/planMi";
+import { categoriasIniciales, entregasPendientes, expandir, textoHora, type PEvento, type PerfilPersonal } from "@/lib/personal";
 import { fechaLarga } from "@/lib/fechas";
 import { sumarDias } from "@/lib/pagos";
 
@@ -19,18 +20,20 @@ export type PersonalAdmin = {
   created_at: string;
   eventos: number;
   tieneClinica: boolean;
+  perfil: PerfilPersonal;
+  estado: EstadoMi; // 2.3 · su plan: cortesía, prueba, Pro, incluida con clínicas o Gratis
 };
 
 const normal = (e: string) => e.trim().toLowerCase();
 
 /** Correo con la marca de la agenda personal (no la de clínicas). */
-export const correoPersonal = (titulo: string, cuerpo: string, boton?: { texto: string; url: string }) => `<!doctype html><html lang="es"><body style="margin:0;background:#f4f5f7;">
-  <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#14161a;">
-    <div style="background:#fff;border:1px solid #e3e5ea;border-radius:16px;padding:24px;">
-      <p style="margin:0 0 4px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#4f46e5;font-weight:bold;">Mi agenda</p>
-      <h2 style="margin:0 0 12px;font-size:21px;">${titulo}</h2>
+export const correoPersonal = (titulo: string, cuerpo: string, boton?: { texto: string; url: string }) => `<!doctype html><html lang="es"><body style="margin:0;background:#f3ede2;">
+  <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#2b2520;">
+    <div style="background:#fbf8f2;border:1px solid #e0d5c2;border-radius:16px;padding:24px;">
+      <p style="margin:0 0 4px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#b4472e;font-weight:bold;">Mi agenda</p>
+      <h2 style="margin:0 0 12px;font-size:24px;font-family:Georgia,serif;font-weight:normal;">${titulo}</h2>
       ${cuerpo}
-      ${boton ? `<p style="margin:22px 0 0;"><a href="${boton.url}" style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold;">${boton.texto}</a></p>` : ""}
+      ${boton ? `<p style="margin:22px 0 0;"><a href="${boton.url}" style="display:inline-block;background:#b4472e;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold;">${boton.texto}</a></p>` : ""}
     </div>
   </div></body></html>`;
 
@@ -41,7 +44,8 @@ async function usuarioPorCorreo(db: Db, email: string) {
 
 /** Fila de agenda personal activa de alguien (o null). */
 export async function personalDe(db: Db, userId: string) {
-  const { data } = await db.from("personales").select("user_id,nombre,activo,prefs,password_at").eq("user_id", userId).maybeSingle();
+  // "*": si aún no corre el SQL de 2.3 (sin columna perfil), no truena
+  const { data } = await db.from("personales").select("*").eq("user_id", userId).maybeSingle();
   return data && data.activo ? data : null;
 }
 
@@ -70,7 +74,7 @@ export async function enviarEnlacePersonal(db: Db, email: string, sitio: string,
     html: correoPersonal(
       `${nombre ? `Hola, ${esc(nombre)}` : "Hola"}`,
       `<p style="margin:0 0 10px;color:#4a4d55;">Toca el botón para entrar a tu agenda personal. ${sinPassword ? "La primera vez te vamos a pedir que crees tu contraseña: <b>es importante</b>, con ella entras desde cualquier cel o compu." : ""}</p>
-       <p style="margin:0;color:#4a4d55;">Tu agenda vive en <a href="${sitio}/personal" style="color:#4f46e5;">${esc(sitio.replace(/^https?:\/\//, ""))}/personal</a>: guárdala en favoritos o instálala en tu cel. Este botón sirve una sola vez y caduca en 1 hora; si se te vence, pide otro desde la página de inicio.</p>`,
+       <p style="margin:0;color:#4a4d55;">Tu agenda vive en <a href="${sitio}/personal" style="color:#b4472e;">${esc(sitio.replace(/^https?:\/\//, ""))}/personal</a>: guárdala en favoritos o instálala en tu cel. Este botón sirve una sola vez y caduca en 1 hora; si se te vence, pide otro en <a href="${sitio}/login?a=mi" style="color:#b4472e;">${esc(sitio.replace(/^https?:\/\//, ""))}/login?a=mi</a>.</p>`,
       { texto: "Entrar a mi agenda", url }
     ),
     texto: `Entra a tu agenda personal: ${url}\n\nTu agenda vive en ${sitio}/personal (guárdala). Este link sirve una vez y caduca en 1 hora.`,
@@ -79,8 +83,11 @@ export async function enviarEnlacePersonal(db: Db, email: string, sitio: string,
   return "enviado";
 }
 
-/** Alta desde el panel: crea la cuenta si no existe (confirmada, sin contraseña) y le da agenda personal. */
-export async function altaPersonal(db: Db, email: string, nombre: string | null): Promise<{ error?: string; user_id?: string; nueva?: boolean }> {
+/**
+ * Alta desde el panel: crea la cuenta si no existe (confirmada, sin contraseña) y le da agenda personal.
+ * perfil (2.3): "odonto" o "general"; si no se dice, odonto si ya usa clínicas y general si no.
+ */
+export async function altaPersonal(db: Db, email: string, nombre: string | null, perfil?: PerfilPersonal | null): Promise<{ error?: string; user_id?: string; nueva?: boolean }> {
   const correo = normal(email);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return { error: "Ese correo no parece válido." };
   let u = await usuarioPorCorreo(db, correo);
@@ -91,23 +98,32 @@ export async function altaPersonal(db: Db, email: string, nombre: string | null)
     u = data.user;
     nueva = true;
   }
+  const { data: per } = await db.from("perfiles").select("agenda_id").eq("id", u.id).maybeSingle();
+  const tipo: PerfilPersonal = perfil ?? (per?.agenda_id ? "odonto" : "general");
   const { data: ya } = await db.from("personales").select("user_id").eq("user_id", u.id).maybeSingle();
-  const { error } = ya
-    ? await db.from("personales").update({ activo: true, ...(nombre ? { nombre } : {}) }).eq("user_id", u.id)
-    : await db.from("personales").insert({ user_id: u.id, activo: true, nombre: nombre ?? (u.user_metadata as { nombre?: string })?.nombre ?? null, prefs: { correo: true } });
+  const guardar = (conPerfil: boolean) =>
+    ya
+      ? db.from("personales").update({ activo: true, ...(nombre ? { nombre } : {}), ...(conPerfil && perfil ? { perfil } : {}) }).eq("user_id", u!.id)
+      : db.from("personales").insert({ user_id: u!.id, activo: true, nombre: nombre ?? (u!.user_metadata as { nombre?: string })?.nombre ?? null, prefs: { correo: true }, ...(conPerfil ? { perfil: tipo } : {}) });
+  let { error } = await guardar(true);
+  // Si aún no se corre el SQL de 2.3 (sin columna perfil), se guarda sin él
+  if (error && /perfil/.test(error.message)) ({ error } = await guardar(false));
   if (error) return { error: error.message };
   const { count } = await db.from("p_categorias").select("id", { count: "exact", head: true }).eq("user_id", u.id);
-  if (!count) await db.from("p_categorias").insert(CATEGORIAS_INICIALES.map((c) => ({ ...c, user_id: u!.id })));
+  if (!count) await db.from("p_categorias").insert(categoriasIniciales(tipo).map((c) => ({ ...c, user_id: u!.id })));
   return { user_id: u.id, nueva };
 }
 
 export async function listarPersonales(db: Db): Promise<PersonalAdmin[]> {
   const [{ data: filas }, { data: usuarios }, { data: perfiles }, { data: eventos }] = await Promise.all([
-    db.from("personales").select("user_id,nombre,activo,password_at,enlace_at,ultimo_acceso,created_at").order("created_at", { ascending: false }),
+    db.from("personales").select("*").order("created_at", { ascending: false }),
     db.auth.admin.listUsers({ perPage: 1000 }),
     db.from("perfiles").select("id,agenda_id"),
     db.from("p_eventos").select("user_id"),
   ]);
+  const { data: agendas } = await db.from("agendas").select("id,pagado_hasta");
+  const pagoAgenda = new Map((agendas ?? []).map((a) => [a.id as string, a.pagado_hasta as string | null]));
+  const hoy = fechaEnZona(0);
   const usr = new Map((usuarios?.users ?? []).map((u) => [u.id, u]));
   const agenda = new Map((perfiles ?? []).map((p) => [p.id, p.agenda_id]));
   const n = new Map<string, number>();
@@ -126,6 +142,15 @@ export async function listarPersonales(db: Db): Promise<PersonalAdmin[]> {
       created_at: f.created_at,
       eventos: n.get(f.user_id) ?? 0,
       tieneClinica: !!agenda.get(f.user_id),
+      perfil: f.perfil === "general" ? "general" : "odonto",
+      estado: estadoMi(
+        { pagado_hasta: f.pagado_hasta ?? null, prueba_hasta: f.prueba_hasta ?? null },
+        (() => {
+          const ag = agenda.get(f.user_id) as string | null | undefined;
+          return ag && pagoAgenda.has(ag) ? pagoAgenda.get(ag) : undefined;
+        })(),
+        hoy
+      ),
     };
   });
 }
@@ -160,7 +185,10 @@ export function resumenDia(eventos: PEvento[], hoy: string) {
 export async function correosPersonales(db: Db, sitio: string) {
   const hoy = fechaEnZona(0);
   const { data: filas } = await db.from("personales").select("user_id,nombre,prefs,activo").eq("activo", true);
-  const activos = (filas ?? []).filter((f) => (f.prefs as { correo?: boolean } | null)?.correo !== false);
+  // 2.3 · El correo de la mañana es de Pro
+  const { idsProMi } = await import("@/lib/planMiServer");
+  const pro = await idsProMi(db, (filas ?? []).map((f) => f.user_id as string));
+  const activos = (filas ?? []).filter((f) => pro.has(f.user_id) && (f.prefs as { correo?: boolean } | null)?.correo !== false);
   if (!activos.length) return [];
   const [eventos, { data: usuarios }] = await Promise.all([eventosDe(db, activos.map((f) => f.user_id)), db.auth.admin.listUsers({ perPage: 1000 })]);
   const correo = new Map((usuarios?.users ?? []).map((u) => [u.id, u.email]));
@@ -201,7 +229,10 @@ export async function correosPersonales(db: Db, sitio: string) {
 export async function resumenesPushPersonales(db: Db) {
   const hoy = fechaEnZona(0);
   const { data: filas } = await db.from("personales").select("user_id").eq("activo", true);
-  const ids = (filas ?? []).map((f) => f.user_id as string);
+  // 2.3 · Las notificaciones son de Pro
+  const { idsProMi } = await import("@/lib/planMiServer");
+  const pro = await idsProMi(db, (filas ?? []).map((f) => f.user_id as string));
+  const ids = (filas ?? []).map((f) => f.user_id as string).filter((id) => pro.has(id));
   const eventos = await eventosDe(db, ids);
   const r = new Map<string, { titulo: string; cuerpo: string }>();
   for (const id of ids) {
@@ -315,3 +346,4 @@ export async function resolverSolicitud(db: Db, userId: string, accion: "aprobar
   await db.from("p_solicitudes").update({ estado: accion === "aprobar" ? "aprobada" : "descartada", resuelta_at: new Date().toISOString() }).eq("user_id", userId);
   return { ok: true };
 }
+

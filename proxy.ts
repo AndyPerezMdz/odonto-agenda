@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_URL, SUPABASE_KEY } from "@/lib/supabase/env";
 
 // Rutas que se pueden ver SIN sesión
-const PUBLICAS = ["/login", "/recuperar", "/registro", "/api/registro", "/auth", "/api/recordatorios", "/privacidad", "/terminos", "/novedades", "/confirmar", "/api/confirmar", "/api/mp", "/api/cal", "/api/push/citas", "/api/push/resumen", "/api/entrar", "/sw.js"]; // la API valida su propio acceso
+const PUBLICAS = ["/login", "/recuperar", "/registro", "/api/registro", "/auth", "/api/recordatorios", "/privacidad", "/terminos", "/novedades", "/confirmar", "/api/confirmar", "/api/mp", "/api/cal", "/api/push/citas", "/api/push/resumen", "/api/entrar", "/sw.js", "/mi-agenda"]; // la API valida su propio acceso
 // Rutas que un usuario YA logueado no necesita ver
 const SOLO_INVITADOS = ["/login", "/recuperar"];
 
@@ -73,13 +73,13 @@ async function sesion(request: NextRequest) {
   if (!user && !empiezaCon(path, PUBLICAS)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.search = "";
+    url.search = path === "/personal" || path.startsWith("/personal/") ? "?a=mi" : ""; // Mi agenda: su propio login
     return NextResponse.redirect(url);
   }
 
   if (user && empiezaCon(path, SOLO_INVITADOS)) {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = request.nextUrl.searchParams.get("a") === "mi" ? "/personal" : "/";
     url.search = "";
     return NextResponse.redirect(url);
   }
@@ -88,5 +88,5 @@ async function sesion(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|pdf)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|pdf|webmanifest)$).*)"],
 };

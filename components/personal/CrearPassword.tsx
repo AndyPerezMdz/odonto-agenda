@@ -28,7 +28,7 @@ export default function CrearPassword({ nombre, email }: { nombre: string; email
 
   return (
     <div className="mi-agenda">
-      <AuthCard titulo={`¡Hola${nombre ? `, ${nombre}` : ""}!`} subtitulo="Antes de entrar, crea tu contraseña. Es importante: con ella entras desde cualquier cel o compu.">
+      <AuthCard logo="/mi-agenda-icon.svg" serif titulo={`¡Hola${nombre ? `, ${nombre}` : ""}!`} subtitulo="Antes de entrar, crea tu contraseña. Es importante: con ella entras desde cualquier cel o compu.">
         <form onSubmit={guardar}>
           <p className="mb-4 rounded-lg bg-panel-2 px-3 py-2 text-sm">Tu correo: <b>{email}</b></p>
           <label className="mb-1 block text-sm font-medium" htmlFor="np">Contraseña</label>

@@ -971,6 +971,133 @@ grant select on public.p_solicitudes to authenticated;
 -- (las crea y resuelve sólo el servidor)
 
 -- =====================================================================
+-- 2.3 · Mi agenda para cualquiera: registro abierto, tipo (odonto / general) y planes Gratis / Pro
+-- =====================================================================
+alter table public.personales add column if not exists perfil text not null default 'odonto';
+alter table public.personales drop constraint if exists personales_perfil_valido;
+alter table public.personales add constraint personales_perfil_valido check (perfil in ('odonto', 'general'));
+alter table public.personales add column if not exists prueba_hasta date; -- hasta cuándo va su prueba de Pro (NULL = nunca tuvo)
+-- pagado_hasta (ya existía): NULL = cortesía (Pro siempre), fecha = Pro hasta ese día, pasada = Gratis
+
+-- Una prueba de Mi agenda por correo (aparte de la de clínicas)
+alter table public.pruebas add column if not exists mi_usada_at timestamptz;
+
+-- Ni el tipo ni el plan los cambia la persona: sólo el servidor
+create or replace function public.personales_proteger()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  if auth.role() = 'authenticated' then
+    new.activo := old.activo; new.user_id := old.user_id; new.pagado_hasta := old.pagado_hasta;
+    new.created_at := old.created_at; new.enlace_at := old.enlace_at; new.password_at := old.password_at;
+    new.perfil := old.perfil; new.prueba_hasta := old.prueba_hasta;
+  end if;
+  return new;
+end;
+$$;
+
+-- ¿Mi agenda es Pro? Por su plan (o cortesía) o porque su agenda de clínicas es Pro
+create or replace function public.personal_pro()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (select p.pagado_hasta is null or p.pagado_hasta >= (now() at time zone 'America/Merida')::date
+       from public.personales p where p.user_id = auth.uid()), false)
+    or (public.mi_agenda() is not null and public.agenda_pro())
+$$;
+grant execute on function public.personal_pro() to authenticated;
+
+-- Lo de Pro también se cuida en la base: viajes, recordatorios, repetir y crear/editar categorías.
+-- (Lo que ya tenía se queda y se puede editar; sólo no puede crear cosas nuevas de Pro.)
+create or replace function public.p_eventos_pro()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  if auth.role() = 'authenticated' and not public.personal_pro() then
+    if tg_op = 'INSERT' and (new.tipo in ('viaje', 'recordatorio') or new.repetir <> 'nunca') then
+      raise exception 'Eso es de Pro' using errcode = 'P0001', hint = 'pro';
+    end if;
+    if tg_op = 'UPDATE' and ((new.tipo in ('viaje', 'recordatorio') and new.tipo <> old.tipo) or (new.repetir <> 'nunca' and old.repetir = 'nunca')) then
+      raise exception 'Eso es de Pro' using errcode = 'P0001', hint = 'pro';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists p_eventos_pro on public.p_eventos;
+create trigger p_eventos_pro before insert or update on public.p_eventos for each row execute function public.p_eventos_pro();
+
+create or replace function public.p_categorias_pro()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  if auth.role() = 'authenticated' and not public.personal_pro() then
+    raise exception 'Tus categorías y colores son de Pro' using errcode = 'P0001', hint = 'pro';
+  end if;
+  return coalesce(new, old);
+end;
+$$;
+drop trigger if exists p_categorias_pro on public.p_categorias;
+create trigger p_categorias_pro before insert or update or delete on public.p_categorias for each row execute function public.p_categorias_pro();
+
+-- Pagos de Mi agenda (por persona, no por agenda de clínicas)
+create table if not exists public.p_pagos (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.perfiles (id) on delete cascade,
+  monto       numeric not null,
+  meses       int not null check (meses between 1 and 24),
+  metodo      text not null default 'spei',
+  referencia  text,
+  cubre_desde date not null,
+  cubre_hasta date not null,
+  created_at  timestamptz not null default now()
+);
+create index if not exists p_pagos_user_idx on public.p_pagos (user_id, created_at);
+alter table public.p_pagos enable row level security; -- sólo el servidor
+
+create table if not exists public.p_avisos (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.perfiles (id) on delete cascade,
+  monto       numeric not null,
+  meses       int not null default 1,
+  referencia  text,
+  estado      text not null default 'pendiente' check (estado in ('pendiente', 'confirmado', 'rechazado')),
+  created_at  timestamptz not null default now(),
+  resuelto_at timestamptz
+);
+create index if not exists p_avisos_estado_idx on public.p_avisos (estado, created_at);
+alter table public.p_avisos enable row level security; -- sólo el servidor
+
+-- Registrar un pago y extender pagado_hasta de forma atómica (igual que registrar_pago de clínicas)
+create or replace function public.registrar_pago_personal(
+  p_user uuid, p_monto numeric, p_meses int, p_metodo text, p_referencia text, p_hoy date
+)
+returns date
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_hasta date;
+  v_desde date;
+  v_nuevo date;
+begin
+  select pagado_hasta into v_hasta from public.personales where user_id = p_user for update;
+  if not found then
+    raise exception 'Agenda personal no encontrada';
+  end if;
+  v_desde := case when v_hasta is not null and v_hasta >= p_hoy then v_hasta + 1 else p_hoy end;
+  v_nuevo := (v_desde + make_interval(months => p_meses))::date - 1;
+  insert into public.p_pagos (user_id, monto, meses, metodo, referencia, cubre_desde, cubre_hasta)
+  values (p_user, p_monto, p_meses, coalesce(nullif(p_metodo, ''), 'spei'), nullif(trim(p_referencia), ''), v_desde, v_nuevo);
+  update public.personales set pagado_hasta = v_nuevo where user_id = p_user;
+  return v_nuevo;
+end;
+$$;
+revoke execute on function public.registrar_pago_personal(uuid, numeric, int, text, text, date) from public, anon, authenticated;
+
+-- =====================================================================
 -- Listo. Las cuentas nuevas se registran solas en /registro.
 -- En Supabase: Authentication → Sign In / Providers → Email:
 --   "Enable email signups" y "Confirm email" ENCENDIDOS.

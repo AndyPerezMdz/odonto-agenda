@@ -5,9 +5,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { personalDe } from "@/lib/personalServer";
 import SoloNavegador from "@/components/SoloNavegador";
 import AjustesPersonal from "@/components/personal/AjustesPersonal";
+import { estadoMiDe } from "@/lib/planMiServer";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Ajustes · Mi agenda", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Ajustes", robots: { index: false, follow: false } };
 
 export default async function AjustesPersonalPage() {
   const supabase = await createClient();
@@ -20,7 +21,7 @@ export default async function AjustesPersonalPage() {
   return (
     <div className="mi-agenda">
       <SoloNavegador>
-        <AjustesPersonal userId={user.id} email={user.email ?? ""} />
+        <AjustesPersonal userId={user.id} email={user.email ?? ""} pro={(await estadoMiDe(createAdminClient(), user.id))?.pro ?? true} />
       </SoloNavegador>
     </div>
   );

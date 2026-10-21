@@ -15,9 +15,12 @@ type Props = {
   onClose: () => void;
   onGuardado: (fecha: string) => void;
   demo?: boolean;
+  odonto?: boolean; // ejemplos de odonto o de cualquier persona
+  pro?: boolean; // 2.3 · en Gratis: sin viajes, recordatorios ni repetir nuevos
+  onPro?: () => void; // abre "Eso es de Pro"
 };
 
-export default function EventoModal({ supabase, userId, evento, fechaInicial, tipoInicial, categorias, onClose, onGuardado, demo = false }: Props) {
+export default function EventoModal({ supabase, userId, evento, fechaInicial, tipoInicial, categorias, onClose, onGuardado, demo = false, odonto = true, pro = true, onPro }: Props) {
   const nuevo = !evento;
   const dia = evento && "dia" in evento ? evento.dia : null; // la aparición que se abrió (series)
   const [tipo, setTipo] = useState<TipoEvento>(evento?.tipo ?? tipoInicial ?? "evento");
@@ -76,7 +79,7 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
       ? await supabase.from("p_eventos").insert({ ...datos, user_id: userId })
       : await supabase.from("p_eventos").update(datos).eq("id", evento!.id);
     setGuardando(false);
-    if (error) return setError("No se pudo guardar: " + error.message);
+    if (error) return setError(/Pro/.test(error.message) ? "Eso es de Pro. Revisa tu plan en Ajustes → Tu plan." : "No se pudo guardar: " + error.message);
     onGuardado(fecha);
   }
 
@@ -114,11 +117,14 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
               aria-checked={tipo === t.id}
               title={t.detalle}
               onClick={() => {
+                // En Gratis no se crean viajes ni recordatorios nuevos (lo que ya tenías sí se edita)
+                if (!pro && (t.id === "viaje" || t.id === "recordatorio") && evento?.tipo !== t.id) return onPro?.();
                 setTipo(t.id);
                 if (t.id === "entrega" || t.id === "viaje") setTodoElDia(true);
               }}
-              className={`flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-xs font-medium transition ${tipo === t.id ? "bg-accent text-panel" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
+              className={`relative flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-xs font-medium transition ${tipo === t.id ? "bg-accent text-panel" : "text-muted hover:bg-panel-2 hover:text-ink"} ${!pro && (t.id === "viaje" || t.id === "recordatorio") && evento?.tipo !== t.id ? "opacity-60" : ""}`}
             >
+              {!pro && (t.id === "viaje" || t.id === "recordatorio") && evento?.tipo !== t.id && <span className="absolute right-1 top-1 text-[9px] font-bold uppercase">Pro</span>}
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={ICONO_TIPO[t.id]} /></svg>
               {t.nombre}
             </button>
@@ -134,7 +140,7 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
               value={titulo}
               maxLength={120}
               onChange={(e) => setTitulo(e.target.value)}
-              placeholder={tipo === "viaje" ? "Ej. Cancún" : tipo === "entrega" ? "Ej. Caso clínico de Endodoncia" : tipo === "recordatorio" ? "Ej. Pagar inscripción" : "Ej. Curso de fotografía clínica"}
+              placeholder={tipo === "viaje" ? "Ej. Cancún" : tipo === "entrega" ? (odonto ? "Ej. Caso clínico de Endodoncia" : "Ej. Reporte mensual") : tipo === "recordatorio" ? (odonto ? "Ej. Pagar inscripción" : "Ej. Pagar la tarjeta") : odonto ? "Ej. Curso de fotografía clínica" : "Ej. Clase de inglés"}
             />
           </label>
 
@@ -174,7 +180,7 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
 
           {(tipo === "evento" || tipo === "viaje") && (
             <label className="col-span-2 text-sm"><span className="mb-1 block font-medium">{tipo === "viaje" ? "Hotel / detalles del lugar (opcional)" : "Lugar (opcional)"}</span>
-              <input className="campo" value={lugar} maxLength={120} onChange={(e) => setLugar(e.target.value)} placeholder={tipo === "viaje" ? "Ej. Hotel Riviera, vuelo VB1234" : "Ej. Consultorio Dr. Pech"} />
+              <input className="campo" value={lugar} maxLength={120} onChange={(e) => setLugar(e.target.value)} placeholder={tipo === "viaje" ? "Ej. Hotel Riviera, vuelo VB1234" : odonto ? "Ej. Consultorio Dr. Pech" : "Ej. Oficina, sala 2"} />
             </label>
           )}
 
@@ -202,9 +208,15 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
           {puedeRepetir && (
             <div className="col-span-2 grid grid-cols-2 gap-3 rounded-xl border border-line p-3">
               <label className="text-sm"><span className="mb-1 block font-medium">Repetir</span>
-                <select className="campo" value={repetir} onChange={(e) => setRepetir(e.target.value as Repetir)}>
-                  {REPETIR.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
-                </select>
+                {!pro && (evento?.repetir ?? "nunca") === "nunca" ? (
+                  <button type="button" onClick={() => onPro?.()} className="campo flex items-center justify-between text-left text-muted">
+                    No se repite <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-bold uppercase text-accent">Pro</span>
+                  </button>
+                ) : (
+                  <select className="campo" value={repetir} onChange={(e) => setRepetir(e.target.value as Repetir)}>
+                    {REPETIR.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+                  </select>
+                )}
               </label>
               {repetir !== "nunca" && (
                 <label className="text-sm"><span className="mb-1 block font-medium">Hasta (opcional)</span>

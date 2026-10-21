@@ -16,12 +16,13 @@ export async function GET() {
   }
 }
 
-// POST { email, nombre?, enviar? } → dar de alta (y, si enviar, mandarle su link de una vez)
+// POST { email, nombre?, enviar?, perfil? ("odonto" | "general"; sin él: automático) } → dar de alta (y, si enviar, mandarle su link de una vez)
 export async function POST(request: NextRequest) {
   const s = await superadminEnSesion();
   if (!s) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
-  const b = (await request.json().catch(() => ({}))) as { email?: string; nombre?: string; enviar?: boolean };
-  const r = await altaPersonal(s.db, b.email ?? "", b.nombre?.trim().slice(0, 60) || null);
+  const b = (await request.json().catch(() => ({}))) as { email?: string; nombre?: string; enviar?: boolean; perfil?: string };
+  const perfil = b.perfil === "odonto" || b.perfil === "general" ? b.perfil : null;
+  const r = await altaPersonal(s.db, b.email ?? "", b.nombre?.trim().slice(0, 60) || null, perfil);
   if (r.error) return NextResponse.json({ error: r.error }, { status: 400 });
   let enviado = false;
   if (b.enviar) {

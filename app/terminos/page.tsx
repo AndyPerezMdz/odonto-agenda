@@ -77,6 +77,21 @@ export default function TerminosPage() {
 
       <h2>9. Ley aplicable</h2>
       <p>Estos términos se rigen por las leyes de México.</p>
+
+      <h2 id="mi-agenda">10. Mi agenda (agenda personal)</h2>
+      <p>
+        <b>Mi agenda</b> es una agenda personal aparte, para cualquier persona (no sólo de odonto): eventos, viajes, entregas,
+        recordatorios y categorías. Aplican estos mismos términos, con lo siguiente:
+      </p>
+      <ul>
+        <li>Cualquier persona puede crearla en <Link href="/mi-agenda/registro">/mi-agenda/registro</Link> (o activarla desde su agenda de clínicas). Empieza con <b>{L.diasPrueba} días de Pro</b> de prueba, <b>una vez por correo</b>.</li>
+        <li>Tiene dos planes: <b>Gratis</b> (eventos y entregas) y <b>Pro</b> (además viajes, recordatorios, repetir, categorías y colores, correo de la mañana, notificaciones y calendario). Los precios de Pro están en <Link href="/mi-agenda">/mi-agenda</Link> y en “Tu plan”; si cambian, no afectan lo que ya pagaste.</li>
+        <li>Pro se paga por adelantado, por transferencia, y se activa cuando confirmamos tu pago. <b>No hay cargos automáticos</b>: al terminar tu tiempo, tu agenda baja a Gratis y no pierdes lo que anotaste. Lo pagado no es reembolsable, salvo error nuestro.</li>
+        <li>Si también usas la agenda de clínicas y esa agenda tiene Pro (pagado, en prueba o de cortesía), tu Mi agenda también es Pro mientras dure, sin pagar extra.</li>
+        <li>Es de una sola persona: no se comparte ni tiene compañero/a. Si también usas la agenda de clínicas, es la misma cuenta y cambias entre las dos.</li>
+        <li>Podemos pausarla o darla de baja si se usa para algo distinto a organizarte, o si lo pides tú. Al darla de baja se borran sus eventos y categorías.</li>
+        <li>No es un servicio de alarmas: los avisos por correo, notificación o calendario pueden llegar tarde o no llegar.</li>
+      </ul>
     </DocLegal>
   );
 }

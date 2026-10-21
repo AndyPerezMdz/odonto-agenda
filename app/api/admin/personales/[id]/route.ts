@@ -7,13 +7,24 @@ export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-// PATCH { activo } → pausar / reactivar. POST → mandarle su link otra vez.
+// PATCH { activo?, perfil? } → pausar / reactivar, o cambiar si es de odonto o general. POST → mandarle su link otra vez.
 export async function PATCH(request: NextRequest, { params }: Ctx) {
   const s = await superadminEnSesion();
   if (!s) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   const { id } = await params;
-  const { activo } = (await request.json().catch(() => ({}))) as { activo?: boolean };
-  const { error } = await s.db.from("personales").update({ activo: !!activo }).eq("user_id", id);
+  const b = (await request.json().catch(() => ({}))) as { activo?: boolean; perfil?: string; cortesia?: boolean };
+  // 2.3 · { cortesia: true } = Pro sin fecha; false = la quita (queda en Gratis desde hoy)
+  if (typeof b.cortesia === "boolean") {
+    const { cambiarCortesiaMi } = await import("@/lib/planMiServer");
+    const r = await cambiarCortesiaMi(s.db, id, b.cortesia);
+    if ("error" in r) return NextResponse.json({ error: r.error }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+  const cambios: Record<string, unknown> = {};
+  if (typeof b.activo === "boolean") cambios.activo = b.activo;
+  if (b.perfil === "odonto" || b.perfil === "general") cambios.perfil = b.perfil;
+  if (!Object.keys(cambios).length) return NextResponse.json({ error: "Nada que cambiar." }, { status: 400 });
+  const { error } = await s.db.from("personales").update(cambios).eq("user_id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
@@ -31,6 +42,21 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
   return NextResponse.json({ ok: true });
+}
+
+// PUT { meses, monto, referencia? } → 2.3 · registrar a mano un pago de Mi agenda (efectivo, varios meses…)
+export async function PUT(request: NextRequest, { params }: Ctx) {
+  const s = await superadminEnSesion();
+  if (!s) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  const { id } = await params;
+  const b = (await request.json().catch(() => ({}))) as { meses?: number; monto?: number; referencia?: string };
+  const meses = Number(b.meses);
+  const monto = Number(b.monto);
+  if (!(meses >= 1 && meses <= 24) || !(monto >= 0)) return NextResponse.json({ error: "Revisa meses y monto." }, { status: 400 });
+  const { registrarPagoMi } = await import("@/lib/planMiServer");
+  const r = await registrarPagoMi(s.db, id, { meses, monto, metodo: "manual", referencia: b.referencia ?? null });
+  if (r.error) return NextResponse.json({ error: r.error }, { status: 500 });
+  return NextResponse.json({ ok: true, hasta: r.hasta });
 }
 
 // DELETE → le quita la agenda personal y BORRA sus eventos y categorías. Su cuenta (y su agenda de clínicas, si tiene) se quedan.

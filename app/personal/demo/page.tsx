@@ -5,7 +5,7 @@ import SoloNavegador from "@/components/SoloNavegador";
 import AgendaPersonal from "@/components/personal/AgendaPersonal";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Demo · Mi agenda", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Demo", robots: { index: false, follow: false } };
 
 // 2.2 · Demo de Mi agenda con datos de ejemplo (para quien todavía no la tiene). No escribe nada.
 export default async function DemoPersonalPage() {

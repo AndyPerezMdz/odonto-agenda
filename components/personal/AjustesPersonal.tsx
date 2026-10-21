@@ -5,8 +5,9 @@ import Link from "next/link";
 import { usePersonal } from "@/lib/usePersonal";
 import { PALETA_P, type PCategoria } from "@/lib/personal";
 import { Calendario, Notificaciones } from "@/components/TarjetaAvisos";
+import TarjetaPlanMi from "@/components/personal/TarjetaPlanMi";
 
-export default function AjustesPersonal({ userId, email }: { userId: string; email: string }) {
+export default function AjustesPersonal({ userId, email, pro = true }: { userId: string; email: string; pro?: boolean }) {
   const { supabase, categorias, prefs, recargar } = usePersonal();
 
   return (
@@ -20,8 +21,16 @@ export default function AjustesPersonal({ userId, email }: { userId: string; ema
       </header>
 
       <div className="flex flex-col gap-5">
-        <Categorias supabase={supabase} userId={userId} categorias={categorias} onCambio={recargar} />
+        <TarjetaPlanMi />
 
+        {pro ? (
+          <Categorias supabase={supabase} userId={userId} categorias={categorias} onCambio={recargar} />
+        ) : (
+          <SoloPro titulo="Tus categorías y colores" texto="Crea las tuyas (Trabajo, Gym, Viajes…) con el color que quieras. Las que ya tienes se siguen viendo." />
+        )}
+
+        {!pro && <SoloPro titulo="Avisos" texto="El correo de cada mañana, las notificaciones en tu cel y tu agenda en el calendario del teléfono." />}
+        {pro && <>
         <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
           <h2 className="serif text-xl">Correo de la mañana</h2>
           <p className="mb-3 mt-0.5 text-sm text-muted">Cada madrugada, un correo con lo de hoy y lo que tienes por entregar. Si no hay nada, no llega.</p>
@@ -44,10 +53,25 @@ export default function AjustesPersonal({ userId, email }: { userId: string; ema
             <Calendario descripcion="Todo lo de tu agenda aparece solo en Google Calendar o en el calendario del iPhone, con alarma 1 hora antes (y un día antes para las entregas). Se actualiza cada pocas horas (lo decide tu calendario)." />
           </div>
         </section>
+        </>}
 
         <CambiarPassword />
       </div>
     </div>
+  );
+}
+
+/** 2.3 · Lo que es de Pro, en Gratis: qué trae y para dónde ir. */
+function SoloPro({ titulo, texto }: { titulo: string; texto: string }) {
+  return (
+    <section className="rounded-2xl border border-dashed border-line bg-panel/70 p-4 sm:p-5">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="serif text-xl">{titulo}</h2>
+        <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-bold uppercase text-accent">Pro</span>
+      </div>
+      <p className="mb-3 mt-0.5 text-sm text-muted">{texto}</p>
+      <a href="#plan" className="text-sm font-medium text-accent hover:underline">Ver planes</a>
+    </section>
   );
 }
 

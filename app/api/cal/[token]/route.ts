@@ -50,7 +50,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   const nombreCal = p.agenda_id ? "Agenda de clínicas" : "Mi agenda";
   const cabeza = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Agenda de clinicas//ES", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", `X-WR-CALNAME:${nombreCal}`, "X-WR-TIMEZONE:America/Merida", "REFRESH-INTERVAL;VALUE=DURATION:PT1H", "X-PUBLISHED-TTL:PT1H"];
   const ahora = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
-  const personales = personal ? await eventosPersonales(db, p.id, hoy, ahora) : [];
+  // 2.3 · Lo de Mi agenda en el calendario es de Pro (si baja a Gratis, su calendario se queda vacío, no truena)
+  const { estadoMiDe } = await import("@/lib/planMiServer");
+  const proMi = personal ? (await estadoMiDe(db, p.id))?.pro : false;
+  const personales = personal && proMi ? await eventosPersonales(db, p.id, hoy, ahora) : [];
   const { data: a } = p.agenda_id ? await db.from("agendas").select("pagado_hasta").eq("id", p.agenda_id).single() : { data: null };
   if (!p.agenda_id || (a?.pagado_hasta && a.pagado_hasta < hoy)) {
     // Sin agenda de clínicas, o sin Pro: sólo lo personal (no tronamos la suscripción del cel; vuelve sola al renovar)

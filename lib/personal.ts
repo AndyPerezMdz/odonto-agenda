@@ -29,7 +29,7 @@ export type PCategoria = { id: string; nombre: string; color: string; orden: num
 export type Ocurrencia = PEvento & { dia: string; serie: boolean };
 
 export const TIPOS: { id: TipoEvento; nombre: string; detalle: string }[] = [
-  { id: "evento", nombre: "Evento", detalle: "Curso, consultorio, algo con hora" },
+  { id: "evento", nombre: "Evento", detalle: "Curso, cita, junta: algo con hora" },
   { id: "viaje", nombre: "Viaje", detalle: "Uno o varios días" },
   { id: "entrega", nombre: "Entrega", detalle: "Algo que entregar para tal fecha" },
   { id: "recordatorio", nombre: "Recordatorio", detalle: "Para que no se te olvide" },
@@ -42,6 +42,17 @@ export const REPETIR: { id: Repetir; nombre: string }[] = [
   { id: "quincenal", nombre: "Cada 2 semanas" },
   { id: "mensual", nombre: "Cada mes" },
 ];
+
+/** 2.3 · Para quién es la agenda: estudiante de odonto (lo de siempre) o cualquier persona. */
+export type PerfilPersonal = "odonto" | "general";
+
+export const CATEGORIAS_GENERALES = [
+  { nombre: "Trabajo", color: "#2563eb", orden: 0 },
+  { nombre: "Escuela", color: "#059669", orden: 1 },
+  { nombre: "Viajes", color: "#ea580c", orden: 2 },
+  { nombre: "Personal", color: "#9333ea", orden: 3 },
+];
+export const categoriasIniciales = (perfil: PerfilPersonal) => (perfil === "general" ? CATEGORIAS_GENERALES : CATEGORIAS_INICIALES);
 
 export const CATEGORIAS_INICIALES = [
   { nombre: "Escuela", color: "#2563eb", orden: 0 },
@@ -116,14 +127,31 @@ export const ICONO_TIPO: Record<TipoEvento, string> = {
 };
 
 /** 2.2 · Datos de ejemplo para la demo de Mi agenda (no se guardan en ningún lado). */
-export function ejemploPersonal(hoy: string): { eventos: PEvento[]; categorias: PCategoria[] } {
-  const categorias: PCategoria[] = CATEGORIAS_INICIALES.map((c, i) => ({ id: `demo-c${i}`, ...c }));
+export function ejemploPersonal(hoy: string, perfil: PerfilPersonal = "odonto"): { eventos: PEvento[]; categorias: PCategoria[] } {
+  const categorias: PCategoria[] = categoriasIniciales(perfil).map((c, i) => ({ id: `demo-c${i}`, ...c }));
   const [esc, cons, viaj, pers] = categorias.map((c) => c.id);
   const base = (id: string, o: Partial<PEvento>): PEvento => ({
     id, user_id: "demo", tipo: "evento", titulo: "", fecha: hoy, fecha_fin: null, hora_inicio: null, hora_fin: null, lugar: null, notas: null,
     categoria_id: null, hecho: false, hecho_at: null, repetir: "nunca", repetir_hasta: null, excepciones: [], ...o,
   });
   const d = (n: number) => sumarDias(hoy, n);
+  if (perfil === "general") {
+    const [trab, escu, viaj2, pers2] = categorias.map((c) => c.id);
+    return {
+      categorias,
+      eventos: [
+        base("demo-1", { titulo: "Gym", hora_inicio: "07:00:00", hora_fin: "08:00:00", categoria_id: pers2, repetir: "diario", fecha: d(-20) }),
+        base("demo-2", { titulo: "Junta de equipo", hora_inicio: "16:00:00", hora_fin: "17:00:00", lugar: "Oficina · sala 2", categoria_id: trab, repetir: "semanal", fecha: d(-7) }),
+        base("demo-3", { titulo: "Clase de inglés", fecha: d(2), hora_inicio: "18:00:00", hora_fin: "20:00:00", lugar: "Centro de idiomas", categoria_id: escu, repetir: "semanal" }),
+        base("demo-4", { tipo: "viaje", titulo: "Cancún", fecha: d(9), fecha_fin: d(12), lugar: "Hotel Riviera · vuelo VB1234", categoria_id: viaj2 }),
+        base("demo-5", { tipo: "entrega", titulo: "Reporte mensual", fecha: d(1), categoria_id: trab }),
+        base("demo-6", { tipo: "entrega", titulo: "Tarea de inglés", fecha: d(-1), categoria_id: escu }),
+        base("demo-7", { tipo: "recordatorio", titulo: "Pagar la tarjeta", fecha: hoy, hora_inicio: "10:00:00", categoria_id: pers2 }),
+        base("demo-8", { tipo: "entrega", titulo: "Presentación para el cliente", fecha: d(4), categoria_id: trab, hecho: true }),
+        base("demo-9", { titulo: "Cena con amigos", fecha: d(3), hora_inicio: "21:00:00", lugar: "La Chaya Maya", categoria_id: pers2 }),
+      ],
+    };
+  }
   return {
     categorias,
     eventos: [
