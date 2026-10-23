@@ -13,35 +13,13 @@ const hace = (iso: string | null) => {
   return d <= 0 ? "hoy" : d === 1 ? "ayer" : `hace ${d} días`;
 };
 
-/** Panel de staff → Personales: quién tiene agenda personal (sólo invitados). */
-export default function PersonalesAdmin({ onAviso }: { onAviso: (m: string) => void }) {
-  const [lista, setLista] = useState<PersonalAdmin[] | null>(null);
-  const [email, setEmail] = useState("");
-  const [nombre, setNombre] = useState("");
-  const [enviar, setEnviar] = useState(true);
+type Llamar = (url: string, method: string, body: unknown, ok: string, clave: string) => Promise<boolean>;
+
+/** Llamadas al API con "ocupado" y error, y recarga al terminar. */
+function useLlamar(onAviso: (m: string) => void, cargar: () => void) {
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [borrar, setBorrar] = useState<string | null>(null);
-  const [solicitudes, setSolicitudes] = useState<SolicitudAdmin[]>([]);
-  const [avisos, setAvisos] = useState<AvisoMiAdmin[]>([]);
-  const [pago, setPago] = useState<{ id: string; meses: number; monto: string } | null>(null);
-  const [perfil, setPerfil] = useState<"" | "odonto" | "general">("");
-
-  const cargar = useCallback(async () => {
-    const r = await fetch("/api/admin/personales", { cache: "no-store" });
-    const d = await r.json().catch(() => ({}));
-    if (r.ok) setLista(d.personales);
-    else setError(d.error ?? "No se pudo cargar.");
-    const rs = await fetch("/api/admin/personales/solicitudes", { cache: "no-store" });
-    if (rs.ok) setSolicitudes((await rs.json()).solicitudes ?? []);
-    const ra = await fetch("/api/admin/personales/avisos", { cache: "no-store" });
-    if (ra.ok) setAvisos((await ra.json()).avisos ?? []);
-  }, []);
-  useEffect(() => {
-    cargar();
-  }, [cargar]);
-
-  async function llamar(url: string, method: string, body: unknown, ok: string, clave: string) {
+  const llamar: Llamar = async (url, method, body, ok, clave) => {
     setOcupado(clave);
     setError(null);
     const r = await fetch(url, { method, headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
@@ -51,22 +29,32 @@ export default function PersonalesAdmin({ onAviso }: { onAviso: (m: string) => v
     if (r.ok) onAviso(ok);
     cargar();
     return r.ok;
-  }
+  };
+  return { llamar, ocupado, error };
+}
 
-  async function alta(e: React.FormEvent) {
-    e.preventDefault();
-    const ok = await llamar("/api/admin/personales", "POST", { email, nombre, enviar, perfil: perfil || undefined }, enviar ? `Alta lista y link enviado a ${email.trim()}.` : `Alta lista: ${email.trim()}.`, "alta");
-    if (ok) {
-      setEmail("");
-      setNombre("");
-    }
-  }
-
+/** Hoy → lo de Mi agenda que espera algo de ti: pagos por confirmar y solicitudes. */
+export function AvisosMi({ onAviso, onCambio }: { onAviso: (m: string) => void; onCambio?: () => void }) {
+  const [solicitudes, setSolicitudes] = useState<SolicitudAdmin[]>([]);
+  const [avisos, setAvisos] = useState<AvisoMiAdmin[]>([]);
+  const cargar = useCallback(async () => {
+    const [rs, ra] = await Promise.all([fetch("/api/admin/personales/solicitudes", { cache: "no-store" }), fetch("/api/admin/personales/avisos", { cache: "no-store" })]);
+    if (rs.ok) setSolicitudes((await rs.json()).solicitudes ?? []);
+    if (ra.ok) setAvisos((await ra.json()).avisos ?? []);
+  }, []);
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+  const { llamar, ocupado, error } = useLlamar(onAviso, () => {
+    cargar();
+    onCambio?.();
+  });
+  if (!avisos.length && !solicitudes.length) return null;
   return (
-    <div className="flex flex-col gap-4">
+    <>
       {avisos.length > 0 && (
         <section className="rounded-2xl border-2 border-accent bg-panel p-4 sm:p-5">
-          <h2 className="font-semibold">Pagos por confirmar <span className="ml-1 rounded-full bg-danger px-1.5 text-[11px] text-panel">{avisos.length}</span></h2>
+          <h2 className="font-semibold">Mi agenda · pagos por confirmar <span className="ml-1 rounded-full bg-danger px-1.5 text-[11px] text-panel">{avisos.length}</span></h2>
           <p className="mb-3 mt-0.5 text-sm text-muted">Dijeron “Ya pagué” en su Mi agenda. Revisa tu banco (concepto MI-…) y confirma: se les suma el tiempo y les llega el correo.</p>
           <ul className="divide-y divide-line rounded-xl border border-line">
             {avisos.map((x) => (
@@ -100,8 +88,75 @@ export default function PersonalesAdmin({ onAviso }: { onAviso: (m: string) => v
           </ul>
         </section>
       )}
-      <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
-        <h2 className="font-semibold">Dar de alta una agenda personal (cortesía)</h2>
+      {error && <p className="text-sm text-danger">{error}</p>}
+    </>
+  );
+}
+
+type FiltroMi = "todas" | EstadoMi["tipo"];
+const FILTROS_MI: [FiltroMi, string][] = [["todas", "Todas"], ["pro", "Pagando"], ["prueba", "En prueba"], ["gratis", "Gratis"], ["clinicas", "Pro por clínicas"], ["cortesia", "Cortesía"]];
+
+/** Mi agenda → Personas: buscar, filtrar por plan, dar de alta y administrar a cada quien. */
+export default function PersonasMi({ onAviso, buscaInicial = "" }: { onAviso: (m: string) => void; buscaInicial?: string }) {
+  const [lista, setLista] = useState<PersonalAdmin[] | null>(null);
+  const [email, setEmail] = useState("");
+  const [nombre, setNombre] = useState("");
+  const [enviar, setEnviar] = useState(true);
+  const [borrar, setBorrar] = useState<string | null>(null);
+  const [pago, setPago] = useState<{ id: string; meses: number; monto: string } | null>(null);
+  const [perfil, setPerfil] = useState<"" | "odonto" | "general">("");
+  const [verAlta, setVerAlta] = useState(false);
+  const [busca, setBusca] = useState(buscaInicial);
+  const [filtro, setFiltro] = useState<FiltroMi>("todas");
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
+
+  const cargar = useCallback(async () => {
+    const r = await fetch("/api/admin/personales", { cache: "no-store" });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) setLista(d.personales);
+    else setErrorCarga(d.error ?? "No se pudo cargar.");
+  }, []);
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+  const { llamar, ocupado, error } = useLlamar(onAviso, cargar);
+
+  async function alta(e: React.FormEvent) {
+    e.preventDefault();
+    const ok = await llamar("/api/admin/personales", "POST", { email, nombre, enviar, perfil: perfil || undefined }, enviar ? `Alta lista y link enviado a ${email.trim()}.` : `Alta lista: ${email.trim()}.`, "alta");
+    if (ok) {
+      setEmail("");
+      setNombre("");
+      setVerAlta(false);
+    }
+  }
+
+  const q = busca.trim().toLowerCase();
+  const visibles = (lista ?? []).filter((p) => (filtro === "todas" || p.estado.tipo === filtro) && (!q || `${p.nombre ?? ""} ${p.email ?? ""}`.toLowerCase().includes(q)));
+  const cuantos = (f: FiltroMi) => (lista ?? []).filter((p) => f === "todas" || p.estado.tipo === f).length;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <input className="campo min-w-0 flex-1 py-2 text-sm sm:max-w-xs" style={{ width: "auto" }} placeholder="Buscar por nombre o correo…" value={busca} onChange={(e) => setBusca(e.target.value)} />
+        <div className="flex flex-wrap gap-1.5">
+          {FILTROS_MI.map(([id, t]) => {
+            const n = cuantos(id);
+            if (id !== "todas" && !n) return null;
+            return (
+              <button key={id} onClick={() => setFiltro(id)} className={`rounded-full border px-3 py-1 text-xs font-medium ${filtro === id ? "border-ink bg-ink text-panel" : "border-line text-muted hover:text-ink"}`}>
+                {t} · {n}
+              </button>
+            );
+          })}
+        </div>
+        <button onClick={() => setVerAlta(!verAlta)} className="btn btn-sec ml-auto py-1.5 text-xs">{verAlta ? "Cerrar" : "+ Dar de alta"}</button>
+      </div>
+      {errorCarga && <p className="text-sm text-danger">{errorCarga}</p>}
+
+      {verAlta && (
+        <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
+        <h2 className="font-semibold">Dar de alta a mano (cortesía)</h2>
         <p className="mb-3 mt-0.5 text-sm text-muted">
           Cualquiera puede crear su Mi agenda en /mi-agenda (con su prueba de Pro). Aquí das de alta a mano: esas nacen de <b>cortesía</b> (Pro sin fecha). Si el correo ya tiene cuenta de clínicas, es la misma cuenta y cambia entre sus dos agendas. “Automático” = odonto si ya usa clínicas; general si no.
         </p>
@@ -121,18 +176,22 @@ export default function PersonalesAdmin({ onAviso }: { onAviso: (m: string) => v
         {error && <p className="mt-2 text-sm text-danger">{error}</p>}
       </section>
 
+      )}
+
       <section className="overflow-hidden rounded-2xl border border-line bg-panel">
         <div className="flex items-baseline justify-between border-b border-line px-4 py-3">
-          <h2 className="font-semibold">Agendas personales</h2>
-          <span className="text-xs tabular-nums text-muted">{lista?.length ?? "…"}</span>
+          <h2 className="font-semibold">Personas con Mi agenda</h2>
+          <span className="text-xs tabular-nums text-muted">{lista ? `${visibles.length} de ${lista.length}` : "…"}</span>
         </div>
         {!lista ? (
           <p className="p-4 text-sm text-muted">Cargando…</p>
         ) : lista.length === 0 ? (
-          <p className="p-6 text-center text-sm text-muted">Nadie todavía. Da de alta el primer correo arriba.</p>
+          <p className="p-6 text-center text-sm text-muted">Nadie todavía.</p>
+        ) : visibles.length === 0 ? (
+          <p className="p-6 text-center text-sm text-muted">Nadie coincide.</p>
         ) : (
           <ul className="divide-y divide-line">
-            {lista.map((p) => (
+            {visibles.map((p) => (
               <li key={p.user_id} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${p.activo ? "" : "opacity-60"}`}>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">
@@ -202,7 +261,6 @@ export default function PersonalesAdmin({ onAviso }: { onAviso: (m: string) => v
         )}
       </section>
 
-      <PreciosMi onAviso={onAviso} />
     </div>
   );
 }
@@ -219,7 +277,7 @@ function InsigniaPlan({ e }: { e: EstadoMi }) {
 }
 
 /** Precios de Mi agenda (se guardan en configuracion.planes_mi). */
-function PreciosMi({ onAviso }: { onAviso: (m: string) => void }) {
+export function PreciosMi({ onAviso }: { onAviso: (m: string) => void }) {
   const [p, setP] = useState<PlanMi[] | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -38,8 +38,8 @@ export function enPruebaViva(a: AgendaAdmin, hoy: string) {
   return a.enPrueba && (t === "activa" || t === "por_vencer");
 }
 
-const mesCorto = (ym: string) => MESES[Number(ym.slice(5, 7)) - 1].slice(0, 3).toLowerCase();
-const mesLargo = (ym: string) => MESES[Number(ym.slice(5, 7)) - 1].toLowerCase();
+export const mesCorto = (ym: string) => MESES[Number(ym.slice(5, 7)) - 1].slice(0, 3).toLowerCase();
+export const mesLargo = (ym: string) => MESES[Number(ym.slice(5, 7)) - 1].toLowerCase();
 
 /* ---------------- saludo ---------------- */
 
@@ -62,7 +62,7 @@ export function Saludo() {
 
 /* ---------------- números del negocio ---------------- */
 
-type Tono = "bien" | "mal" | "ojo" | "neutro";
+export type Tono = "bien" | "mal" | "ojo" | "neutro";
 const TONO: Record<Tono, string> = {
   bien: "text-accent",
   mal: "text-danger",
@@ -70,7 +70,7 @@ const TONO: Record<Tono, string> = {
   neutro: "text-muted",
 };
 
-function Kpi({ titulo, valor, detalle, tono = "neutro", destacado }: { titulo: string; valor: string; detalle: string; tono?: Tono; destacado?: boolean }) {
+export function Kpi({ titulo, valor, detalle, tono = "neutro", destacado }: { titulo: string; valor: string; detalle: string; tono?: Tono; destacado?: boolean }) {
   return (
     <div className={`relative overflow-hidden rounded-2xl border p-4 ${destacado ? "border-accent/60 bg-accent-soft" : "border-line bg-panel"}`}>
       {destacado && <span className="absolute inset-x-0 top-0 h-0.5 bg-accent" aria-hidden />}
@@ -270,7 +270,7 @@ export function HoyTeToca({
   return (
     <section className="rounded-2xl border border-line bg-panel">
       <div className="flex items-center gap-2 border-b border-line px-4 py-3">
-        <h2 className="font-semibold">Hoy te toca</h2>
+        <h2 className="font-semibold">Clínicas · hoy te toca</h2>
         {total > 0 && <span className="rounded-full bg-ink px-2 py-0.5 text-xs font-semibold text-panel tabular-nums">{total}</span>}
       </div>
 
@@ -332,7 +332,8 @@ export function HoyTeToca({
 
 /* ---------------- ingresos por mes ---------------- */
 
-export function Ingresos({ resumen }: { resumen: ResumenAdmin }) {
+export function Ingresos({ resumen, nuevas = "agenda", titulo = "Cobrado por mes" }: { resumen: Pick<ResumenAdmin, "meses">; nuevas?: "agenda" | "persona"; titulo?: string }) {
+  const pl = (n: number) => `${nuevas}${n === 1 ? "" : "s"} nueva${n === 1 ? "" : "s"}`;
   const [sobre, setSobre] = useState<number | null>(null);
   const meses = resumen.meses;
   const max = Math.max(...meses.map((m) => m.cobrado), 1);
@@ -342,7 +343,7 @@ export function Ingresos({ resumen }: { resumen: ResumenAdmin }) {
   return (
     <section className="rounded-2xl border border-line bg-panel p-4">
       <div className="mb-3 flex items-baseline justify-between gap-2">
-        <h2 className="font-semibold">Cobrado por mes</h2>
+        <h2 className="font-semibold">{titulo}</h2>
         <span className="text-xs text-muted">{pesos(total)} en 6 meses</span>
       </div>
 
@@ -358,7 +359,7 @@ export function Ingresos({ resumen }: { resumen: ResumenAdmin }) {
                 onMouseEnter={() => setSobre(i)}
                 onFocus={() => setSobre(i)}
                 tabIndex={0}
-                aria-label={`${mesLargo(m.mes)}: ${pesos(m.cobrado)}, ${m.pagos} pagos, ${m.nuevas} agendas nuevas`}
+                aria-label={`${mesLargo(m.mes)}: ${pesos(m.cobrado)}, ${m.pagos} pagos, ${m.nuevas} ${pl(m.nuevas)}`}
               >
                 {(actual || sobre === i) && m.cobrado > 0 && (
                   <span className="mb-1 text-[11px] font-semibold tabular-nums text-ink">{pesos(m.cobrado)}</span>
@@ -378,18 +379,18 @@ export function Ingresos({ resumen }: { resumen: ResumenAdmin }) {
             </span>
           ))}
         </div>
-        <div className="mt-1 flex gap-2" title="Agendas nuevas ese mes">
+        <div className="mt-1 flex gap-2" title={`${nuevas === "agenda" ? "Agendas" : "Personas"} nuevas ese mes`}>
           {meses.map((m) => (
             <span key={m.mes} className="flex-1 text-center text-[11px] tabular-nums text-muted">{m.nuevas ? `+${m.nuevas}` : "·"}</span>
           ))}
         </div>
-        <p className="mt-1 text-center text-[11px] text-muted">abajo: agendas nuevas del mes</p>
+        <p className="mt-1 text-center text-[11px] text-muted">abajo: {nuevas}s nuevas del mes</p>
 
         {sobre != null && (
           <div className="pointer-events-none absolute -top-2 left-1/2 z-10 -translate-x-1/2 -translate-y-full rounded-lg border border-line bg-panel px-3 py-2 text-xs shadow-lg">
             <b className="block capitalize">{mesLargo(meses[sobre].mes)} {meses[sobre].mes.slice(0, 4)}</b>
             <span className="block tabular-nums">{pesos(meses[sobre].cobrado)} · {meses[sobre].pagos} pago{meses[sobre].pagos === 1 ? "" : "s"}</span>
-            <span className="block text-muted">{meses[sobre].nuevas} agenda{meses[sobre].nuevas === 1 ? "" : "s"} nueva{meses[sobre].nuevas === 1 ? "" : "s"}</span>
+            <span className="block text-muted">{meses[sobre].nuevas} {pl(meses[sobre].nuevas)}</span>
           </div>
         )}
       </div>

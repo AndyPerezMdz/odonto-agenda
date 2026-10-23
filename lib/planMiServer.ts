@@ -188,9 +188,9 @@ export async function avisarPagoMi(db: Db, user: { id: string; email?: string | 
              <tr><td style="padding:4px 12px 4px 0;color:#6d6a63;">Referencia</td><td>${esc(referencia || "—")}</td></tr>
            </table>
            <p style="margin:14px 0 0;color:#4a4843;">Revisa tu banco y confírmalo en tu panel → Personales.</p>`,
-          { texto: "Abrir mi panel", url: `${sitio}/admin#personales` }
+          { texto: "Abrir mi panel", url: `${sitio}/admin#hoy` }
         ),
-        texto: `${quien} avisó un pago de Mi agenda: ${monto}. Concepto ${codigoMi(user.id)}. Referencia: ${referencia || "—"}. ${sitio}/admin#personales`,
+        texto: `${quien} avisó un pago de Mi agenda: ${monto}. Concepto ${codigoMi(user.id)}. Referencia: ${referencia || "—"}. ${sitio}/admin#hoy`,
       });
     }
   } catch (e) {

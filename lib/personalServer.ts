@@ -429,8 +429,8 @@ export async function solicitarPersonal(db: Db, userId: string, sitio: string): 
       await enviarConResend({
         para: c,
         asunto: `Quieren Mi agenda: ${p?.nombre ?? u.user?.email ?? ""}`,
-        html: envolver("Nueva solicitud de Mi agenda", `<p style="margin:0;color:#4a4843;"><b>${esc(p?.nombre ?? "")}</b> (${esc(u.user?.email ?? "")}) pidió su agenda personal desde la de clínicas.</p>`, { texto: "Revisar en el panel", url: `${sitio}/admin#personales` }),
-        texto: `${p?.nombre ?? ""} (${u.user?.email ?? ""}) pidió su agenda personal. ${sitio}/admin#personales`,
+        html: envolver("Nueva solicitud de Mi agenda", `<p style="margin:0;color:#4a4843;"><b>${esc(p?.nombre ?? "")}</b> (${esc(u.user?.email ?? "")}) pidió su agenda personal desde la de clínicas.</p>`, { texto: "Revisar en el panel", url: `${sitio}/admin#hoy` }),
+        texto: `${p?.nombre ?? ""} (${u.user?.email ?? ""}) pidió su agenda personal. ${sitio}/admin#hoy`,
       });
     }
   } catch (e) {

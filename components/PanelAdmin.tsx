@@ -9,7 +9,9 @@ import type { CodigoAdmin } from "@/app/api/admin/codigos/route";
 import type { CuentaAdmin, SugerenciaAdmin } from "@/lib/staff";
 import { AnunciosAdmin, Buzon, CobrosQueVienen, CuentasAMedias, cuentasAMedias, Embudo, PreciosUni } from "@/components/StaffPiezas";
 import { estadoPago, pesos, codigoAgenda, sumarDias } from "@/lib/pagos";
-import PersonalesAdmin from "@/components/personal/PersonalesAdmin";
+import PersonasMi, { AvisosMi, PreciosMi } from "@/components/personal/PersonalesAdmin";
+import { DesgloseDinero, DineroMi, HoyMi, IngresosJuntos, UsoMi } from "@/components/MiAdmin";
+import type { ResumenMiAdmin } from "@/lib/miAdmin";
 import { fechaLarga, hoyISO } from "@/lib/fechas";
 
 async function api(url: string, method: string, body?: unknown): Promise<string | null> {
@@ -26,8 +28,22 @@ async function api(url: string, method: string, body?: unknown): Promise<string 
 const fechaCorta = (iso: string) =>
   new Date(iso).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
 
-type Pestana = "hoy" | "negocio" | "agendas" | "cuentas" | "uady" | "personales" | "buzon" | "anuncios" | "ajustes";
-const PESTANAS: Pestana[] = ["hoy", "negocio", "agendas", "cuentas", "uady", "personales", "buzon", "anuncios", "ajustes"];
+// Panel por producto: General (lo de las dos), Clínicas, Mi agenda y Ajustes.
+type Pestana = "hoy" | "dinero" | "buzon" | "anuncios" | "agendas" | "cuentas" | "uady" | "personas" | "uso" | "planes" | "ajustes";
+const PESTANAS: Pestana[] = ["hoy", "dinero", "buzon", "anuncios", "agendas", "cuentas", "uady", "personas", "uso", "planes", "ajustes"];
+const ALIAS: Record<string, Pestana> = { negocio: "dinero", personales: "personas" }; // links viejos
+type GrupoId = "general" | "clinicas" | "mi" | "ajustes";
+const GRUPOS: { id: GrupoId; titulo: string; items: Pestana[] }[] = [
+  { id: "general", titulo: "General", items: ["hoy", "dinero", "buzon", "anuncios"] },
+  { id: "clinicas", titulo: "Clínicas", items: ["agendas", "cuentas", "uady"] },
+  { id: "mi", titulo: "Mi agenda", items: ["personas", "uso", "planes"] },
+  { id: "ajustes", titulo: "Ajustes", items: ["ajustes"] },
+];
+const NOMBRE: Record<Pestana, string> = {
+  hoy: "Hoy", dinero: "Dinero", buzon: "Buzón", anuncios: "Anuncios", agendas: "Agendas", cuentas: "Cuentas a medias", uady: "Uso UADY",
+  personas: "Personas", uso: "Uso", planes: "Planes y precios", ajustes: "Precios y códigos",
+};
+type VistaDinero = "todo" | "clinicas" | "mi";
 
 export default function PanelAdmin({ email }: { email: string }) {
   const router = useRouter();
@@ -44,13 +60,17 @@ export default function PanelAdmin({ email }: { email: string }) {
   const [abierta, setAbierta] = useState<string | null>(null);
   // Universidad: filtra TODO el panel (se recuerda en este navegador)
   const [uni, setUniEstado] = useState<FiltroUni>("todas");
+  const [mi, setMi] = useState<ResumenMiAdmin | null>(null);
+  const [vistaDinero, setVistaDinero] = useState<VistaDinero>("todo");
+  const [buscaMi, setBuscaMi] = useState("");
   useEffect(() => {
     try {
       const g = localStorage.getItem("admin-universidad");
       if (g === "upp" || g === "uady") setUniEstado(g);
     } catch {}
     const leer = () => {
-      const h = window.location.hash.replace("#", "") as Pestana;
+      const crudo = window.location.hash.replace("#", "");
+      const h = (ALIAS[crudo] ?? crudo) as Pestana;
       if (PESTANAS.includes(h)) setPestanaEstado(h);
     };
     leer();
@@ -77,11 +97,13 @@ export default function PanelAdmin({ email }: { email: string }) {
   }
 
   const recargar = useCallback(async () => {
-    const [res, rc, rs] = await Promise.all([
+    const [res, rc, rs, rm] = await Promise.all([
       fetch("/api/admin/agendas", { cache: "no-store" }),
       fetch("/api/admin/cuentas", { cache: "no-store" }),
       fetch("/api/admin/sugerencias", { cache: "no-store" }),
+      fetch("/api/admin/mi", { cache: "no-store" }),
     ]);
+    if (rm.ok) setMi(await rm.json().catch(() => null));
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
       setAgendas(data.agendas);
@@ -107,6 +129,11 @@ export default function PanelAdmin({ email }: { email: string }) {
     await createClient().auth.signOut();
     router.replace("/login");
     router.refresh();
+  }
+
+  function verPersona(q: string) {
+    setBuscaMi(q);
+    setPestana("personas");
   }
 
   function verAgenda(id: string) {
@@ -136,18 +163,14 @@ export default function PanelAdmin({ email }: { email: string }) {
       (!q || a.nombre.toLowerCase().includes(q) || a.miembros.some((m) => `${m.email} ${m.nombre}`.toLowerCase().includes(q)))
   );
 
-  const pestanas: [Pestana, string, number?][] = [
-    ["hoy", "Hoy", avisosUni.length || undefined],
-    ["negocio", "Negocio"],
-    ["agendas", `Agendas${agendas ? ` · ${delaUni.length}` : ""}`],
-    ["cuentas", "Cuentas", medias || undefined],
-    ...(hayUady && uni === "uady" ? ([["uady", "UADY"]] as [Pestana, string][]) : []),
-    ["personales", "Personales"],
-    ["buzon", "Buzón", nuevas || undefined],
-    ["anuncios", "Anuncios"],
-    ["ajustes", "Ajustes"],
-  ];
-  const actual = pestana === "uady" && !(hayUady && uni === "uady") ? "hoy" : pestana;
+  const pendientesMi = (mi?.pendientes.avisos ?? 0) + (mi?.pendientes.solicitudes ?? 0);
+  const insignia: Partial<Record<Pestana, number>> = { hoy: avisosUni.length + pendientesMi || undefined, cuentas: medias || undefined, buzon: nuevas || undefined };
+  const cuenta: Partial<Record<Pestana, number>> = { agendas: agendas ? delaUni.length : undefined, personas: mi?.personas.total };
+  const grupos = GRUPOS.map((g) => ({ ...g, items: g.items.filter((p) => p !== "uady" || hayUady) }));
+  const actual = pestana === "uady" && !hayUady ? "hoy" : pestana;
+  const grupoActual = GRUPOS.find((g) => g.items.includes(actual))?.id ?? "general";
+  // El filtro de universidad sólo aplica a lo de Clínicas
+  const usaUni = grupoActual === "clinicas" || actual === "hoy" || (actual === "dinero" && vistaDinero !== "mi");
 
   const nUni = (u: "upp" | "uady") => (agendas ?? []).filter((a) => a.universidad === u).length;
   const opcionesUni: [FiltroUni, string, number][] = [["todas", "Todas", agendas?.length ?? 0], ["upp", "UPP", nUni("upp")], ["uady", "UADY", nUni("uady")]];
@@ -170,43 +193,45 @@ export default function PanelAdmin({ email }: { email: string }) {
           </div>
         </div>
 
-        <div className="px-3 pt-4">
-          <p className="consola-etiqueta mb-1.5 px-1">Universidad</p>
-          <div className="grid grid-cols-3 gap-0.5 rounded-md border border-line bg-bg p-0.5 text-xs font-medium" role="tablist" aria-label="Universidad">
-            {opcionesUni.map(([id, t, n]) => (
-              <button
-                key={id}
-                role="tab"
-                aria-selected={uni === id}
-                onClick={() => setUni(id)}
-                className={`rounded px-1 py-1.5 transition ${uni === id ? "bg-panel-2 text-ink shadow-[inset_0_0_0_1px_var(--line)]" : "text-muted hover:text-ink"}`}
-              >
-                {t} <span className="consola-mono text-[10px] opacity-70">{n}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <nav className="mt-4 flex-1 overflow-y-auto px-3">
-          <p className="consola-etiqueta mb-1.5 px-1">Panel</p>
-          <ul className="flex flex-col gap-px text-sm">
-            {pestanas.map(([id, t, n]) => (
-              <li key={id}>
-                <button
-                  onClick={() => setPestana(id)}
-                  className={`group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition ${actual === id ? "bg-accent-soft text-accent" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
-                >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={ICONO_PESTANA[id]} /></svg>
-                  <span className="mr-auto truncate">{t.replace(/ · \d+$/, "")}</span>
-                  {n ? (
-                    <span className="consola-mono rounded bg-danger px-1.5 text-[10px] font-semibold leading-4 text-panel">{n}</span>
-                  ) : id === "agendas" && agendas ? (
-                    <span className="consola-mono text-[11px] opacity-70">{delaUni.length}</span>
-                  ) : null}
-                </button>
-              </li>
-            ))}
-          </ul>
+        <nav className="flex-1 overflow-y-auto px-3 pb-3">
+          {grupos.map((g) => (
+            <div key={g.id} className="mt-4">
+              <p className="consola-etiqueta mb-1.5 px-1">{g.titulo}</p>
+              {g.id === "clinicas" && (
+                <div className="mb-1.5 grid grid-cols-3 gap-0.5 rounded-md border border-line bg-bg p-0.5 text-xs font-medium" role="tablist" aria-label="Universidad">
+                  {opcionesUni.map(([id, t, n]) => (
+                    <button
+                      key={id}
+                      role="tab"
+                      aria-selected={uni === id}
+                      onClick={() => setUni(id)}
+                      className={`rounded px-1 py-1 transition ${uni === id ? "bg-panel-2 text-ink shadow-[inset_0_0_0_1px_var(--line)]" : "text-muted hover:text-ink"}`}
+                    >
+                      {t} <span className="consola-mono text-[10px] opacity-70">{n}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <ul className="flex flex-col gap-px text-sm">
+                {g.items.map((id) => (
+                  <li key={id}>
+                    <button
+                      onClick={() => setPestana(id)}
+                      className={`group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition ${actual === id ? "bg-accent-soft text-accent" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={ICONO_PESTANA[id]} /></svg>
+                      <span className="mr-auto truncate">{NOMBRE[id]}</span>
+                      {insignia[id] ? (
+                        <span className="consola-mono rounded bg-danger px-1.5 text-[10px] font-semibold leading-4 text-panel">{insignia[id]}</span>
+                      ) : cuenta[id] != null ? (
+                        <span className="consola-mono text-[11px] opacity-70">{cuenta[id]}</span>
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </nav>
 
         <div className="border-t border-line px-3 py-3">
@@ -240,7 +265,7 @@ export default function PanelAdmin({ email }: { email: string }) {
             <button onClick={salir} className="btn btn-sec">Salir</button>
           </div>
           <span className="consola-mono hidden rounded border border-line px-2 py-1 text-[11px] text-muted lg:inline">
-            {uni === "todas" ? "todas" : uni} / {actual}
+            {grupoActual === "clinicas" || (usaUni && uni !== "todas") ? `${uni} / ` : ""}{GRUPOS.find((g) => g.id === grupoActual)?.titulo.toLowerCase()} / {actual}
           </span>
         </div>
       </header>
@@ -248,21 +273,26 @@ export default function PanelAdmin({ email }: { email: string }) {
       <div className="mx-auto max-w-6xl px-3 py-5 sm:px-6 lg:px-8">
       {/* Celular: universidad y pestañas arriba (se deslizan de lado) */}
       <div className="lg:hidden">
-        {agendas && <FiltroUniversidad valor={uni} agendas={agendas} onCambio={setUni} />}
-        <nav className="-mx-3 mb-5 overflow-x-auto px-3 sm:mx-0 sm:px-0">
-          <div className="flex min-w-max gap-1 rounded-md border border-line bg-panel p-1 text-sm font-medium">
-            {pestanas.map(([id, t, n]) => (
-              <button
-                key={id}
-                onClick={() => setPestana(id)}
-                className={`relative flex-1 whitespace-nowrap rounded px-3 py-1.5 transition ${actual === id ? "bg-accent-soft text-accent" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
-              >
-                {t}
-                {n ? <span className="consola-mono ml-1.5 rounded bg-danger px-1.5 py-px text-[10px] font-semibold text-panel">{n}</span> : null}
-              </button>
+        <nav className="-mx-3 mb-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
+          <div className="flex min-w-max items-center gap-1 rounded-md border border-line bg-panel p-1 text-sm font-medium">
+            {grupos.map((g, gi) => (
+              <div key={g.id} className="flex items-center gap-1">
+                {gi > 0 && <span className="consola-etiqueta mx-1 border-l border-line pl-2">{g.titulo}</span>}
+                {g.items.map((id) => (
+                  <button
+                    key={id}
+                    onClick={() => setPestana(id)}
+                    className={`relative whitespace-nowrap rounded px-3 py-1.5 transition ${actual === id ? "bg-accent-soft text-accent" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
+                  >
+                    {NOMBRE[id]}
+                    {insignia[id] ? <span className="consola-mono ml-1.5 rounded bg-danger px-1.5 py-px text-[10px] font-semibold text-panel">{insignia[id]}</span> : null}
+                  </button>
+                ))}
+              </div>
             ))}
           </div>
         </nav>
+        {agendas && usaUni && <FiltroUniversidad valor={uni} agendas={agendas} onCambio={setUni} />}
       </div>
 
       {aviso && <p className="sticky top-2 z-20 mb-4 rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent shadow-sm">{aviso}</p>}
@@ -286,6 +316,7 @@ export default function PanelAdmin({ email }: { email: string }) {
               )}
             </div>
           )}
+          <AvisosMi onAviso={setAviso} onCambio={recargar} />
           {avisosUni.length > 0 && (
             <AvisosPago
               avisos={avisosUni}
@@ -297,11 +328,29 @@ export default function PanelAdmin({ email }: { email: string }) {
             />
           )}
           <HoyTeToca agendas={delaUni} avisosPendientes={avisosUni.length} onVer={verAgenda} onAviso={setAviso} />
+          {mi && <HoyMi r={mi} onVer={verPersona} />}
         </div>
       )}
 
       {/* NEGOCIO: números, cobros, embudo */}
-      {actual === "negocio" && agendas && resumen && resumenUni && (
+      {actual === "dinero" && agendas && resumen && resumenUni && (
+        <div className="mb-4 flex rounded-md border border-line bg-panel p-1 text-sm font-medium sm:w-fit" role="tablist" aria-label="Producto">
+          {([["todo", "Todo junto"], ["clinicas", "Clínicas"], ["mi", "Mi agenda"]] as [VistaDinero, string][]).map(([id, t]) => (
+            <button key={id} role="tab" aria-selected={vistaDinero === id} onClick={() => setVistaDinero(id)} className={`flex-1 whitespace-nowrap rounded px-4 py-1.5 ${vistaDinero === id ? "bg-accent-soft text-accent" : "text-muted hover:text-ink"}`}>{t}</button>
+          ))}
+        </div>
+      )}
+
+      {actual === "dinero" && vistaDinero === "todo" && agendas && resumen && resumenUni && (
+        <div className="flex flex-col gap-4">
+          <DesgloseDinero agendas={delaUni} resumen={resumenUni} mi={mi} etiquetaClinicas={uni === "todas" ? "Clínicas" : `Clínicas (${uni.toUpperCase()})`} />
+          <IngresosJuntos clinicas={resumenUni.meses} mi={mi?.meses ?? null} />
+        </div>
+      )}
+
+      {actual === "dinero" && vistaDinero === "mi" && (mi ? <DineroMi r={mi} onVer={verPersona} /> : <p className="text-sm text-muted">Cargando…</p>)}
+
+      {actual === "dinero" && vistaDinero === "clinicas" && agendas && resumen && resumenUni && (
         <div className="flex flex-col gap-4">
           <div>
             <Numeros agendas={delaUni} resumen={resumenUni} />
@@ -323,9 +372,11 @@ export default function PanelAdmin({ email }: { email: string }) {
 
       {actual === "cuentas" && <CuentasAMedias cuentas={cuentasUni} onCambio={recargar} onAviso={setAviso} />}
 
-      {actual === "uady" && agendas && <UsoUady agendas={delaUni} onVer={verAgenda} />}
+      {actual === "uady" && agendas && <UsoUady agendas={agendas.filter((a) => a.universidad === "uady")} onVer={verAgenda} />}
 
-      {actual === "personales" && <PersonalesAdmin onAviso={setAviso} />}
+      {actual === "personas" && <PersonasMi key={buscaMi} buscaInicial={buscaMi} onAviso={(m) => { setAviso(m); recargar(); }} />}
+      {actual === "uso" && (mi ? <UsoMi r={mi} /> : <p className="text-sm text-muted">Cargando…</p>)}
+      {actual === "planes" && <PreciosMi onAviso={setAviso} />}
 
       {actual === "buzon" && <Buzon sugerencias={sugerenciasUni} onCambio={recargar} />}
 
@@ -399,11 +450,13 @@ export default function PanelAdmin({ email }: { email: string }) {
 
 const ICONO_PESTANA: Record<Pestana, string> = {
   hoy: "M3 12h4l3 8 4-16 3 8h4",
-  negocio: "M3 3v18h18M7 15l4-4 3 3 6-6",
+  dinero: "M3 3v18h18M7 15l4-4 3 3 6-6",
   agendas: "M3 5h18v16H3zM3 10h18M8 3v4M16 3v4",
   cuentas: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6",
   uady: "M4 20V10l8-6 8 6v10M9 20v-6h6v6",
-  personales: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+  personas: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+  uso: "M4 20V10M10 20V4M16 20v-7M22 20H2",
+  planes: "M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8zM7.5 7.5h.01",
   buzon: "M22 12h-6l-2 3h-4l-2-3H2M5.5 5h13L22 12v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-7z",
   anuncios: "M3 11l15-6v14L3 13zM7 12v6a2 2 0 0 0 4 0v-4",
   ajustes: "M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6",
@@ -751,7 +804,7 @@ function AvisosPago({ avisos, agendas, onCambio }: { avisos: AvisoAdmin[]; agend
     <section className="mb-5 rounded-2xl border-2 border-accent bg-panel p-4 sm:p-5">
       <h2 className="flex items-center gap-2 font-semibold">
         <span className="grid h-6 min-w-6 place-items-center rounded-full bg-accent px-1.5 text-xs text-panel">{avisos.length}</span>
-        Avisos de pago por confirmar
+        Clínicas · pagos por confirmar
       </h2>
       <p className="mb-3 mt-0.5 text-sm text-muted">Revisa en tu banco que haya llegado la transferencia (busca el concepto) y confírmala.</p>
       <ul className="flex flex-col gap-2">
