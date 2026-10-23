@@ -18,22 +18,26 @@ type Props = {
   odonto?: boolean; // ejemplos de odonto o de cualquier persona
   pro?: boolean; // 2.3 · en Gratis: sin viajes nuevos
   onPro?: () => void; // abre "Eso es de Pro"
+  borrador?: { tipo?: TipoEvento; titulo?: string; fecha?: string | null; fecha_fin?: string | null; hora_inicio?: string | null; hora_fin?: string | null; lugar?: string | null; repetir?: Repetir }; // 2.6 · de "Anotar rápido"
 };
 
-export default function EventoModal({ supabase, userId, evento, fechaInicial, tipoInicial, categorias, onClose, onGuardado, demo = false, odonto = true, pro = true, onPro }: Props) {
+export default function EventoModal({ supabase, userId, evento, fechaInicial, tipoInicial, categorias, onClose, onGuardado, demo = false, odonto = true, pro = true, onPro, borrador: b }: Props) {
   const nuevo = !evento;
   const dia = evento && "dia" in evento ? evento.dia : null; // la aparición que se abrió (series)
-  const [tipo, setTipo] = useState<TipoEvento>(evento?.tipo ?? tipoInicial ?? "evento");
-  const [titulo, setTitulo] = useState(evento?.titulo ?? "");
-  const [fecha, setFecha] = useState(evento?.fecha ?? fechaInicial);
-  const [fechaFin, setFechaFin] = useState(evento?.fecha_fin ?? evento?.fecha ?? fechaInicial);
-  const [todoElDia, setTodoElDia] = useState(evento ? !evento.hora_inicio : tipoInicial === "entrega" || tipoInicial === "viaje");
-  const [inicio, setInicio] = useState(hm(evento?.hora_inicio) || "09:00");
-  const [fin, setFin] = useState(hm(evento?.hora_fin) || "10:00");
-  const [lugar, setLugar] = useState(evento?.lugar ?? "");
+  const tipo0 = evento?.tipo ?? b?.tipo ?? tipoInicial ?? "evento";
+  const [tipo, setTipo] = useState<TipoEvento>(tipo0);
+  const [titulo, setTitulo] = useState(evento?.titulo ?? b?.titulo ?? "");
+  const [fecha, setFecha] = useState(evento?.fecha ?? b?.fecha ?? fechaInicial);
+  const [fechaFin, setFechaFin] = useState(evento?.fecha_fin ?? evento?.fecha ?? b?.fecha_fin ?? b?.fecha ?? fechaInicial);
+  const [todoElDia, setTodoElDia] = useState(evento ? !evento.hora_inicio : b ? !b.hora_inicio : tipo0 === "entrega" || tipo0 === "viaje");
+  const [inicio, setInicio] = useState(hm(evento?.hora_inicio) || hm(b?.hora_inicio) || "09:00");
+  const [fin, setFin] = useState(
+    hm(evento?.hora_fin) || hm(b?.hora_fin) || (b?.hora_inicio && Number(b.hora_inicio.slice(0, 2)) < 23 ? `${String(Number(b.hora_inicio.slice(0, 2)) + 1).padStart(2, "0")}:${b.hora_inicio.slice(3, 5)}` : "10:00")
+  );
+  const [lugar, setLugar] = useState(evento?.lugar ?? b?.lugar ?? "");
   const [notas, setNotas] = useState(evento?.notas ?? "");
   const [categoria, setCategoria] = useState<string>(evento?.categoria_id ?? "");
-  const [repetir, setRepetir] = useState<Repetir>(evento?.repetir ?? "nunca");
+  const [repetir, setRepetir] = useState<Repetir>(evento?.repetir ?? b?.repetir ?? "nunca");
   const [hasta, setHasta] = useState(evento?.repetir_hasta ?? "");
   const [hecho, setHecho] = useState(evento?.hecho ?? false);
   const [error, setError] = useState<string | null>(null);

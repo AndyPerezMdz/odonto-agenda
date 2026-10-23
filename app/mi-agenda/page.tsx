@@ -27,6 +27,7 @@ const COSAS = [
   { t: "Hábitos con racha", x: "Agua, gym, leer… Los palomeas cada día y ves crecer tu racha. Gratis y sin límite.", d: "M12 22c4 0 7-3 7-7 0-3-2-5-3-7-1 2-2 3-3.5 3C13 8 12 5 9 2c0 4-4 7-4 13 0 4 3 7 7 7z" },
   { t: "Pendientes", x: "Por hacer y “algún día”, con subtareas. Ponles fecha y te salen en Hoy.", d: "M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" },
   { t: "Se repite sola", x: "El gym diario, la clase de cada semana, el pago de cada mes, los cumpleaños cada año. Lo anotas una vez.", d: "M17 2l4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3" },
+  { t: "Anotar rápido", x: "Escribe “cena con Ana el viernes 9pm en La Chaya” y se arma solo: fecha, hora y lugar. Tú nada más revisas.", d: "M13 2 3 14h9l-1 8 10-12h-9l1-8z" },
   { t: "Pagos fijos", x: "Renta, tarjeta, celular, Netflix: te avisa antes, palomeas “Ya pagué” y ves cuánto se te va al mes.", d: "M3 7h18v12H3zM3 11h18M7 15h3" },
   { t: "Tus colores", x: "Categorías como Trabajo, Escuela, Viajes o Personal, con el color que quieras.", d: "M12 22a10 10 0 1 1 10-10c0 2.8-2.2 4-4 4h-2a2 2 0 0 0-1.5 3.3A2 2 0 0 1 12 22zM7.5 10.5h.01M12 7.5h.01M16.5 10.5h.01" },
   { t: "Te avisa", x: "Notificación en tu cel a la hora de cada recordatorio. Con Pro, además, un correo cada mañana y tu agenda en el calendario del teléfono.", d: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" },

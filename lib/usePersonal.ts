@@ -23,7 +23,7 @@ export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto")
   const [presupuestos, setPresupuestos] = useState<Record<string, number | null>>({});
   const [pagosFijos, setPagosFijos] = useState<PPagoFijo[]>([]);
   const [pagosHechos, setPagosHechos] = useState<PPagoHecho[]>([]);
-  const [prefs, setPrefs] = useState<{ correo?: boolean }>({});
+  const [prefs, setPrefs] = useState<{ correo?: boolean; semana?: boolean }>({});
   const [error, setError] = useState<string | null>(null);
 
   const recargar = useCallback(async () => {
@@ -62,7 +62,7 @@ export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto")
       setEventos(((e.data ?? []) as PEvento[]).map((x) => ({ ...x, excepciones: x.excepciones ?? [] })));
     }
     setCategorias((c.data ?? []) as PCategoria[]);
-    setPrefs(((p.data?.prefs ?? {}) as { correo?: boolean }) || {});
+    setPrefs(((p.data?.prefs ?? {}) as { correo?: boolean; semana?: boolean }) || {});
     // (si aún no se corre el SQL de 2.4, estas tablas no existen: se quedan vacías sin tronar)
     setPendientes(pe.error ? [] : ((pe.data ?? []) as PPendiente[]));
     setHabitos(h.error ? [] : ((h.data ?? []) as PHabito[]));

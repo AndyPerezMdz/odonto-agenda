@@ -21,5 +21,15 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.error("[push resumen personal]", e);
   }
-  return NextResponse.json({ ok: true, enviadas, personales });
+  // Los domingos, además: "Tu semana" (2.6, Pro)
+  let semanas = 0;
+  try {
+    const { pushSemanaPersonales } = await import("@/lib/personalServer");
+    for (const [uid, r] of await pushSemanaPersonales(db)) {
+      semanas += await enviarPush(db, [uid], { titulo: r.titulo, cuerpo: r.cuerpo, url: "/personal", etiqueta: "personal-semana" });
+    }
+  } catch (e) {
+    console.error("[push semana personal]", e);
+  }
+  return NextResponse.json({ ok: true, enviadas, personales, semanas });
 }

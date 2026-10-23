@@ -24,8 +24,11 @@ export async function GET(request: NextRequest) {
     // Y los avisos del plan de Mi agenda (2.3): "te quedan 3 días de Pro" y "hoy es el último"
     const { avisosPlanMi } = await import("@/lib/planMiServer");
     const planesMi = await avisosPlanMi(createAdminClient(), sitio).catch((e) => [{ persona: "-", aviso: "error: " + e.message }]);
-    console.log("[recordatorios]", JSON.stringify({ resultados, vencimientos, personales, planesMi }));
-    return NextResponse.json({ ok: true, resultados, vencimientos, personales, planesMi });
+    // Los domingos, "Tu semana" de Mi agenda (2.6, Pro)
+    const { correosSemanaPersonales } = await import("@/lib/personalServer");
+    const semanas = await correosSemanaPersonales(createAdminClient(), sitio).catch((e) => [{ persona: "-", estado: "error: " + e.message }]);
+    console.log("[recordatorios]", JSON.stringify({ resultados, vencimientos, personales, planesMi, semanas }));
+    return NextResponse.json({ ok: true, resultados, vencimientos, personales, planesMi, semanas });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[recordatorios]", msg);

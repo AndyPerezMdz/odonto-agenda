@@ -6,6 +6,7 @@ import { categoriasIniciales, entregasPendientes, expandir, textoHora, type PEve
 import { fechaLarga } from "@/lib/fechas";
 import { pesos, sumarDias } from "@/lib/pagos";
 import { CAMPOS_PAGO, pagosPorAtender, type PPagoFijo, type PPagoHecho } from "@/lib/viajesPagos";
+import { semanaVacia, tuSemana, type TuSemana } from "@/lib/tuSemana";
 
 type Db = ReturnType<typeof createAdminClient>;
 
@@ -277,6 +278,93 @@ export async function resumenesPushPersonales(db: Db) {
 }
 
 export { eventosDe as eventosPersonalesDe };
+
+/* ---------------- 2.6 · Tu semana (domingo, Pro) ---------------- */
+
+const esDomingo = (iso: string) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay() === 0;
+};
+
+/** De cada quien con Pro y "Tu semana" encendido: su resumen de lunes a domingo (los vacíos no). */
+async function semanasDe(db: Db, hoy: string) {
+  const { data: filas } = await db.from("personales").select("user_id,nombre,prefs").eq("activo", true);
+  const { idsProMi } = await import("@/lib/planMiServer");
+  const pro = await idsProMi(db, (filas ?? []).map((f) => f.user_id as string));
+  const activos = (filas ?? []).filter((f) => pro.has(f.user_id) && (f.prefs as { semana?: boolean } | null)?.semana !== false);
+  const ids = activos.map((f) => f.user_id as string);
+  const [eventos, todoPagos] = await Promise.all([eventosDe(db, ids), pagosDe(db, ids)]);
+  const lunes = sumarDias(hoy, 1);
+  const out: { userId: string; nombre: string | null; s: TuSemana }[] = [];
+  for (const f of activos) {
+    const pagos = todoPagos.pagos.filter((p) => p.user_id === f.user_id);
+    const idsPagos = new Set(pagos.map((p) => p.id));
+    const s = tuSemana(eventos.filter((e) => e.user_id === f.user_id), pagos, todoPagos.hechos.filter((h) => idsPagos.has(h.pago_id)), lunes);
+    if (!semanaVacia(s)) out.push({ userId: f.user_id, nombre: f.nombre ?? null, s });
+  }
+  return out;
+}
+
+const resumenCorto = (s: TuSemana) =>
+  [
+    s.entregas.length ? `${s.entregas.length} entrega${s.entregas.length === 1 ? "" : "s"}` : "",
+    s.pagos.length ? `${pesos(s.totalPagos)} en pagos` : "",
+    s.fechas.length ? `${s.fechas.length} cumple${s.fechas.length === 1 ? "" : "s"}` : "",
+    s.viajes.length ? `${s.viajes.length} viaje${s.viajes.length === 1 ? "" : "s"}` : "",
+    s.eventos ? `${s.eventos} evento${s.eventos === 1 ? "" : "s"}` : "",
+  ].filter(Boolean).join(" · ");
+
+/** Correo "Tu semana" (va en el cron diario; sólo hace algo en domingo, hora de Mérida). */
+export async function correosSemanaPersonales(db: Db, sitio: string) {
+  const hoy = fechaEnZona(0);
+  if (!esDomingo(hoy)) return [];
+  const semanas = await semanasDe(db, hoy);
+  if (!semanas.length) return [];
+  const { data: usuarios } = await db.auth.admin.listUsers({ perPage: 1000 });
+  const correo = new Map((usuarios?.users ?? []).map((u) => [u.id, u.email]));
+  const dia = (f: string) => esc(fechaLarga(f));
+  const li = (t: string) => `<li style="margin:0 0 6px;">${t}</li>`;
+  const bloque = (titulo: string, items: string[]) =>
+    items.length ? `<p style="margin:16px 0 6px;font-weight:bold;">${titulo}</p><ul style="margin:0;padding-left:18px;color:#4a4d55;">${items.join("")}</ul>` : "";
+  const out: { persona: string; estado: string }[] = [];
+  for (const { userId, nombre, s } of semanas) {
+    const para = correo.get(userId);
+    const persona = nombre ?? para ?? userId;
+    if (!para) { out.push({ persona, estado: "sin correo" }); continue; }
+    const html = correoPersonal(
+      `Tu semana: ${dia(s.desde)} al ${dia(s.hasta)}`,
+      `<p style="margin:0;color:#4a4d55;">${nombre ? `Hola, ${esc(nombre)}. ` : ""}Esto es lo que viene: ${esc(resumenCorto(s))}.${s.diaPesado ? ` El día más cargado es el ${dia(s.diaPesado.dia)}.` : ""}</p>` +
+        bloque("Por entregar", s.entregas.map((o) => li(`${esc(o.titulo)} · ${dia(o.dia)}`))) +
+        bloque("Pagos", s.pagos.map((v) => li(`${esc(v.pago.nombre)} · ${esc(pesos(v.pago.monto))} · ${dia(v.fecha)}`))) +
+        bloque("Fechas especiales", s.fechas.map((o) => li(`🎂 ${esc(o.titulo)} · ${dia(o.dia)}`))) +
+        bloque("Viajes", s.viajes.map((v) => li(`✈ ${esc(v.titulo)} · ${dia(v.fecha)}${v.fecha_fin && v.fecha_fin !== v.fecha ? ` al ${dia(v.fecha_fin)}` : ""}`))),
+      { texto: "Ver mi semana", url: `${sitio}/personal` }
+    );
+    const texto = [
+      `Tu semana: ${resumenCorto(s)}`,
+      ...s.entregas.map((o) => `Entrega: ${o.titulo} (${o.dia})`),
+      ...s.pagos.map((v) => `Pago: ${v.pago.nombre} ${pesos(v.pago.monto)} (${v.fecha})`),
+      ...s.fechas.map((o) => `Fecha: ${o.titulo} (${o.dia})`),
+      ...s.viajes.map((v) => `Viaje: ${v.titulo} (${v.fecha})`),
+    ].join("\n");
+    try {
+      await enviarConResend({ para, nombreRemitente: "Mi agenda", asunto: `Tu semana: ${resumenCorto(s)}`.slice(0, 120), html, texto, idempotencia: `semana-${userId}-${hoy}` });
+      out.push({ persona, estado: "enviado" });
+    } catch (e) {
+      out.push({ persona, estado: "error: " + (e as Error).message });
+    }
+  }
+  return out;
+}
+
+/** Push "Tu semana" del domingo: { userId → texto } */
+export async function pushSemanaPersonales(db: Db) {
+  const hoy = fechaEnZona(0);
+  const r = new Map<string, { titulo: string; cuerpo: string }>();
+  if (!esDomingo(hoy)) return r;
+  for (const { userId, s } of await semanasDe(db, hoy)) r.set(userId, { titulo: "Tu semana", cuerpo: resumenCorto(s) });
+  return r;
+}
 
 /* ---------------- 2.2 · Link de entrada (para cualquier cuenta) ---------------- */
 

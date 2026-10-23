@@ -47,7 +47,7 @@ export default function AjustesPersonal({ userId, email, pro = true }: { userId:
         <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
           <h2 className="serif text-xl">Correo de la mañana</h2>
           <p className="mb-3 mt-0.5 text-sm text-muted">Cada madrugada, un correo con lo de hoy y lo que tienes por entregar. Si no hay nada, no llega.</p>
-          <label className="inline-flex items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm">
+          <label className="flex w-fit items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm">
             <input
               type="checkbox"
               checked={prefs.correo !== false}
@@ -57,6 +57,17 @@ export default function AjustesPersonal({ userId, email, pro = true }: { userId:
               }}
             />
             Recibir el correo
+          </label>
+          <label className="mt-2 flex w-fit items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              checked={prefs.semana !== false}
+              onChange={async (e) => {
+                await supabase.from("personales").update({ prefs: { ...prefs, semana: e.target.checked } }).eq("user_id", userId);
+                recargar();
+              }}
+            />
+            “Tu semana” cada domingo (correo y aviso en el cel)
           </label>
         </section>
 

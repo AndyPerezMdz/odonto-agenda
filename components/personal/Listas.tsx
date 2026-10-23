@@ -131,9 +131,9 @@ function Ventana({ titulo, onClose, children }: { titulo: string; onClose: () =>
 }
 
 export function PendienteModal({
-  pendiente, fechaInicial, listaInicial = "hacer", acciones, onClose,
-}: { pendiente: PPendiente | null; fechaInicial?: string | null; listaInicial?: PPendiente["lista"]; acciones: AccionesListas; onClose: () => void }) {
-  const [titulo, setTitulo] = useState(pendiente?.titulo ?? "");
+  pendiente, fechaInicial, listaInicial = "hacer", tituloInicial = "", acciones, onClose,
+}: { pendiente: PPendiente | null; fechaInicial?: string | null; listaInicial?: PPendiente["lista"]; tituloInicial?: string; acciones: AccionesListas; onClose: () => void }) {
+  const [titulo, setTitulo] = useState(pendiente?.titulo ?? tituloInicial);
   const [lista, setLista] = useState<PPendiente["lista"]>(pendiente?.lista ?? listaInicial);
   const [conFecha, setConFecha] = useState(!!(pendiente?.fecha ?? fechaInicial));
   const [fecha, setFecha] = useState(pendiente?.fecha ?? fechaInicial ?? sumarDias(new Date().toISOString().slice(0, 10), 0));
