@@ -12,7 +12,7 @@ type Db = ReturnType<typeof createAdminClient>;
 
 /*
   MI AGENDA · GRATIS / PRO (2.3)
-  - Registro abierto en /mi-agenda/registro: 15 días de Pro de prueba (una vez por correo) y luego Gratis o un plan.
+  - Registro abierto en /mi-agenda/registro: nace en Gratis; 15 días de Pro de prueba cuando la persona quiera (una vez por correo).
   - Quien también es de odonto: si su agenda de clínicas es Pro, su Mi agenda también (sin pagar extra).
   - Las que das de alta tú desde el panel nacen de cortesía (Pro sin fecha); se la puedes quitar.
   - Se paga por transferencia (concepto MI-XXXXXX) y tú confirmas en el panel, igual que en clínicas.
@@ -61,7 +61,7 @@ export async function idsProMi(db: Db, ids: string[]) {
 
 /**
  * Se crea (o activa) la Mi agenda de quien ya tiene sesión: al registrarse en /mi-agenda/registro,
- * o desde su agenda de clínicas ("Activarla"). Prueba de Pro una vez por correo; los de odonto se apoyan en su Pro de clínicas.
+ * o desde su agenda de clínicas ("Activarla"). Nace en Gratis; los de odonto con Pro de clínicas ya son Pro.
  */
 export async function activarPersonal(
   db: Db,
@@ -79,20 +79,8 @@ export async function activarPersonal(
   const hoy = fechaEnZona(0);
   const nombre = opts.nombre?.trim().slice(0, 60) || perfil?.nombre || email.split("@")[0] || null;
 
-  // Prueba: sólo para quien no es de odonto (a esos los cubre su Pro de clínicas) y no la haya usado
-  let prueba = false;
-  let pagado = ayer(hoy);
-  if (!odonto && email) {
-    const clave = clavePrueba(email);
-    const { data: pr } = await db.from("pruebas").select("email,mi_usada_at").eq("email", clave).maybeSingle();
-    if (!pr?.mi_usada_at) {
-      prueba = true;
-      pagado = sumarDias(hoy, DIAS_PRUEBA_MI - 1);
-      if (pr) await db.from("pruebas").update({ mi_usada_at: new Date().toISOString() }).eq("email", clave);
-      else await db.from("pruebas").insert({ email: clave, mi_usada_at: new Date().toISOString() });
-    }
-  }
-
+  // 2.3 · Nace en Gratis: la prueba de Pro la activa la persona cuando quiera (pruebaMiDisponible / activarPruebaMi)
+  const pagado = ayer(hoy);
   const { error } = await db.from("personales").insert({
     user_id: user.id,
     activo: true,
@@ -100,14 +88,40 @@ export async function activarPersonal(
     prefs: { correo: true },
     perfil: tipo,
     pagado_hasta: pagado,
-    prueba_hasta: prueba ? pagado : null,
+    prueba_hasta: null,
     password_at: opts.conPassword ? new Date().toISOString() : null,
   });
   if (error) return { ok: false, error: error.message };
   if (nombre && !perfil?.nombre) await db.from("perfiles").update({ nombre }).eq("id", user.id);
   const { count } = await db.from("p_categorias").select("id", { count: "exact", head: true }).eq("user_id", user.id);
   if (!count) await db.from("p_categorias").insert(categoriasIniciales(tipo).map((c) => ({ ...c, user_id: user.id })));
-  return { ok: true, prueba };
+  return { ok: true, prueba: false };
+}
+
+/** ¿Puede activar su prueba de Mi agenda? No la ha usado (por correo), nunca ha pagado y hoy no es Pro. */
+export async function pruebaMiDisponible(db: Db, user: { id: string; email?: string | null }) {
+  if (!user.email) return false;
+  const [estado, { data: pr }, { count }] = await Promise.all([
+    estadoMiDe(db, user.id),
+    db.from("pruebas").select("mi_usada_at").eq("email", clavePrueba(user.email)).maybeSingle(),
+    db.from("p_pagos").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+  ]);
+  if (!estado || estado.pro || pr?.mi_usada_at || (count ?? 0) > 0) return false;
+  const { data: p } = await db.from("personales").select("prueba_hasta").eq("user_id", user.id).maybeSingle();
+  return !p?.prueba_hasta;
+}
+
+/** La persona activa sus 15 días de Pro (sólo una vez por correo). */
+export async function activarPruebaMi(db: Db, user: { id: string; email?: string | null }): Promise<{ hasta?: string; error?: string }> {
+  if (!(await pruebaMiDisponible(db, user))) return { error: "Ya usaste tu prueba de Pro (o ya tienes Pro). Para tener Pro, elige un plan." };
+  const hasta = sumarDias(fechaEnZona(0), DIAS_PRUEBA_MI - 1);
+  const { error } = await db.from("personales").update({ pagado_hasta: hasta, prueba_hasta: hasta }).eq("user_id", user.id);
+  if (error) return { error: error.message };
+  const clave = clavePrueba(user.email!);
+  const { data: pr } = await db.from("pruebas").select("email").eq("email", clave).maybeSingle();
+  if (pr) await db.from("pruebas").update({ mi_usada_at: new Date().toISOString() }).eq("email", clave);
+  else await db.from("pruebas").insert({ email: clave, mi_usada_at: new Date().toISOString() });
+  return { hasta };
 }
 
 /* ---------------- Pagos ---------------- */
@@ -127,16 +141,18 @@ export async function registrarPagoMi(db: Db, userId: string, p: { monto: number
 }
 
 /** Lo que ve la persona en "Tu plan": estado, planes, datos para transferir e historial. */
-export async function datosPlanMi(db: Db, userId: string) {
-  const [estado, planes, { data: banco }, { data: pagos }, { data: avisos }] = await Promise.all([
+export async function datosPlanMi(db: Db, userId: string, email?: string | null) {
+  const [estado, planes, { data: banco }, { data: pagos }, { data: avisos }, prueba] = await Promise.all([
     estadoMiDe(db, userId),
     planesMiConfig(db),
     db.from("configuracion").select("valor").eq("clave", "pago").maybeSingle(),
     db.from("p_pagos").select("id,monto,meses,cubre_desde,cubre_hasta,created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(6),
     db.from("p_avisos").select("id,estado,created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(1),
+    pruebaMiDisponible(db, { id: userId, email }),
   ]);
   return {
     estado,
+    pruebaDisponible: prueba,
     planes: planes.filter((p) => p.activo),
     codigo: codigoMi(userId),
     banco: banco?.valor ?? {},

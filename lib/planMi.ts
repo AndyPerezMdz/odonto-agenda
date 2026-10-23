@@ -1,7 +1,7 @@
 // 2.3 · Planes de Mi agenda (Gratis / Pro), compartido entre cliente y servidor. Fechas "YYYY-MM-DD".
 import { diasEntre, sumarDias } from "@/lib/pagos";
 
-export const DIAS_PRUEBA_MI = 15; // registro nuevo (una vez por correo)
+export const DIAS_PRUEBA_MI = 15; // la activa la persona cuando quiere (una vez por correo)
 export const AVISAR_MI = 3; // "te quedan N días de Pro"
 
 export type PlanMiId = "mes" | "tri" | "anual";
@@ -32,14 +32,12 @@ export const planMiDe = (planes: PlanMi[], id: unknown) => planes.find((p) => p.
 /** Lo que trae Pro en Mi agenda (para la página pública, los candados y la tarjeta del plan). */
 export const BENEFICIOS_MI_PRO = [
   "Viajes con pase de abordar",
-  "Recordatorios",
-  "Repetir: diario, cada semana, cada mes",
   "Tus categorías y colores",
   "Correo cada mañana con tu día",
-  "Notificaciones en tu cel",
+  "Resumen diario en tu cel",
   "Tu agenda en el calendario de tu cel",
 ];
-export const GRATIS_MI = ["Eventos y entregas", "Hoy, Semana y Mes", "En tu cel y tu compu"];
+export const GRATIS_MI = ["Eventos, entregas y recordatorios", "Repetir: diario, cada semana, cada mes", "Hoy, Semana y Mes", "En tu cel y tu compu"];
 
 /** Concepto de la transferencia de Mi agenda (distinto al AG- de clínicas). */
 export const codigoMi = (userId: string) => "MI-" + userId.replace(/-/g, "").slice(0, 6).toUpperCase();

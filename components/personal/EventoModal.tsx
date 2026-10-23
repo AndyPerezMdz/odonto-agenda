@@ -16,7 +16,7 @@ type Props = {
   onGuardado: (fecha: string) => void;
   demo?: boolean;
   odonto?: boolean; // ejemplos de odonto o de cualquier persona
-  pro?: boolean; // 2.3 · en Gratis: sin viajes, recordatorios ni repetir nuevos
+  pro?: boolean; // 2.3 · en Gratis: sin viajes nuevos
   onPro?: () => void; // abre "Eso es de Pro"
 };
 
@@ -118,13 +118,13 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
               title={t.detalle}
               onClick={() => {
                 // En Gratis no se crean viajes ni recordatorios nuevos (lo que ya tenías sí se edita)
-                if (!pro && (t.id === "viaje" || t.id === "recordatorio") && evento?.tipo !== t.id) return onPro?.();
+                if (!pro && t.id === "viaje" && evento?.tipo !== t.id) return onPro?.();
                 setTipo(t.id);
                 if (t.id === "entrega" || t.id === "viaje") setTodoElDia(true);
               }}
-              className={`relative flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-xs font-medium transition ${tipo === t.id ? "bg-accent text-panel" : "text-muted hover:bg-panel-2 hover:text-ink"} ${!pro && (t.id === "viaje" || t.id === "recordatorio") && evento?.tipo !== t.id ? "opacity-60" : ""}`}
+              className={`relative flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-xs font-medium transition ${tipo === t.id ? "bg-accent text-panel" : "text-muted hover:bg-panel-2 hover:text-ink"} ${!pro && t.id === "viaje" && evento?.tipo !== t.id ? "opacity-60" : ""}`}
             >
-              {!pro && (t.id === "viaje" || t.id === "recordatorio") && evento?.tipo !== t.id && <span className="absolute right-1 top-1 text-[9px] font-bold uppercase">Pro</span>}
+              {!pro && t.id === "viaje" && evento?.tipo !== t.id && <span className="absolute right-1 top-1 text-[9px] font-bold uppercase">Pro</span>}
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={ICONO_TIPO[t.id]} /></svg>
               {t.nombre}
             </button>
@@ -208,15 +208,9 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
           {puedeRepetir && (
             <div className="col-span-2 grid grid-cols-2 gap-3 rounded-xl border border-line p-3">
               <label className="text-sm"><span className="mb-1 block font-medium">Repetir</span>
-                {!pro && (evento?.repetir ?? "nunca") === "nunca" ? (
-                  <button type="button" onClick={() => onPro?.()} className="campo flex items-center justify-between text-left text-muted">
-                    No se repite <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-bold uppercase text-accent">Pro</span>
-                  </button>
-                ) : (
-                  <select className="campo" value={repetir} onChange={(e) => setRepetir(e.target.value as Repetir)}>
-                    {REPETIR.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
-                  </select>
-                )}
+                <select className="campo" value={repetir} onChange={(e) => setRepetir(e.target.value as Repetir)}>
+                  {REPETIR.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+                </select>
               </label>
               {repetir !== "nunca" && (
                 <label className="text-sm"><span className="mb-1 block font-medium">Hasta (opcional)</span>

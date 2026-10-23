@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { duenoEnSesion } from "@/lib/companero";
-import { agendaEnPrueba } from "@/lib/pruebas";
+import { agendaEnPrueba, pruebaAgendaDisponible } from "@/lib/pruebas";
 import { sumarDias } from "@/lib/pagos";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,15 @@ export async function POST(request: NextRequest) {
   ]);
   if (!c || !c.activo) return NextResponse.json({ error: "Ese código no existe o ya no está activo." }, { status: 404 });
   if (agenda?.codigo) return NextResponse.json({ error: "Tu agenda ya tiene un código aplicado." }, { status: 409 });
-  if (!agenda?.prueba_hasta || !(await agendaEnPrueba(s.db, s.agendaId))) {
+  // 2.3 · Antes de activar la prueba: el código se guarda y sus días se suman al activarla
+  if (!agenda?.prueba_hasta) {
+    const disp = await pruebaAgendaDisponible(s.db, s.agendaId);
+    if (!disp.ok) return NextResponse.json({ error: "Los códigos sólo aplican a la prueba de Pro, y esta agenda ya no la tiene." }, { status: 409 });
+    const { error } = await s.db.from("agendas").update({ codigo: c.codigo }).eq("id", s.agendaId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, pendiente: true, dias: c.dias_extra ?? 15, creador: c.creador });
+  }
+  if (!(await agendaEnPrueba(s.db, s.agendaId))) {
     return NextResponse.json({ error: "Los códigos sólo aplican durante la prueba de Pro de una agenda nueva." }, { status: 409 });
   }
 

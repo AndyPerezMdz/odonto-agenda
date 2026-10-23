@@ -4,7 +4,7 @@ import { duenoEnSesion } from "@/lib/companero";
 import { notificarAvisoPago } from "@/lib/pagosServer";
 import { urlSitio } from "@/lib/recordatorios";
 import { codigoAgenda } from "@/lib/pagos";
-import { agendaEnPrueba } from "@/lib/pruebas";
+import { agendaEnPrueba, pruebaAgendaDisponible } from "@/lib/pruebas";
 import { planesConfig } from "@/lib/universidadesServer";
 import { mensualDe, planDe } from "@/lib/precios";
 import { mpActivo } from "@/lib/mercadopago";
@@ -18,12 +18,13 @@ export async function GET() {
   const s = await duenoEnSesion();
   if (!s) return soloDueno();
 
-  const [{ data: agenda }, { data: config }, { data: pagos }, { data: avisos }, enPrueba] = await Promise.all([
+  const [{ data: agenda }, { data: config }, { data: pagos }, { data: avisos }, enPrueba, prueba] = await Promise.all([
     s.db.from("agendas").select("id,nombre,pagado_hasta,precio_mensual,prueba_hasta,codigo,universidad").eq("id", s.agendaId).single(),
     s.db.from("configuracion").select("valor").eq("clave", "pago").maybeSingle(),
     s.db.from("pagos").select("id,monto,meses,metodo,cubre_desde,cubre_hasta,created_at").eq("agenda_id", s.agendaId).order("created_at", { ascending: false }).limit(6),
     s.db.from("avisos_pago").select("id,created_at,estado").eq("agenda_id", s.agendaId).order("created_at", { ascending: false }).limit(1),
     agendaEnPrueba(s.db, s.agendaId),
+    pruebaAgendaDisponible(s.db, s.agendaId),
   ]);
   if (!agenda) return NextResponse.json({ error: "Agenda no encontrada." }, { status: 404 });
   const planes = await planesConfig(s.db);
@@ -35,6 +36,7 @@ export async function GET() {
     mp: PAGO_EN_LINEA && mpActivo(), // ¿se puede pagar con tarjeta / OXXO?
     pagadoHasta: agenda.pagado_hasta,
     enPrueba,
+    pruebaDisponible: prueba.ok, // 2.3 · puede activar sus 15 días cuando quiera
     codigoCreador: agenda.codigo ?? null,
     precio: Number(agenda.precio_mensual),
     codigo: codigoAgenda(agenda.id),

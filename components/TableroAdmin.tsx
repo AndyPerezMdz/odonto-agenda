@@ -182,7 +182,8 @@ function pendientesDe(agendas: AgendaAdmin[]): Pendiente[] {
         detalle: `Se bloquea el ${fechaLarga(e.bloqueo)}`,
         whatsapp: `${hola} ${a.enPrueba ? "Tu prueba de Pro ya terminó" : `Tu suscripción venció el ${fechaLarga(e.vence)}`}; para seguir agendando sólo falta renovar. ${pagar} ¡Gracias!`,
       });
-    } else if (e.tipo === "vencida" && diasEntre(e.vence, hoy) <= 30 && dueno) {
+    } else if (e.tipo === "vencida" && diasEntre(e.vence, hoy) <= 30 && dueno && (a.prueba_hasta || a.pagada)) {
+      // (2.3: las que nacen en Gratis y nunca han probado Pro no "bajaron" de nada)
       lista.push({
         id: `pago-${a.id}`, nivel: "dinero", agenda: a, correo: "pago",
         titulo: a.enPrueba ? "Terminó su prueba de Pro: está en Gratis" : "Bajó a Gratis",

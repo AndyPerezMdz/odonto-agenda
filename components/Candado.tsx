@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { BENEFICIOS_PRO } from "@/lib/plan";
+import ProbarPro, { usePruebaDisponible } from "@/components/ProbarPro";
 
 /** "Esto es de Pro": en lugar de esconder, enseña lo que se pierden y a dónde ir. */
 export default function Candado({
   titulo, texto, esDueno, compacto = false, beneficios = false,
 }: { titulo: string; texto: string; esDueno: boolean; compacto?: boolean; beneficios?: boolean }) {
+  const prueba = usePruebaDisponible();
+  const probar = esDueno && !!prueba?.disponible;
   return (
     <section className={`rounded-2xl border border-dashed border-accent/50 bg-accent-soft/40 ${compacto ? "p-3" : "p-5 text-center sm:p-6"}`}>
       <div className={compacto ? "flex flex-wrap items-center gap-3" : ""}>
@@ -22,7 +25,12 @@ export default function Candado({
             {BENEFICIOS_PRO.slice(0, 6).map((b) => <li key={b} className="flex gap-2"><span className="text-accent">✓</span>{b}</li>)}
           </ul>
         )}
-        {esDueno ? (
+        {probar ? (
+          <div className={`flex flex-wrap items-center gap-2 ${compacto ? "" : "mt-4 justify-center"}`}>
+            <ProbarPro compacto={compacto} />
+            <Link href="/personalizar#suscripcion" className={`btn btn-sec shrink-0 ${compacto ? "py-1.5 text-sm" : ""}`}>Ver planes</Link>
+          </div>
+        ) : esDueno ? (
           <Link href="/personalizar#suscripcion" className={`btn btn-primario shrink-0 ${compacto ? "py-1.5 text-sm" : "mt-4"}`}>Ver planes</Link>
         ) : (
           <p className={`text-xs text-muted ${compacto ? "" : "mt-3"}`}>Pídele al dueño/a de la agenda que active Pro: es para los dos.</p>

@@ -23,7 +23,7 @@ const sinAgenda = () => NextResponse.json({ error: "Esta cuenta no tiene Mi agen
 export async function GET() {
   const s = await sesion();
   if (!s) return sinAgenda();
-  return NextResponse.json(await datosPlanMi(s.db, s.user.id));
+  return NextResponse.json(await datosPlanMi(s.db, s.user.id, s.user.email));
 }
 
 // POST { plan, referencia? } → "Ya pagué"

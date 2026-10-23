@@ -5,9 +5,12 @@ import { Copiable } from "@/components/TarjetaSuscripcion";
 import { BENEFICIOS_MI_PRO, GRATIS_MI, type EstadoMi, type PlanMi } from "@/lib/planMi";
 import { pesos } from "@/lib/pagos";
 import { fechaLarga } from "@/lib/fechas";
+import ProbarMi from "@/components/personal/ProbarMi";
+import { DIAS_PRUEBA_MI } from "@/lib/planMi";
 
 type Datos = {
   estado: EstadoMi | null;
+  pruebaDisponible?: boolean;
   planes: PlanMi[];
   codigo: string;
   banco: { banco?: string; clabe?: string; titular?: string };
@@ -75,6 +78,14 @@ export default function TarjetaPlanMi() {
         <h2 className="serif text-xl">Tu plan</h2>
         <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${e?.pro ? "bg-accent-soft text-accent" : "bg-panel-2 text-muted"}`}>{etiqueta}</span>
       </div>
+
+      {d.pruebaDisponible && (
+        <div className="mt-4 rounded-2xl border-2 border-accent bg-accent-soft/40 p-4">
+          <p className="serif text-lg">Prueba Pro {DIAS_PRUEBA_MI} días gratis</p>
+          <p className="mb-3 mt-0.5 text-sm text-muted">Actívala cuando quieras: todo Pro durante {DIAS_PRUEBA_MI} días, sin tarjeta y sin cobro al terminar.</p>
+          <ProbarMi onActivada={() => window.location.reload()} />
+        </div>
+      )}
 
       {e?.tipo === "clinicas" && <p className="mt-2 text-sm text-muted">Como tu agenda de clínicas es Pro, tu Mi agenda también lo es, sin pagar extra. Si un día tu agenda de clínicas baja a Gratis, Mi agenda también.</p>}
 

@@ -976,7 +976,7 @@ grant select on public.p_solicitudes to authenticated;
 alter table public.personales add column if not exists perfil text not null default 'odonto';
 alter table public.personales drop constraint if exists personales_perfil_valido;
 alter table public.personales add constraint personales_perfil_valido check (perfil in ('odonto', 'general'));
-alter table public.personales add column if not exists prueba_hasta date; -- hasta cuándo va su prueba de Pro (NULL = nunca tuvo)
+alter table public.personales add column if not exists prueba_hasta date; -- hasta cuándo va su prueba de Pro (NULL = no la ha activado)
 -- pagado_hasta (ya existía): NULL = cortesía (Pro siempre), fecha = Pro hasta ese día, pasada = Gratis
 
 -- Una prueba de Mi agenda por correo (aparte de la de clínicas)
@@ -1010,16 +1010,16 @@ as $$
 $$;
 grant execute on function public.personal_pro() to authenticated;
 
--- Lo de Pro también se cuida en la base: viajes, recordatorios, repetir y crear/editar categorías.
--- (Lo que ya tenía se queda y se puede editar; sólo no puede crear cosas nuevas de Pro.)
+-- Lo de Pro también se cuida en la base: viajes nuevos y crear/editar categorías.
+-- (Eventos, entregas, recordatorios y repetir son de Gratis. Lo que ya tenía se queda y se puede editar.)
 create or replace function public.p_eventos_pro()
 returns trigger language plpgsql set search_path = '' as $$
 begin
   if auth.role() = 'authenticated' and not public.personal_pro() then
-    if tg_op = 'INSERT' and (new.tipo in ('viaje', 'recordatorio') or new.repetir <> 'nunca') then
+    if tg_op = 'INSERT' and new.tipo = 'viaje' then
       raise exception 'Eso es de Pro' using errcode = 'P0001', hint = 'pro';
     end if;
-    if tg_op = 'UPDATE' and ((new.tipo in ('viaje', 'recordatorio') and new.tipo <> old.tipo) or (new.repetir <> 'nunca' and old.repetir = 'nunca')) then
+    if tg_op = 'UPDATE' and new.tipo = 'viaje' and old.tipo <> 'viaje' then
       raise exception 'Eso es de Pro' using errcode = 'P0001', hint = 'pro';
     end if;
   end if;

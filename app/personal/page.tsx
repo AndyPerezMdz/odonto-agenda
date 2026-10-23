@@ -9,7 +9,7 @@ import SoloNavegador from "@/components/SoloNavegador";
 import CrearPassword from "@/components/personal/CrearPassword";
 import AgendaPersonal from "@/components/personal/AgendaPersonal";
 import BotonActivar from "@/components/personal/BotonActivar";
-import { estadoMiDe } from "@/lib/planMiServer";
+import { estadoMiDe, pruebaMiDisponible } from "@/lib/planMiServer";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: { absolute: "Mi agenda" }, robots: { index: false, follow: false } };
@@ -47,11 +47,11 @@ export default async function PersonalPage() {
   if (!p.password_at) return <CrearPassword nombre={nombre} email={user.email ?? ""} />;
 
   await db.from("personales").update({ ultimo_acceso: new Date().toISOString() }).eq("user_id", user.id);
-  const estado = await estadoMiDe(db, user.id);
+  const [estado, prueba] = await Promise.all([estadoMiDe(db, user.id), pruebaMiDisponible(db, user)]);
   return (
     <div className="mi-agenda">
       <SoloNavegador>
-        <AgendaPersonal userId={user.id} nombre={nombre} tieneClinica={!!perfil?.agenda_id} odonto={p.perfil !== "general"} estado={estado} />
+        <AgendaPersonal userId={user.id} nombre={nombre} tieneClinica={!!perfil?.agenda_id} odonto={p.perfil !== "general"} estado={estado} pruebaDisponible={prueba} />
       </SoloNavegador>
     </div>
   );

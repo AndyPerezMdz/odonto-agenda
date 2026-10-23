@@ -9,7 +9,7 @@ import { sumarDias } from "@/lib/pagos";
 import { fechaEnZona } from "@/lib/recordatorios";
 import { esSuperadmin } from "@/lib/admin";
 import { crearInvitacion } from "@/lib/invitaciones";
-import { agendaEnPrueba, finDePrueba, gastadaEnOtra, gastarPrueba, pruebaDe, MENSAJE_PRUEBA_USADA } from "@/lib/pruebas";
+import { agendaEnPrueba, gastadaEnOtra, gastarPrueba, pruebaDe, MENSAJE_PRUEBA_USADA } from "@/lib/pruebas";
 
 type Db = ReturnType<typeof createAdminClient>;
 
@@ -22,7 +22,7 @@ type Db = ReturnType<typeof createAdminClient>;
 */
 
 export const MENSAJE_SIN_PRUEBA =
-  "Ya habías usado tu prueba de Pro, así que tu agenda empieza en Gratis: úsala con lo básico y pásate a Pro cuando quieras (Personalizar → Suscripción).";
+  "Ya habías usado tu prueba de Pro, así que ya no tienes los 15 días gratis: úsala en Gratis y pásate a Pro cuando quieras (Personalizar → Suscripción).";
 
 export function nuevoToken() {
   return randomBytes(9).toString("base64url"); // 12 caracteres, imposible de adivinar
@@ -92,23 +92,23 @@ export async function completarRegistro(
   if (!esUniversidad(datos.universidad)) return { ok: false, error: "Elige tu universidad.", motivo: "universidad" };
   const uni = universidad(datos.universidad);
   const precio = mensualDe(await planesConfig(db), uni.id); // el mensual de su universidad
+  // 2.3 · La agenda nace en Gratis: la prueba de Pro la activa el dueño cuando quiera (y el código de creador se guarda para entonces)
   const p = await pruebaDe(db, email);
   const usada = !!p?.usada_at;
   let codigo: string | null = null;
-  let diasExtra = 0;
   let aviso: string | undefined;
   if (datos.codigo?.trim()) {
     const { data: c } = await db.from("codigos").select("codigo,dias_extra,activo").eq("codigo", datos.codigo.trim().toUpperCase()).maybeSingle();
-    if (c?.activo) {
+    if (c?.activo && !usada) {
       codigo = c.codigo;
-      if (!usada) diasExtra = c.dias_extra ?? 15;
-    } else aviso = "Ese código de creador no existe o ya no está activo; tu agenda se creó con los 15 días de Pro normales.";
-  }
-  // Sin prueba disponible, nace en Gratis (Pro vencido ayer); con prueba, 15 días de Pro (+ los del código)
-  const hasta = usada ? sumarDias(fechaEnZona(0), -1) : finDePrueba(diasExtra);
+      aviso = `Tu código de creador quedó guardado: cuando actives tu prueba de Pro, te da ${c.dias_extra ?? 15} días extra.`;
+    } else if (c?.activo) aviso = MENSAJE_SIN_PRUEBA;
+    else aviso = "Ese código de creador no existe o ya no está activo. Tu agenda quedó lista igual.";
+  } else if (usada) aviso = MENSAJE_SIN_PRUEBA;
+  const hasta = sumarDias(fechaEnZona(0), -1); // Gratis: su Pro "venció" ayer
   const { data: agenda, error } = await db
     .from("agendas")
-    .insert({ nombre: `Agenda de ${nombre.split(" ")[0]}`, precio_mensual: precio, pagado_hasta: hasta, prueba_hasta: usada ? null : hasta, codigo, universidad: uni.id, semana_clinicas: uni.semana })
+    .insert({ nombre: `Agenda de ${nombre.split(" ")[0]}`, precio_mensual: precio, pagado_hasta: hasta, prueba_hasta: null, codigo, universidad: uni.id, semana_clinicas: uni.semana })
     .select("id")
     .single();
   if (error || !agenda) return { ok: false, error: error?.message ?? "No se pudo crear tu agenda." };
@@ -118,8 +118,7 @@ export async function completarRegistro(
     await db.from("agendas").delete().eq("id", agenda.id);
     return { ok: false, error: e2.message };
   }
-  if (!usada) await gastarPrueba(db, email, agenda.id);
   await sembrarMaterias(db, agenda.id, uni.id); // las materias de su universidad (UADY), con su duración
 
-  return { ok: true, agenda: "creada", aviso: usada ? MENSAJE_SIN_PRUEBA : aviso };
+  return { ok: true, agenda: "creada", aviso };
 }

@@ -29,7 +29,7 @@ export default function AjustesPersonal({ userId, email, pro = true }: { userId:
           <SoloPro titulo="Tus categorías y colores" texto="Crea las tuyas (Trabajo, Gym, Viajes…) con el color que quieras. Las que ya tienes se siguen viendo." />
         )}
 
-        {!pro && <SoloPro titulo="Avisos" texto="El correo de cada mañana, las notificaciones en tu cel y tu agenda en el calendario del teléfono." />}
+        {!pro && <SoloPro titulo="Avisos" texto="El correo de cada mañana, el resumen diario en tu cel y tu agenda en el calendario del teléfono." />}
         {pro && <>
         <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
           <h2 className="serif text-xl">Correo de la mañana</h2>

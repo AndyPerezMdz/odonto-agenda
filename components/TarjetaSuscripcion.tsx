@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { estadoPago, pesos } from "@/lib/pagos";
 import { ahorroDe, type Plan } from "@/lib/precios";
-import { BENEFICIOS_PRO, PAGO_EN_LINEA } from "@/lib/plan";
+import { BENEFICIOS_PRO, DIAS_PRUEBA, PAGO_EN_LINEA } from "@/lib/plan";
+import ProbarPro from "@/components/ProbarPro";
 import { fechaLarga, hoyISO } from "@/lib/fechas";
 
 type Datos = {
   pagadoHasta: string | null;
   enPrueba: boolean;
+  pruebaDisponible?: boolean; // 2.3 · aún puede activar sus 15 días
   codigoCreador: string | null;
   precio: number;
   planes: Plan[]; // mensual, trimestral, por periodo, anual (los activos de su universidad)
@@ -139,7 +141,14 @@ export default function TarjetaSuscripcion() {
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${insignia.c}`}>{insignia.t}</span>
       </div>
 
-      {datos.enPrueba && <CanjearCodigo aplicado={datos.codigoCreador} onCanjeado={cargar} />}
+      {datos.pruebaDisponible && (
+        <div className="mb-4 rounded-xl border-2 border-accent bg-accent-soft/40 p-4">
+          <p className="font-semibold">Prueba Pro {DIAS_PRUEBA} días gratis</p>
+          <p className="mb-3 mt-0.5 text-sm text-muted">Tu agenda está en Gratis. Cuando quieras, actívala: todo Pro para ti y tu compa durante {DIAS_PRUEBA} días{datos.codigoCreador ? ", más los días de tu código de creador" : ""}. Sin tarjeta y sin cobro al terminar.</p>
+          <ProbarPro onActivada={cargar} />
+        </div>
+      )}
+      {(datos.enPrueba || datos.pruebaDisponible) && <CanjearCodigo aplicado={datos.codigoCreador} pendiente={!!datos.pruebaDisponible} onCanjeado={cargar} />}
 
       {estado.tipo !== "cortesia" && (
         <>
@@ -262,7 +271,7 @@ export default function TarjetaSuscripcion() {
 }
 
 /** Durante el mes gratis: "¿Tienes un código de creador?" → meses extra. */
-export function CanjearCodigo({ aplicado, onCanjeado }: { aplicado: string | null; onCanjeado: () => void }) {
+export function CanjearCodigo({ aplicado, pendiente = false, onCanjeado }: { aplicado: string | null; pendiente?: boolean; onCanjeado: () => void }) {
   const [codigo, setCodigo] = useState("");
   const [abierto, setAbierto] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -271,7 +280,7 @@ export function CanjearCodigo({ aplicado, onCanjeado }: { aplicado: string | nul
   if (aplicado) {
     return (
       <p className="mb-4 rounded-xl bg-accent-soft px-3 py-2 text-sm text-accent">
-        Código <b>{aplicado}</b> aplicado a tu prueba de Pro.
+        Código <b>{aplicado}</b> {pendiente ? "guardado: sus días extra se suman cuando actives tu prueba." : "aplicado a tu prueba de Pro."}
       </p>
     );
   }
@@ -284,7 +293,7 @@ export function CanjearCodigo({ aplicado, onCanjeado }: { aplicado: string | nul
     const d = await res.json().catch(() => ({}));
     setEnviando(false);
     if (!res.ok) return setMsg({ ok: false, t: d.error ?? "No se pudo aplicar." });
-    setMsg({ ok: true, t: `¡Listo! Tienes ${d.dias} días extra de Pro, cortesía de ${d.creador}.` });
+    setMsg({ ok: true, t: d.pendiente ? `¡Listo! Cuando actives tu prueba tendrás ${d.dias} días extra de Pro, cortesía de ${d.creador}.` : `¡Listo! Tienes ${d.dias} días extra de Pro, cortesía de ${d.creador}.` });
     onCanjeado();
   }
 

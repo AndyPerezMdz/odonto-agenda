@@ -88,7 +88,7 @@ export default async function MiAgendaPublica() {
             <ol className="mt-3 flex flex-col gap-2 text-muted">
               <li><b className="text-ink">1.</b> Crea tu cuenta con tu correo y una contraseña.</li>
               <li><b className="text-ink">2.</b> Confírmala con el código de 6 dígitos que te llega.</li>
-              <li><b className="text-ink">3.</b> Listo: empiezas con <b className="text-ink">{DIAS_PRUEBA_MI} días de Pro</b> gratis. Después sigues en Gratis o eliges un plan.</li>
+              <li><b className="text-ink">3.</b> Listo: tu agenda es <b className="text-ink">gratis para siempre</b>. Y cuando quieras, pruebas Pro {DIAS_PRUEBA_MI} días sin pagar.</li>
             </ol>
           </div>
         </section>
@@ -96,7 +96,7 @@ export default async function MiAgendaPublica() {
         {/* ---------- Gratis / Pro ---------- */}
         <section id="planes" className="scroll-mt-6 border-t border-line py-12">
           <h2 className="serif text-center text-5xl">Gratis o Pro</h2>
-          <p className="mx-auto mb-8 mt-2 max-w-md text-center text-muted">Empiezas con {DIAS_PRUEBA_MI} días de Pro. Si no eliges plan, te quedas en Gratis y no pierdes nada de lo que anotaste.</p>
+          <p className="mx-auto mb-8 mt-2 max-w-md text-center text-muted">Gratis para siempre. Cuando quieras, pruebas Pro {DIAS_PRUEBA_MI} días sin pagar; si no eliges plan, vuelves a Gratis y no pierdes nada de lo que anotaste.</p>
           <div className="mx-auto grid max-w-3xl gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-line bg-panel p-6">
               <p className="versalitas text-muted">Gratis</p>
@@ -112,7 +112,7 @@ export default async function MiAgendaPublica() {
                 <li className="flex gap-2 text-muted"><span>✓</span>Todo lo de Gratis, y además:</li>
                 {BENEFICIOS_MI_PRO.map((b) => <li key={b} className="flex gap-2"><span className="text-accent">✓</span>{b}</li>)}
               </ul>
-              <Link href="/mi-agenda/registro" className="btn btn-primario mt-6 w-full rounded-full py-3">Pruébalo {DIAS_PRUEBA_MI} días gratis</Link>
+              <Link href="/mi-agenda/registro" className="btn btn-primario mt-6 w-full rounded-full py-3">Empieza gratis y pruébalo {DIAS_PRUEBA_MI} días</Link>
             </div>
           </div>
           <p className="mx-auto mt-6 max-w-lg text-center text-xs text-muted">Se paga por transferencia, sin tarjeta y sin cargos automáticos: nunca se te cobra nada que no pagues tú. ¿Eres de odonto y tu agenda de clínicas es Pro? Tu Mi agenda también, sin pagar extra.</p>

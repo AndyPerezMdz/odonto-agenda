@@ -125,7 +125,7 @@ export default function RegistroMiAgenda() {
   }
 
   return (
-    <AuthCard logo="/mi-agenda-icon.svg" serif titulo="Crea tu agenda" subtitulo={`${DIAS_PRUEBA_MI} días de Pro gratis para probarla. Después sigues en Gratis o eliges un plan. Sin tarjeta.`}>
+    <AuthCard logo="/mi-agenda-icon.svg" serif titulo="Crea tu agenda" subtitulo={`Gratis para siempre. Cuando quieras, pruebas Pro ${DIAS_PRUEBA_MI} días sin pagar. Sin tarjeta.`}>
       <form onSubmit={registrar}>
         <label className="mb-1 block text-sm font-medium" htmlFor="nombre">¿Cómo te llamas?</label>
         <input id="nombre" required className="campo mb-4" value={nombre} onChange={(e) => setNombre(e.target.value)} autoComplete="given-name" />

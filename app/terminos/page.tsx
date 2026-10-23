@@ -46,9 +46,9 @@ export default function TerminosPage() {
         )}
         <li>Pro no se renueva solo. Cuando termina, la agenda <b>pasa a Gratis</b>: no se borra nada y lo que capturaste con Pro vuelve a verse al renovar.</li>
         <li>Los periodos ya pagados no son reembolsables, salvo que se haya cobrado por error.</li>
-        <li><b>Prueba de Pro:</b> {L.diasPrueba} días, una por persona, seas dueño/a o compañero/a. Si entras a una agenda que está en su prueba, usas la tuya. A una agenda con Pro pagado puedes entrar sin gastarla. Si dejas una agenda en su prueba para entrar a una pagada dentro de los primeros 7 días, te la devolvemos (sólo una vez).</li>
-        <li><b>Códigos de creador:</b> dan días extra de Pro (normalmente {L.diasCodigo}), sólo durante la prueba de una agenda nueva, y sólo uno por agenda.</li>
-        <li>Si ya usaste tu prueba y creas una agenda nueva, empieza en Gratis.</li>
+        <li><b>Prueba de Pro:</b> {L.diasPrueba} días, una por persona, seas dueño/a o compañero/a. Las agendas nuevas empiezan en Gratis y el dueño/a activa la prueba <b>cuando quiera</b> (al activarla se usa la suya y la de su compañero/a). Si entras a una agenda que está en su prueba, usas la tuya. A una agenda con Pro pagado puedes entrar sin gastarla. Si dejas una agenda en su prueba para entrar a una pagada dentro de los primeros 7 días, te la devolvemos (sólo una vez).</li>
+        <li><b>Códigos de creador:</b> dan días extra de Pro (normalmente {L.diasCodigo}) a la prueba de una agenda: se guardan al registrarte o antes de activarla y se suman al activarla. Sólo uno por agenda.</li>
+        <li>Si ya usaste tu prueba y creas una agenda nueva, ya no tiene prueba: sigue en Gratis hasta que elijas un plan.</li>
         <li>Si el precio cambia, te avisaremos con al menos 30 días de anticipación.</li>
       </ul>
 
@@ -84,8 +84,8 @@ export default function TerminosPage() {
         recordatorios y categorías. Aplican estos mismos términos, con lo siguiente:
       </p>
       <ul>
-        <li>Cualquier persona puede crearla en <Link href="/mi-agenda/registro">/mi-agenda/registro</Link> (o activarla desde su agenda de clínicas). Empieza con <b>{L.diasPrueba} días de Pro</b> de prueba, <b>una vez por correo</b>.</li>
-        <li>Tiene dos planes: <b>Gratis</b> (eventos y entregas) y <b>Pro</b> (además viajes, recordatorios, repetir, categorías y colores, correo de la mañana, notificaciones y calendario). Los precios de Pro están en <Link href="/mi-agenda">/mi-agenda</Link> y en “Tu plan”; si cambian, no afectan lo que ya pagaste.</li>
+        <li>Cualquier persona puede crearla en <Link href="/mi-agenda/registro">/mi-agenda/registro</Link> (o activarla desde su agenda de clínicas). Empieza en <b>Gratis</b>, y la persona activa sus <b>{L.diasPrueba} días de Pro</b> de prueba cuando quiera, <b>una vez por correo</b>.</li>
+        <li>Tiene dos planes: <b>Gratis</b> (eventos, entregas, recordatorios y repetir) y <b>Pro</b> (además viajes, tus categorías y colores, correo de la mañana, resumen diario en el cel y calendario). Los precios de Pro están en <Link href="/mi-agenda">/mi-agenda</Link> y en “Tu plan”; si cambian, no afectan lo que ya pagaste.</li>
         <li>Pro se paga por adelantado, por transferencia, y se activa cuando confirmamos tu pago. <b>No hay cargos automáticos</b>: al terminar tu tiempo, tu agenda baja a Gratis y no pierdes lo que anotaste. Lo pagado no es reembolsable, salvo error nuestro.</li>
         <li>Si también usas la agenda de clínicas y esa agenda tiene Pro (pagado, en prueba o de cortesía), tu Mi agenda también es Pro mientras dure, sin pagar extra.</li>
         <li>Es de una sola persona: no se comparte ni tiene compañero/a. Si también usas la agenda de clínicas, es la misma cuenta y cambias entre las dos.</li>

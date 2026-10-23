@@ -8,6 +8,7 @@ import { sumarDias, diasEntre } from "@/lib/pagos";
 import { entregasPendientes, expandir, hm, ICONO_TIPO, TIPOS, type Ocurrencia, type PCategoria, type PEvento, type TipoEvento } from "@/lib/personal";
 import EventoModal from "@/components/personal/EventoModal";
 import BotonActivar from "@/components/personal/BotonActivar";
+import ProbarMi from "@/components/personal/ProbarMi";
 import { BENEFICIOS_MI_PRO, type EstadoMi } from "@/lib/planMi";
 import { fechaLarga } from "@/lib/fechas";
 
@@ -52,8 +53,8 @@ const I = {
 };
 
 export default function AgendaPersonal({
-  userId, nombre, tieneClinica, demo = false, odonto = true, publico = false, estado = null,
-}: { userId: string; nombre: string; tieneClinica: boolean; demo?: boolean; odonto?: boolean; publico?: boolean; estado?: EstadoMi | null }) {
+  userId, nombre, tieneClinica, demo = false, odonto = true, publico = false, estado = null, pruebaDisponible = false,
+}: { userId: string; nombre: string; tieneClinica: boolean; demo?: boolean; odonto?: boolean; publico?: boolean; estado?: EstadoMi | null; pruebaDisponible?: boolean }) {
   // 2.3 · Gratis / Pro (la demo enseña todo)
   const pro = demo || !estado || estado.pro;
   // odonto: textos y ejemplos de estudiante de odonto; si no, de cualquier persona. publico: demo sin cuenta (/mi-agenda/demo).
@@ -145,7 +146,7 @@ export default function AgendaPersonal({
       {/* ---------- Contenido ---------- */}
       <main className="mx-auto w-full max-w-2xl px-4 pb-32 pt-5 sm:px-6 lg:pb-12 lg:pt-8">
         {demo && <BannerDemo publico={publico} />}
-        {!demo && estado && <AvisoPlan e={estado} />}
+        {!demo && estado && <AvisoPlan e={estado} prueba={pruebaDisponible} />}
         {error && <p className="mb-4 rounded-xl bg-panel-2 p-3 text-sm text-danger">No se pudo cargar tu agenda: {error}</p>}
         {!eventos ? (
           <p className="serif py-24 text-center text-2xl text-muted">Abriendo tu agenda…</p>
@@ -178,7 +179,7 @@ export default function AgendaPersonal({
         <Hoja onClose={() => setHoja(null)} titulo="¿Qué anotamos?">
           <div className="grid grid-cols-2 gap-2.5">
             {TIPOS.map((t) => {
-              const candado = !pro && (t.id === "viaje" || t.id === "recordatorio");
+              const candado = !pro && t.id === "viaje";
               return (
                 <button
                   key={t.id}
@@ -198,11 +199,18 @@ export default function AgendaPersonal({
       )}
       {hoja === "pro" && (
         <Hoja onClose={() => setHoja(null)} titulo="Eso es de Pro">
-          <p className="-mt-2 mb-3 text-sm text-muted">Estás en <b className="text-ink">Gratis</b>: eventos y entregas. Con Pro también tienes:</p>
+          <p className="-mt-2 mb-3 text-sm text-muted">Estás en <b className="text-ink">Gratis</b>: eventos, entregas, recordatorios y repetir. Con Pro también tienes:</p>
           <ul className="mb-5 flex flex-col gap-1.5 text-sm">
             {BENEFICIOS_MI_PRO.map((b) => <li key={b} className="flex gap-2"><span className="text-accent">✓</span>{b}</li>)}
           </ul>
-          <Link href="/personal/ajustes#plan" className="btn btn-primario w-full rounded-full py-2.5">Ver planes</Link>
+          {pruebaDisponible ? (
+            <div className="flex flex-col gap-2">
+              <ProbarMi />
+              <Link href="/personal/ajustes#plan" className="btn btn-sec w-full rounded-full py-2">Ver planes</Link>
+            </div>
+          ) : (
+            <Link href="/personal/ajustes#plan" className="btn btn-primario w-full rounded-full py-2.5">Ver planes</Link>
+          )}
           {tieneClinica && <p className="mt-3 text-center text-xs text-muted">Si tu agenda de clínicas es Pro, tu Mi agenda también, sin pagar extra.</p>}
         </Hoja>
       )}
@@ -734,16 +742,19 @@ function BannerDemo({ publico = false }: { publico?: boolean }) {
 }
 
 /** 2.3 · Aviso del plan arriba de todo: últimos días de Pro, o que está en Gratis. */
-function AvisoPlan({ e }: { e: EstadoMi }) {
+function AvisoPlan({ e, prueba }: { e: EstadoMi; prueba: boolean }) {
   let texto: React.ReactNode = null;
   if ((e.tipo === "prueba" || e.tipo === "pro") && e.dias <= 3)
     texto = e.dias === 0 ? <>Hoy es tu <b>último día de {e.tipo === "prueba" ? "prueba de " : ""}Pro</b>. Mañana sigues en Gratis.</> : <>Te quedan <b>{e.dias} día{e.dias === 1 ? "" : "s"} de {e.tipo === "prueba" ? "prueba de " : ""}Pro</b> (hasta el {fechaLarga(e.hasta)}).</>;
-  else if (e.tipo === "gratis") texto = <>Estás en <b>Gratis</b>: tus cosas siguen aquí. Viajes, recordatorios, repetir, tus colores y los avisos vuelven con Pro.</>;
+  else if (e.tipo === "gratis")
+    texto = prueba
+      ? <>Estás en <b>Gratis</b>. ¿Quieres probar los viajes, tus colores y el resumen de cada mañana? Tienes <b>15 días de Pro gratis</b> cuando quieras.</>
+      : <>Estás en <b>Gratis</b>: tus cosas siguen aquí. Viajes, tus colores y los avisos de la mañana vuelven con Pro.</>;
   if (!texto) return null;
   return (
     <div className="nota mb-6 flex flex-wrap items-center gap-3 rounded-sm px-4 py-3 text-sm shadow-[0_10px_20px_-14px_rgba(60,45,10,0.5)]">
-      <p className="min-w-0 flex-1">{texto}</p>
-      <Link href="/personal/ajustes#plan" className="btn btn-primario shrink-0 rounded-full py-1.5 text-xs">{e.tipo === "gratis" ? "Pásate a Pro" : "Elegir plan"}</Link>
+      <p className="w-full min-w-0 sm:w-auto sm:flex-1">{texto}</p>
+      {e.tipo === "gratis" && prueba ? <ProbarMi compacto /> : <Link href="/personal/ajustes#plan" className="btn btn-primario shrink-0 rounded-full py-1.5 text-xs">{e.tipo === "gratis" ? "Pásate a Pro" : "Elegir plan"}</Link>}
     </div>
   );
 }
