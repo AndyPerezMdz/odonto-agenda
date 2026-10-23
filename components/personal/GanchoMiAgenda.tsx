@@ -47,7 +47,7 @@ export default function GanchoMiAgenda() {
             <Link href="/personal" className="btn btn-primario">Abrir Mi agenda</Link>
           ) : (
             <>
-              <Link href="/personal/demo" className="btn btn-sec">Ver cómo se ve</Link>
+              <Link href="/mi-agenda/demo" className="btn btn-sec">Ver cómo se ve</Link>
               <BotonActivar texto="Activarla" className="btn btn-primario" />
             </>
           )}

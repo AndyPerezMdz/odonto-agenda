@@ -6,13 +6,15 @@ import { AVISO_1H } from "@/lib/plan";
 
 export const dynamic = "force-dynamic";
 
-// Cron cada 15 min (vercel.json): "En 1 hora: Juan Pérez · 9:00 · Clínica 1" a quien atiende (sólo Pro).
+// Cada 15 min (pg_cron de Supabase, ver supabase/cron-recordatorios.sql): "En 1 hora: Juan Pérez · 9:00 · Clínica 1" a quien atiende (sólo Pro).
 export async function GET(request: NextRequest) {
   const secreto = process.env.CRON_SECRET;
   if (!secreto || request.headers.get("authorization") !== `Bearer ${secreto}`) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const db = createAdminClient();
+  const { marcarCron } = await import("@/lib/salud");
+  await marcarCron(db, "push-citas");
   if (!pushActivo()) return NextResponse.json({ ok: true, omitido: "sin llaves VAPID" });
 
-  const db = createAdminClient();
   const hoy = fechaEnZona(0);
   // Hora actual en Mérida (UTC-6, sin horario de verano)
   const ahora = new Date(Date.now() - 6 * 3600000);

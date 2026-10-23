@@ -1262,6 +1262,26 @@ drop trigger if exists p_pagos_fijos_pro on public.p_pagos_fijos;
 create trigger p_pagos_fijos_pro before insert on public.p_pagos_fijos for each row execute function public.p_nuevo_pro();
 
 -- =====================================================================
+-- 2.7 · Mi agenda: avisar X minutos antes y hábitos que te avisan a su hora
+-- =====================================================================
+-- Minutos antes de la hora (0 = a la hora). Recordatorios: null = a la hora. Eventos: null = sin aviso.
+alter table public.p_eventos add column if not exists aviso_min int;
+alter table public.p_eventos drop constraint if exists p_eventos_aviso_min;
+alter table public.p_eventos add constraint p_eventos_aviso_min check (aviso_min is null or aviso_min between 0 and 1440);
+
+-- Hora a la que el hábito te pregunta "¿ya lo hiciste?" (null = no avisa)
+alter table public.p_habitos add column if not exists hora time;
+
+-- Avisos de hábitos ya mandados (uno por hábito y día). Sólo el servidor.
+create table if not exists public.p_habitos_avisados (
+  habito_id uuid not null references public.p_habitos (id) on delete cascade,
+  dia       date not null,
+  primary key (habito_id, dia)
+);
+alter table public.p_habitos_avisados enable row level security;
+revoke all on public.p_habitos_avisados from anon, authenticated;
+
+-- =====================================================================
 -- Listo. Las cuentas nuevas se registran solas en /registro.
 -- En Supabase: Authentication → Sign In / Providers → Email:
 --   "Enable email signups" y "Confirm email" ENCENDIDOS.

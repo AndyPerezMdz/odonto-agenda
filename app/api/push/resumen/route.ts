@@ -11,6 +11,8 @@ export async function GET(request: NextRequest) {
   const secreto = process.env.CRON_SECRET;
   if (!secreto || request.headers.get("authorization") !== `Bearer ${secreto}`) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const db = createAdminClient();
+  const { marcarCron } = await import("@/lib/salud");
+  await marcarCron(db, "resumen");
   const enviadas = await resumenMatutino(db).catch((e) => { console.error("[push resumen]", e); return 0; });
   // Agenda personal (gratis): "Tu día"
   let personales = 0;

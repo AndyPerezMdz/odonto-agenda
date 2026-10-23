@@ -76,7 +76,11 @@ export function useAccionesListas({
     },
     async guardarHabito(h: Partial<PHabito> & { nombre: string }) {
       const id = h.id ?? uid();
-      const datos = { nombre: h.nombre.trim().slice(0, 60), color: h.color ?? PALETA_HABITOS[0], dias: h.dias?.length ? [...h.dias].sort() : [0, 1, 2, 3, 4, 5, 6], archivado: h.archivado ?? false };
+      const datos = {
+        nombre: h.nombre.trim().slice(0, 60), color: h.color ?? PALETA_HABITOS[0], dias: h.dias?.length ? [...h.dias].sort() : [0, 1, 2, 3, 4, 5, 6], archivado: h.archivado ?? false,
+        // 2.7 · la hora sólo se manda si se usa (así funciona aunque falte el SQL 2.7)
+        ...(h.hora !== undefined ? { hora: h.hora ? (h.hora.length === 5 ? `${h.hora}:00` : h.hora) : null } : {}),
+      };
       const nuevo = !h.id;
       setHabitos((l) => {
         if (!nuevo) return l.map((x) => (x.id === id ? { ...x, ...datos } : x));
@@ -193,6 +197,7 @@ export function HabitoModal({ habito, acciones, onClose }: { habito: PHabito | n
   const [nombre, setNombre] = useState(habito?.nombre ?? "");
   const [color, setColor] = useState(habito?.color ?? PALETA_HABITOS[0]);
   const [dias, setDias] = useState<number[]>(habito?.dias ?? [0, 1, 2, 3, 4, 5, 6]);
+  const [hora, setHora] = useState(habito?.hora ? habito.hora.slice(0, 5) : "");
   const [error, setError] = useState<string | null>(null);
   const [borrar, setBorrar] = useState(false);
   const IDEAS = ["Tomar agua", "Gym", "Leer 20 min", "Dormir antes de las 12", "Estudiar", "Meditar", "Caminar", "Sin redes antes de dormir"];
@@ -201,7 +206,7 @@ export function HabitoModal({ habito, acciones, onClose }: { habito: PHabito | n
     e.preventDefault();
     if (!nombre.trim()) return setError("Ponle nombre a tu hábito.");
     if (!dias.length) return setError("Elige al menos un día.");
-    acciones.guardarHabito({ id: habito?.id, nombre, color, dias, archivado: habito?.archivado });
+    acciones.guardarHabito({ id: habito?.id, nombre, color, dias, archivado: habito?.archivado, hora: hora || (habito?.hora ? null : undefined) });
     onClose();
   }
   const orden = [1, 2, 3, 4, 5, 6, 0];
@@ -230,6 +235,11 @@ export function HabitoModal({ habito, acciones, onClose }: { habito: PHabito | n
           <button type="button" className="text-accent hover:underline" onClick={() => setDias([1, 2, 3, 4, 5])}>Entre semana</button>
           <button type="button" className="text-accent hover:underline" onClick={() => setDias([0, 6])}>Fines</button>
         </div>
+        <label className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+          <span className="font-medium">Recuérdamelo a las</span>
+          <input type="time" className="campo py-1.5" style={{ width: "7rem" }} value={hora} onChange={(e) => setHora(e.target.value)} aria-label="Hora del aviso (opcional)" />
+          {hora ? <button type="button" className="text-xs text-muted hover:text-ink" onClick={() => setHora("")}>Quitar</button> : <span className="text-xs text-muted">(opcional, si no lo has palomeado)</span>}
+        </label>
         <p className="mb-1.5 text-sm font-medium">Color</p>
         <div className="mb-4 flex flex-wrap gap-2">
           {PALETA_HABITOS.map((c) => <button key={c} type="button" aria-label={`Color ${c}`} aria-pressed={color === c} onClick={() => setColor(c)} className={`h-8 w-8 rounded-full ${color === c ? "ring-2 ring-ink ring-offset-2 ring-offset-bg" : ""}`} style={{ background: c }} />)}
@@ -513,6 +523,17 @@ function TarjetaHabito({ h, marcas, hoy, dias, acciones, onEditar }: { h: PHabit
         <span>{mejor > 0 && `mejor racha: ${mejor}`}</span>
         <span>hoy</span>
       </div>
+      {racha >= 3 && (
+        <button
+          onClick={async () => {
+            const { presumirRacha } = await import("@/components/personal/presumirRacha");
+            await presumirRacha({ nombre: h.nombre, racha, mejor, color: h.color });
+          }}
+          className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-line py-1.5 text-xs font-medium text-muted hover:border-accent hover:text-accent"
+        >
+          🔥 Presumir mi racha
+        </button>
+      )}
     </li>
   );
 }

@@ -9,6 +9,10 @@ import TarjetaPlanMi from "@/components/personal/TarjetaPlanMi";
 
 export default function AjustesPersonal({ userId, email, pro = true }: { userId: string; email: string; pro?: boolean }) {
   const { supabase, categorias, prefs, recargar } = usePersonal();
+  async function guardarPref(k: "dia" | "correo" | "semana", v: boolean) {
+    await supabase.from("personales").update({ prefs: { ...prefs, [k]: v } }).eq("user_id", userId);
+    recargar();
+  }
 
   return (
     <div className="mx-auto max-w-2xl px-3 py-4 sm:px-6 sm:py-6">
@@ -29,56 +33,54 @@ export default function AjustesPersonal({ userId, email, pro = true }: { userId:
           <SoloPro titulo="Tus categorías y colores" texto="Crea las tuyas (Trabajo, Gym, Viajes…) con el color que quieras. Las que ya tienes se siguen viendo." />
         )}
 
-        {/* 2.4 · Las notificaciones son de todos: avisan a la hora de cada recordatorio */}
-        <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
-          <Notificaciones
-            descripcion={
-              pro ? (
-                <>Te avisa a la hora de cada <b>recordatorio</b> y, cada mañana, te llega <b>“Tu día”</b> con lo que tienes. Se activa en cada celular o compu por separado.</>
-              ) : (
-                <>Te avisa a la hora de cada <b>recordatorio</b>. Se activa en cada celular o compu por separado. (Con Pro, además, “Tu día” cada mañana.)</>
-              )
-            }
-          />
+        {/* 2.8 · Todos los avisos en un solo lugar */}
+        <section id="avisos" className="scroll-mt-4 rounded-2xl border border-line bg-panel p-4 sm:p-5">
+          <h2 className="serif text-xl">Avisos</h2>
+          <p className="mb-4 mt-0.5 text-sm text-muted">Qué te llega y cuándo. Lo del cel se activa en cada celular o compu por separado.</p>
+          <div className="rounded-xl border border-line p-3">
+            <Notificaciones descripcion={<>A la hora de tus <b>recordatorios</b> (o los minutos antes que elijas), de los <b>eventos con aviso</b> y de tus <b>hábitos con hora</b>. Gratis.</>} />
+          </div>
+          <ul className="mt-3 divide-y divide-line rounded-xl border border-line">
+            <Interruptor titulo="“Tu día” en el cel" detalle="Cada mañana: lo que tienes hoy, entregas y pagos." on={prefs.dia !== false} pro={pro} onCambio={(v) => guardarPref("dia", v)} />
+            <Interruptor titulo="Correo de la mañana" detalle="Lo mismo, por correo. Si no hay nada, no llega." on={prefs.correo !== false} pro={pro} onCambio={(v) => guardarPref("correo", v)} />
+            <Interruptor titulo="“Tu semana” cada domingo" detalle="Correo y aviso en el cel con lo que viene de lunes a domingo." on={prefs.semana !== false} pro={pro} onCambio={(v) => guardarPref("semana", v)} />
+          </ul>
+          {!pro && <p className="mt-2 text-xs text-muted">Los de la mañana y del domingo son de Pro. <a href="#plan" className="font-medium text-accent hover:underline">Ver planes</a></p>}
         </section>
 
-        {!pro && <SoloPro titulo="Más avisos" texto="El correo de cada mañana, “Tu día” en tu cel y tu agenda en el calendario del teléfono." />}
-        {pro && <>
-        <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
-          <h2 className="serif text-xl">Correo de la mañana</h2>
-          <p className="mb-3 mt-0.5 text-sm text-muted">Cada madrugada, un correo con lo de hoy y lo que tienes por entregar. Si no hay nada, no llega.</p>
-          <label className="flex w-fit items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm">
-            <input
-              type="checkbox"
-              checked={prefs.correo !== false}
-              onChange={async (e) => {
-                await supabase.from("personales").update({ prefs: { ...prefs, correo: e.target.checked } }).eq("user_id", userId);
-                recargar();
-              }}
-            />
-            Recibir el correo
-          </label>
-          <label className="mt-2 flex w-fit items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm">
-            <input
-              type="checkbox"
-              checked={prefs.semana !== false}
-              onChange={async (e) => {
-                await supabase.from("personales").update({ prefs: { ...prefs, semana: e.target.checked } }).eq("user_id", userId);
-                recargar();
-              }}
-            />
-            “Tu semana” cada domingo (correo y aviso en el cel)
-          </label>
-        </section>
-
-        <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
-          <Calendario descripcion="Todo lo de tu agenda aparece solo en Google Calendar o en el calendario del iPhone, con alarma 1 hora antes (y un día antes para las entregas). Se actualiza cada pocas horas (lo decide tu calendario)." />
-        </section>
-        </>}
+        {pro ? (
+          <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
+            <Calendario descripcion="Todo lo de tu agenda (también pendientes con fecha, pagos fijos y planes de viaje) aparece solo en Google Calendar o en el calendario del iPhone, con alarma 1 hora antes (y un día antes para las entregas). Se actualiza cada pocas horas (lo decide tu calendario)." />
+          </section>
+        ) : (
+          <SoloPro titulo="Tu agenda en el calendario del cel" texto="Todo lo de tu agenda en Google Calendar o en el del iPhone, con alarmas." />
+        )}
 
         <CambiarPassword />
       </div>
     </div>
+  );
+}
+
+function Interruptor({ titulo, detalle, on, pro, onCambio }: { titulo: string; detalle: string; on: boolean; pro: boolean; onCambio: (v: boolean) => void }) {
+  return (
+    <li className={`flex items-center gap-3 px-3 py-2.5 ${pro ? "" : "opacity-60"}`}>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5 text-sm font-medium">{titulo}{!pro && <span className="rounded-full bg-accent-soft px-1.5 text-[10px] font-bold uppercase text-accent">Pro</span>}</span>
+        <span className="block text-xs text-muted">{detalle}</span>
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={pro && on}
+        aria-label={titulo}
+        disabled={!pro}
+        onClick={() => onCambio(!on)}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition ${pro && on ? "bg-accent" : "bg-line"}`}
+      >
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-panel shadow transition-all ${pro && on ? "left-[1.375rem]" : "left-0.5"}`} />
+      </button>
+    </li>
   );
 }
 

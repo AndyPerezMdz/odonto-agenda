@@ -21,6 +21,7 @@ export type PEvento = {
   repetir: Repetir;
   repetir_hasta: string | null;
   excepciones: string[];
+  aviso_min?: number | null; // 2.7 · avisar N minutos antes (recordatorios: null = a la hora; eventos: null = sin aviso)
 };
 
 export type PCategoria = { id: string; nombre: string; color: string; orden: number };
@@ -191,7 +192,7 @@ export type PPendiente = {
   created_at: string;
 };
 
-export type PHabito = { id: string; user_id: string; nombre: string; color: string; dias: number[]; orden: number; archivado: boolean; created_at: string };
+export type PHabito = { id: string; user_id: string; nombre: string; color: string; dias: number[]; orden: number; archivado: boolean; created_at: string; hora?: string | null };
 export type PMarca = { habito_id: string; fecha: string };
 
 export const PALETA_HABITOS = ["#b4472e", "#2563eb", "#059669", "#9333ea", "#db2777", "#ca8a04", "#0891b2", "#64748b"];

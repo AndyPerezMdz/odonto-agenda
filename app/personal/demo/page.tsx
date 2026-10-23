@@ -1,24 +1,6 @@
-import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import SoloNavegador from "@/components/SoloNavegador";
-import AgendaPersonal from "@/components/personal/AgendaPersonal";
 
-export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Demo", robots: { index: false, follow: false } };
-
-// 2.2 · Demo de Mi agenda con datos de ejemplo (para quien todavía no la tiene). No escribe nada.
-export default async function DemoPersonalPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  return (
-    <div className="mi-agenda">
-      <SoloNavegador>
-        <AgendaPersonal userId={user.id} nombre="" tieneClinica={false} demo />
-      </SoloNavegador>
-    </div>
-  );
+// 2.8 · Ya hay una sola demo: /mi-agenda/demo (sabe si tienes sesión).
+export default function DemoPersonalPage() {
+  redirect("/mi-agenda/demo");
 }

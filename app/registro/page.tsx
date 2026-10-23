@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import AuthCard from "@/components/AuthCard";
+import RegistroMiAgenda from "@/components/RegistroMiAgenda";
+import { fuentePapel } from "@/lib/fuentePapel";
 import { UNIVERSIDADES } from "@/lib/universidades";
 import { completarRegistro, guardarPendiente, leerPendiente, type ResultadoRegistro } from "@/lib/registroCliente";
 
@@ -25,6 +27,8 @@ function Registro() {
   const q = useSearchParams();
   const unir = q.get("unir") ?? "";
   const [paso, setPaso] = useState<"datos" | "codigo" | "listo">(q.get("confirmar") ? "codigo" : "datos");
+  // 2.8 · ¿Para qué es la agenda? Personal (Mi agenda) o Escolar (clínicas). Con link de compa o código, ya se sabe.
+  const [para, setPara] = useState<"personal" | "escolar" | null>(unir || q.get("confirmar") || q.get("codigo") || q.get("para") === "escolar" ? "escolar" : q.get("para") === "personal" ? "personal" : null);
   const [enlace, setEnlace] = useState<Enlace | null>(null);
   const [errorEnlace, setErrorEnlace] = useState<string | null>(null);
 
@@ -202,6 +206,41 @@ function Registro() {
     );
   }
 
+  if (!para) {
+    return (
+      <AuthCard titulo="Crea tu agenda" subtitulo="¿Para qué es?">
+        <div className="flex flex-col gap-3">
+          <button type="button" onClick={() => setPara("personal")} className="flex items-start gap-3 rounded-2xl border border-line p-4 text-left transition hover:border-accent hover:bg-accent-soft/40">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/mi-agenda-icon.svg" alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-xl" />
+            <span>
+              <span className="block font-semibold">Personal</span>
+              <span className="text-sm text-muted">Tu día a día: pendientes, hábitos con racha, viajes, pagos. Para cualquiera.</span>
+            </span>
+          </button>
+          <button type="button" onClick={() => setPara("escolar")} className="flex items-start gap-3 rounded-2xl border border-line p-4 text-left transition hover:border-accent hover:bg-accent-soft/40">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icon.svg" alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-xl" />
+            <span>
+              <span className="block font-semibold">Escolar</span>
+              <span className="text-sm text-muted">Clínicas de odontología (UPP y UADY): citas, pacientes y tu compañero/a.</span>
+            </span>
+          </button>
+        </div>
+        <p className="mt-5 text-center text-sm text-muted">
+          ¿Ya tienes cuenta? <Link href="/login" className="font-medium text-accent hover:underline">Inicia sesión</Link>
+        </p>
+      </AuthCard>
+    );
+  }
+  if (para === "personal") {
+    return (
+      <div className={`mi-agenda ${fuentePapel.variable} min-h-dvh bg-bg`}>
+        <RegistroMiAgenda onVolver={() => setPara("escolar")} />
+      </div>
+    );
+  }
+
   return (
     <AuthCard
       titulo={unir ? "Únete a la agenda" : "Crea tu agenda"}
@@ -269,6 +308,11 @@ function Registro() {
       <p className="mt-5 text-center text-sm text-muted">
         ¿Ya tienes cuenta? <Link href="/login" className="font-medium text-accent hover:underline">Inicia sesión</Link>
       </p>
+      {!unir && (
+        <p className="mt-2 text-center text-sm">
+          <button type="button" onClick={() => setPara("personal")} className="text-muted hover:text-ink">← Era para mí (personal)</button>
+        </p>
+      )}
     </AuthCard>
   );
 }

@@ -23,7 +23,7 @@ export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto")
   const [presupuestos, setPresupuestos] = useState<Record<string, number | null>>({});
   const [pagosFijos, setPagosFijos] = useState<PPagoFijo[]>([]);
   const [pagosHechos, setPagosHechos] = useState<PPagoHecho[]>([]);
-  const [prefs, setPrefs] = useState<{ correo?: boolean; semana?: boolean }>({});
+  const [prefs, setPrefs] = useState<{ correo?: boolean; semana?: boolean; dia?: boolean }>({});
   const [error, setError] = useState<string | null>(null);
 
   const recargar = useCallback(async () => {
@@ -45,11 +45,11 @@ export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto")
     }
     const desde = sumarDias(hoyISO(), -400);
     const [e, c, p, pe, h, m, vc, pr, pf, ph] = await Promise.all([
-      supabase.from("p_eventos").select(CAMPOS_P).order("fecha"),
+      supabase.from("p_eventos").select("*").order("fecha"),
       supabase.from("p_categorias").select("id,nombre,color,orden").order("orden").order("created_at"),
       supabase.from("personales").select("prefs").maybeSingle(),
       supabase.from("p_pendientes").select(CAMPOS_PEND).order("orden").order("created_at"),
-      supabase.from("p_habitos").select("id,user_id,nombre,color,dias,orden,archivado,created_at").order("orden").order("created_at"),
+      supabase.from("p_habitos").select("*").order("orden").order("created_at"),
       supabase.from("p_habito_marcas").select("habito_id,fecha").gte("fecha", desde),
       supabase.from("p_viaje_cosas").select(CAMPOS_COSA).order("orden").order("created_at"),
       supabase.from("p_eventos").select("id,presupuesto").eq("tipo", "viaje"),
@@ -62,7 +62,7 @@ export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto")
       setEventos(((e.data ?? []) as PEvento[]).map((x) => ({ ...x, excepciones: x.excepciones ?? [] })));
     }
     setCategorias((c.data ?? []) as PCategoria[]);
-    setPrefs(((p.data?.prefs ?? {}) as { correo?: boolean; semana?: boolean }) || {});
+    setPrefs(((p.data?.prefs ?? {}) as { correo?: boolean; semana?: boolean; dia?: boolean }) || {});
     // (si aún no se corre el SQL de 2.4, estas tablas no existen: se quedan vacías sin tronar)
     setPendientes(pe.error ? [] : ((pe.data ?? []) as PPendiente[]));
     setHabitos(h.error ? [] : ((h.data ?? []) as PHabito[]));

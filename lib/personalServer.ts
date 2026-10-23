@@ -2,7 +2,7 @@ import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { enviarConResend, esc, fechaEnZona } from "@/lib/recordatorios";
 import { estadoMi, type EstadoMi } from "@/lib/planMi";
-import { categoriasIniciales, entregasPendientes, expandir, textoHora, type PEvento, type PerfilPersonal } from "@/lib/personal";
+import { categoriasIniciales, entregasPendientes, expandir, textoHora, type PEvento, type PerfilPersonal, type PHabito } from "@/lib/personal";
 import { fechaLarga } from "@/lib/fechas";
 import { pesos, sumarDias } from "@/lib/pagos";
 import { CAMPOS_PAGO, pagosPorAtender, type PPagoFijo, type PPagoHecho } from "@/lib/viajesPagos";
@@ -253,7 +253,9 @@ export async function correosPersonales(db: Db, sitio: string) {
 /** Para el push de la mañana: { userId → texto } */
 export async function resumenesPushPersonales(db: Db) {
   const hoy = fechaEnZona(0);
-  const { data: filas } = await db.from("personales").select("user_id").eq("activo", true);
+  const { data: todas } = await db.from("personales").select("user_id,prefs").eq("activo", true);
+  // 2.8 · se puede apagar en Ajustes → Avisos
+  const filas = (todas ?? []).filter((f) => (f.prefs as { dia?: boolean } | null)?.dia !== false);
   // 2.3 · Las notificaciones son de Pro
   const { idsProMi } = await import("@/lib/planMiServer");
   const pro = await idsProMi(db, (filas ?? []).map((f) => f.user_id as string));
@@ -277,7 +279,7 @@ export async function resumenesPushPersonales(db: Db) {
   return r;
 }
 
-export { eventosDe as eventosPersonalesDe };
+export { eventosDe as eventosPersonalesDe, pagosDe as pagosPersonalesDe };
 
 /* ---------------- 2.6 · Tu semana (domingo, Pro) ---------------- */
 
@@ -464,28 +466,67 @@ export async function resolverSolicitud(db: Db, userId: string, accion: "aprobar
 
 
 /**
- * 2.4 · Recordatorios con hora que tocan "ahora" (de hace 20 min a dentro de 2 min, por si el cron se atrasa).
- * Gratis: le llega a cualquiera con Mi agenda y notificaciones encendidas. Uno por recordatorio y día (p_push_enviados).
+ * 2.4 · Recordatorios (y 2.7 · eventos con aviso) cuyo aviso toca "ahora": de hace 20 min a dentro de 2 (por si el cron se atrasa).
+ * El aviso es a la hora, o aviso_min minutos antes. Gratis. Uno por evento y día (p_push_enviados).
  */
 export async function recordatoriosPorAvisar(db: Db, hoy: string, minutoAhora: number) {
   const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  const aMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
   const desde = hhmm(Math.max(0, minutoAhora - 20));
-  const hasta = hhmm(Math.min(23 * 60 + 59, minutoAhora + 2));
+  const hasta = hhmm(Math.min(23 * 60 + 59, minutoAhora + 122)); // hasta 2 horas antes
   const { data } = await db
     .from("p_eventos")
-    .select("id,user_id,tipo,titulo,fecha,fecha_fin,hora_inicio,hora_fin,lugar,notas,categoria_id,hecho,hecho_at,repetir,repetir_hasta,excepciones")
-    .eq("tipo", "recordatorio")
+    .select("*")
+    .in("tipo", ["recordatorio", "evento"])
     .lte("fecha", hoy)
     .not("hora_inicio", "is", null)
     .gte("hora_inicio", desde)
     .lte("hora_inicio", `${hasta}:59`);
-  const filas = ((data ?? []) as Fila[]).filter((e) => e.fecha === hoy || e.repetir !== "nunca");
-  const tocan = filas.filter((e) => expandir([{ ...e, excepciones: e.excepciones ?? [] }], hoy, hoy).length > 0);
-  if (!tocan.length) return [];
+  type ConAviso = Fila & { aviso: number };
+  const filas: ConAviso[] = [];
+  for (const e of (data ?? []) as Fila[]) {
+    if (e.fecha !== hoy && e.repetir === "nunca") continue;
+    const aviso = e.aviso_min ?? (e.tipo === "recordatorio" ? 0 : null);
+    if (aviso == null) continue; // evento sin aviso
+    const cuando = aMin(String(e.hora_inicio)) - aviso;
+    if (cuando < minutoAhora - 20 || cuando > minutoAhora + 2) continue;
+    if (!expandir([{ ...e, excepciones: e.excepciones ?? [] }], hoy, hoy).length) continue;
+    filas.push({ ...e, aviso });
+  }
+  if (!filas.length) return [];
   // Sólo quien tiene Mi agenda activa
-  const { data: activos } = await db.from("personales").select("user_id").eq("activo", true).in("user_id", [...new Set(tocan.map((e) => e.user_id))]);
+  const { data: activos } = await db.from("personales").select("user_id").eq("activo", true).in("user_id", [...new Set(filas.map((e) => e.user_id))]);
   const ok = new Set((activos ?? []).map((a) => a.user_id as string));
-  const { data: ya } = await db.from("p_push_enviados").select("evento_id").eq("dia", hoy).in("evento_id", tocan.map((e) => e.id));
+  const { data: ya } = await db.from("p_push_enviados").select("evento_id").eq("dia", hoy).in("evento_id", filas.map((e) => e.id));
   const enviados = new Set((ya ?? []).map((x) => x.evento_id as string));
-  return tocan.filter((e) => ok.has(e.user_id) && !enviados.has(e.id));
+  return filas.filter((e) => ok.has(e.user_id) && !enviados.has(e.id));
+}
+
+/** 2.7 · Hábitos con hora que hoy tocan, cuya hora es "ahora" y todavía no se palomean. Con su racha. */
+export async function habitosPorAvisar(db: Db, hoy: string, minutoAhora: number) {
+  const aMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  const { data, error } = await db.from("p_habitos").select("*").eq("archivado", false).not("hora", "is", null);
+  if (error || !data?.length) return [];
+  const { tocaHabito, rachaActual } = await import("@/lib/personal");
+  const habitos = (data as (PHabito & { hora: string })[]).filter((h) => {
+    const m = aMin(h.hora);
+    return m >= minutoAhora - 20 && m <= minutoAhora + 2 && tocaHabito(h, hoy);
+  });
+  if (!habitos.length) return [];
+  const ids = habitos.map((h) => h.id);
+  const [{ data: activos }, { data: marcas }, { data: ya }] = await Promise.all([
+    db.from("personales").select("user_id").eq("activo", true).in("user_id", [...new Set(habitos.map((h) => h.user_id))]),
+    db.from("p_habito_marcas").select("habito_id,fecha").in("habito_id", ids).gte("fecha", sumarDias(hoy, -400)),
+    db.from("p_habitos_avisados").select("habito_id").eq("dia", hoy).in("habito_id", ids),
+  ]);
+  const ok = new Set((activos ?? []).map((a) => a.user_id as string));
+  const avisados = new Set((ya ?? []).map((x) => x.habito_id as string));
+  const porHabito = new Map<string, Set<string>>();
+  for (const m of marcas ?? []) {
+    if (!porHabito.has(m.habito_id)) porHabito.set(m.habito_id, new Set());
+    porHabito.get(m.habito_id)!.add(m.fecha);
+  }
+  return habitos
+    .filter((h) => ok.has(h.user_id) && !avisados.has(h.id) && !porHabito.get(h.id)?.has(hoy))
+    .map((h) => ({ h, racha: rachaActual(h, porHabito.get(h.id) ?? new Set(), hoy) }));
 }

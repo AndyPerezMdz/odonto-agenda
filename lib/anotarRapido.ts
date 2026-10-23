@@ -5,7 +5,8 @@ import { sumarDias } from "@/lib/pagos";
 import type { Repetir, TipoEvento } from "@/lib/personal";
 
 export type Borrador = {
-  clase: "evento" | "pendiente"; // pendiente → va a Pendientes
+  clase: "evento" | "pendiente" | "pago"; // pendiente → Pendientes; pago → Pagos fijos (2.8)
+  monto: number | null; // pagos fijos
   tipo: TipoEvento;
   titulo: string;
   fecha: string | null; // null: no dijo cuándo (se usa hoy al revisar)
@@ -87,7 +88,7 @@ export function anotarRapido(texto: string, hoy: string): Borrador {
     return false;
   }
 
-  const b: Borrador = { clase: "evento", tipo: "evento", titulo: "", fecha: null, fecha_fin: null, hora_inicio: null, hora_fin: null, lugar: null, repetir: "nunca" };
+  const b: Borrador = { clase: "evento", tipo: "evento", titulo: "", fecha: null, fecha_fin: null, hora_inicio: null, hora_fin: null, lugar: null, repetir: "nunca", monto: null };
   let quitarPrefijo = false;
 
   // 1. ¿Qué es? (por cómo empieza)
@@ -106,6 +107,17 @@ export function anotarRapido(texto: string, hoy: string): Borrador {
   buscar(/\b(?:cada\s+semana|todas\s+las\s+semanas|semanal(?:mente)?)\b/, () => { b.repetir = "semanal"; });
   buscar(/\b(?:cada\s+mes|todos\s+los\s+meses|mensual(?:mente)?)\b/, () => { b.repetir = "mensual"; });
   buscar(/\b(?:cada\s+ano|todos\s+los\s+anos|anual(?:mente)?)\b/, () => { b.repetir = "anual"; });
+
+  // 2b. ¿Pago fijo? ("pagar la renta el 5 de cada mes $6,500", "Netflix $199 cada mes")
+  const prefijoPago = /^(?:pagar|pago(?:\s+de(?:l)?)?)\s+/.test(n);
+  if (prefijoPago || b.repetir === "mensual" || b.repetir === "anual") {
+    buscar(/(?:\$\s?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?|\b(\d+(?:\.\d{1,2})?)\s*(?:pesos|mxn|varos|baros)\b)/, (m) => {
+      const v = Number((m[1] ?? m[3] ?? "").replace(/,/g, "")) + (m[2] ? Number(`0.${m[2]}`) : 0);
+      if (!v) return false;
+      b.monto = v;
+    });
+    if ((b.repetir === "mensual" || b.repetir === "anual") && (prefijoPago || b.monto != null)) b.clase = "pago";
+  }
 
   // 3. Hora: rangos ("de 4 a 6pm", "10:00-12:00") y luego una sola
   buscar(new RegExp(`\\b(de\\s+(?:las?\\s+)?|entre\\s+(?:las?\\s+)?|desde\\s+(?:las?\\s+)?)?(\\d{1,2})(?::(\\d{2}))?\\s*${RE_SUF}?\\s*(?:a|-|–|hasta|y)\\s*(?:las?\\s+)?(\\d{1,2})(?::(\\d{2}))?\\s*${RE_SUF}?${RE_PERIODO}?(?![\\d/])`), (m) => {
@@ -240,5 +252,10 @@ export function anotarRapido(texto: string, hoy: string): Borrador {
   if (b.tipo !== "viaje") b.fecha_fin = null;
   if (b.tipo === "evento" && b.hora_inicio && !b.hora_fin) b.hora_fin = masUnaHora(b.hora_inicio);
   if (b.clase === "pendiente") { b.hora_inicio = null; b.hora_fin = null; b.repetir = "nunca"; b.lugar = null; }
+  if (b.clase === "pago") {
+    b.titulo = b.titulo.replace(/^(?:pagar|pago(?:\s+de(?:l)?)?)\s+(?:(?:el|la|los|las)\s+)?/i, "");
+    b.titulo = b.titulo ? b.titulo[0].toUpperCase() + b.titulo.slice(1) : "";
+    b.hora_inicio = null; b.hora_fin = null; b.lugar = null; b.tipo = "recordatorio";
+  } else b.monto = null;
   return b;
 }

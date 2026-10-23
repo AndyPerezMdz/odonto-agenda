@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { AgendaAdmin, AvisoAdmin, Miembro, ResumenAdmin } from "@/lib/admin";
-import { Comparativo, FiltroUniversidad, InsigniaUni, UsoUady, type FiltroUni, Saludo, Numeros, Totales, HoyTeToca, Ingresos, PorCodigo, hace, diasSinEntrar, enPruebaViva, pagando, DIAS_FANTASMA } from "@/components/TableroAdmin";
+import { FiltroUniversidad, InsigniaUni, UsoUady, type FiltroUni, Saludo, Numeros, Totales, HoyTeToca, Ingresos, PorCodigo, hace, diasSinEntrar, enPruebaViva, pagando, DIAS_FANTASMA } from "@/components/TableroAdmin";
 import type { CodigoAdmin } from "@/app/api/admin/codigos/route";
 import type { CuentaAdmin, SugerenciaAdmin } from "@/lib/staff";
 import { AnunciosAdmin, Buzon, CobrosQueVienen, CuentasAMedias, cuentasAMedias, Embudo, PreciosUni } from "@/components/StaffPiezas";
@@ -12,6 +12,9 @@ import { estadoPago, pesos, codigoAgenda, sumarDias } from "@/lib/pagos";
 import PersonasMi, { AvisosMi, PreciosMi } from "@/components/personal/PersonalesAdmin";
 import { DesgloseDinero, DineroMi, HoyMi, IngresosJuntos, UsoMi } from "@/components/MiAdmin";
 import type { ResumenMiAdmin } from "@/lib/miAdmin";
+import type { AvisoMiAdmin } from "@/lib/planMiServer";
+import SaludAdmin, { useSalud } from "@/components/SaludAdmin";
+import BuscadorAdmin from "@/components/BuscadorAdmin";
 import { fechaLarga, hoyISO } from "@/lib/fechas";
 
 async function api(url: string, method: string, body?: unknown): Promise<string | null> {
@@ -41,7 +44,7 @@ const GRUPOS: { id: GrupoId; titulo: string; items: Pestana[] }[] = [
 ];
 const NOMBRE: Record<Pestana, string> = {
   hoy: "Hoy", dinero: "Dinero", buzon: "Buzón", anuncios: "Anuncios", agendas: "Agendas", cuentas: "Cuentas a medias", uady: "Uso UADY",
-  personas: "Personas", uso: "Uso", planes: "Planes y precios", ajustes: "Precios y códigos",
+  personas: "Personas", uso: "Uso", planes: "Planes y precios", ajustes: "Salud y precios",
 };
 type VistaDinero = "todo" | "clinicas" | "mi";
 
@@ -63,6 +66,7 @@ export default function PanelAdmin({ email }: { email: string }) {
   const [mi, setMi] = useState<ResumenMiAdmin | null>(null);
   const [vistaDinero, setVistaDinero] = useState<VistaDinero>("todo");
   const [buscaMi, setBuscaMi] = useState("");
+  const { salud } = useSalud();
   useEffect(() => {
     try {
       const g = localStorage.getItem("admin-universidad");
@@ -264,7 +268,8 @@ export default function PanelAdmin({ email }: { email: string }) {
             <button onClick={cambiarModo} className="btn btn-sec px-2.5" aria-label={modo === "oscuro" ? "Modo claro" : "Modo oscuro"}>{modo === "oscuro" ? "☀" : "☾"}</button>
             <button onClick={salir} className="btn btn-sec">Salir</button>
           </div>
-          <span className="consola-mono hidden rounded border border-line px-2 py-1 text-[11px] text-muted lg:inline">
+          {agendas && <div className="order-last w-full sm:order-none sm:w-auto"><BuscadorAdmin agendas={agendas} onAgenda={verAgenda} onPersona={verPersona} /></div>}
+          <span className="consola-mono hidden rounded border border-line px-2 py-1 text-[11px] text-muted xl:inline">
             {grupoActual === "clinicas" || (usaUni && uni !== "todas") ? `${uni} / ` : ""}{GRUPOS.find((g) => g.id === grupoActual)?.titulo.toLowerCase()} / {actual}
           </span>
         </div>
@@ -302,8 +307,13 @@ export default function PanelAdmin({ email }: { email: string }) {
       {/* HOY: lo que hay que hacer */}
       {actual === "hoy" && agendas && (
         <div className="flex flex-col gap-4">
-          {(medias > 0 || nuevas > 0) && (
+          {(medias > 0 || nuevas > 0 || !!salud?.problemas) && (
             <div className="flex flex-wrap gap-2">
+              {!!salud?.problemas && (
+                <button onClick={() => setPestana("ajustes")} className="rounded-full border border-danger bg-danger/10 px-3 py-1.5 text-sm text-danger hover:bg-danger/20">
+                  ⚠ <b>{salud.problemas}</b> cosa{salud.problemas === 1 ? "" : "s"} por revisar en la salud del sistema →
+                </button>
+              )}
               {medias > 0 && (
                 <button onClick={() => setPestana("cuentas")} className="rounded-full border border-line bg-panel px-3 py-1.5 text-sm hover:bg-panel-2">
                   <b>{medias}</b> cuenta{medias === 1 ? "" : "s"} sin terminar su registro →
@@ -316,17 +326,15 @@ export default function PanelAdmin({ email }: { email: string }) {
               )}
             </div>
           )}
+          <AvisosPago
+            avisos={avisosUni}
+            agendas={agendas}
+            onCambio={(msg) => {
+              setAviso(msg);
+              recargar();
+            }}
+          />
           <AvisosMi onAviso={setAviso} onCambio={recargar} />
-          {avisosUni.length > 0 && (
-            <AvisosPago
-              avisos={avisosUni}
-              agendas={agendas}
-              onCambio={(msg) => {
-                setAviso(msg);
-                recargar();
-              }}
-            />
-          )}
           <HoyTeToca agendas={delaUni} avisosPendientes={avisosUni.length} onVer={verAgenda} onAviso={setAviso} />
           {mi && <HoyMi r={mi} onVer={verPersona} />}
         </div>
@@ -362,7 +370,6 @@ export default function PanelAdmin({ email }: { email: string }) {
               <Embudo cuentas={cuentasUni} agendas={delaUni} />
             </div>
             <div className="flex min-w-0 flex-col gap-4">
-              {uni === "todas" && <Comparativo agendas={agendas} resumen={resumen} />}
               <Ingresos key={uni} resumen={resumenUni} />
               <PorCodigo agendas={delaUni} resumen={resumenUni} onVerTodos={() => setPestana("ajustes")} />
             </div>
@@ -384,6 +391,7 @@ export default function PanelAdmin({ email }: { email: string }) {
 
       {actual === "ajustes" && agendas && (
         <div className="flex flex-col gap-5">
+          <SaludAdmin onAviso={setAviso} />
           <PreciosUni agendas={agendas} onAviso={setAviso} onCambio={recargar} />
           <DatosBancarios onAviso={setAviso} />
           <Codigos onAviso={setAviso} />
@@ -768,10 +776,21 @@ function insigniaPago(pagadoHasta: string | null) {
   }
 }
 
+/** 2.8 · Pagos por confirmar de las dos agendas en una sola lista (de lo más viejo a lo más nuevo). */
 function AvisosPago({ avisos, agendas, onCambio }: { avisos: AvisoAdmin[]; agendas: AgendaAdmin[]; onCambio: (m: string) => void }) {
   const [trabajando, setTrabajando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [porDescartar, setPorDescartar] = useState<string | null>(null);
+  const [mi, setMi] = useState<AvisoMiAdmin[]>([]);
+  const cargarMi = useCallback(async () => {
+    const r = await fetch("/api/admin/personales/avisos", { cache: "no-store" });
+    if (r.ok) setMi((await r.json().catch(() => ({}))).avisos ?? []);
+  }, []);
+  useEffect(() => {
+    cargarMi();
+  }, [cargarMi]);
+
+  const plan = (meses: number) => (meses === 12 ? "1 año" : `${meses} mes${meses === 1 ? "" : "es"}`);
 
   async function confirmar(v: AvisoAdmin) {
     if (trabajando) return; // evita doble clic
@@ -787,9 +806,8 @@ function AvisosPago({ avisos, agendas, onCambio }: { avisos: AvisoAdmin[]; agend
     });
     setTrabajando(null);
     if (err) return setError(err);
-    onCambio(`Pago de “${v.agenda}” confirmado: +${v.meses === 12 ? "1 año" : `${v.meses} mes${v.meses === 1 ? "" : "es"}`}. Le avisamos por correo.`);
+    onCambio(`Pago de “${v.agenda}” confirmado: +${plan(v.meses)}. Le avisamos por correo.`);
   }
-
   async function descartar(v: AvisoAdmin) {
     if (trabajando) return;
     setTrabajando(v.id);
@@ -799,43 +817,76 @@ function AvisosPago({ avisos, agendas, onCambio }: { avisos: AvisoAdmin[]; agend
     setPorDescartar(null);
     onCambio(`Le avisamos a “${v.agenda}” que su pago no se ha reflejado.`);
   }
+  async function resolverMi(v: AvisoMiAdmin, accion: "confirmar" | "rechazar") {
+    if (trabajando) return;
+    setTrabajando(v.id);
+    setError(null);
+    const err = await api("/api/admin/personales/avisos", "POST", { id: v.id, accion });
+    setTrabajando(null);
+    if (err) return setError(err);
+    setPorDescartar(null);
+    await cargarMi();
+    onCambio(accion === "confirmar" ? `Pago confirmado: ${v.nombre || v.email} ya tiene Pro de Mi agenda.` : `Le avisamos a ${v.nombre || v.email} que no llegó.`);
+  }
+
+  type Fila = { tipo: "clinicas"; v: AvisoAdmin } | { tipo: "mi"; v: AvisoMiAdmin };
+  const filas: Fila[] = [...avisos.map((v) => ({ tipo: "clinicas" as const, v })), ...mi.map((v) => ({ tipo: "mi" as const, v }))].sort((a, b) => a.v.created_at.localeCompare(b.v.created_at));
+  if (!filas.length) return null;
 
   return (
-    <section className="mb-5 rounded-2xl border-2 border-accent bg-panel p-4 sm:p-5">
+    <section className="rounded-2xl border-2 border-accent bg-panel p-4 sm:p-5">
       <h2 className="flex items-center gap-2 font-semibold">
-        <span className="grid h-6 min-w-6 place-items-center rounded-full bg-accent px-1.5 text-xs text-panel">{avisos.length}</span>
-        Clínicas · pagos por confirmar
+        <span className="grid h-6 min-w-6 place-items-center rounded-full bg-accent px-1.5 text-xs text-panel">{filas.length}</span>
+        Pagos por confirmar
       </h2>
-      <p className="mb-3 mt-0.5 text-sm text-muted">Revisa en tu banco que haya llegado la transferencia (busca el concepto) y confírmala.</p>
+      <p className="mb-3 mt-0.5 text-sm text-muted">Revisa en tu banco que haya llegado la transferencia (busca el concepto) y confírmala. Al confirmar se suma el tiempo y les llega el correo.</p>
       <ul className="flex flex-col gap-2">
-        {avisos.map((v) => (
-          <li key={v.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-line p-3">
-            <div className="mr-auto min-w-0">
-              <p className="font-medium">
-                {v.agenda} <span className="text-xs font-normal text-muted">· concepto {codigoAgenda(v.agenda_id)}</span>
-              </p>
-              <p className="text-sm text-muted">
-                {v.quien ?? "El dueño"} · {v.monto != null ? pesos(v.monto) : "monto no indicado"}{v.meses > 1 ? ` · plan de ${v.meses === 12 ? "1 año" : `${v.meses} meses`}` : ""} · {fechaLarga(v.created_at.slice(0, 10))}
-                {v.referencia ? ` · rastreo ${v.referencia}` : ""}
-              </p>
-            </div>
-            <button className="btn btn-primario py-1.5 text-sm" disabled={trabajando === v.id} onClick={() => confirmar(v)}>
-              Confirmar (+{v.meses === 12 ? "1 año" : `${v.meses} mes${v.meses === 1 ? "" : "es"}`})
-            </button>
-            {porDescartar === v.id ? (
-              <>
-                <button className="btn bg-danger py-1.5 text-sm text-panel" disabled={trabajando === v.id} onClick={() => descartar(v)}>
-                  Sí, avisarle que no llegó
-                </button>
-                <button className="btn btn-sec py-1.5 text-sm" onClick={() => setPorDescartar(null)}>Cancelar</button>
-              </>
-            ) : (
-              <button className="btn btn-sec py-1.5 text-sm" disabled={trabajando === v.id} onClick={() => setPorDescartar(v.id)}>
-                No llegó
+        {filas.map((f) => {
+          const id = f.v.id;
+          const etiqueta = (
+            <span className={`mr-1.5 rounded px-1.5 py-px align-middle text-[10px] font-bold uppercase ${f.tipo === "mi" ? "bg-[#d9a441]/20 text-[#d9a441]" : "bg-accent-soft text-accent"}`}>
+              {f.tipo === "mi" ? "Mi agenda" : "Clínicas"}
+            </span>
+          );
+          return (
+            <li key={`${f.tipo}-${id}`} className="flex flex-wrap items-center gap-3 rounded-xl border border-line p-3">
+              <div className="mr-auto min-w-0">
+                {f.tipo === "clinicas" ? (
+                  <>
+                    <p className="font-medium">{etiqueta}{f.v.agenda} <span className="text-xs font-normal text-muted">· concepto {codigoAgenda(f.v.agenda_id)}</span></p>
+                    <p className="text-sm text-muted">
+                      {f.v.quien ?? "El dueño"} · {f.v.monto != null ? pesos(f.v.monto) : "monto no indicado"}{f.v.meses > 1 ? ` · plan de ${plan(f.v.meses)}` : ""} · {fechaLarga(f.v.created_at.slice(0, 10))}
+                      {f.v.referencia ? ` · rastreo ${f.v.referencia}` : ""}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium">{etiqueta}{f.v.nombre || f.v.email} <span className="text-xs font-normal text-muted">· concepto {f.v.codigo}</span></p>
+                    <p className="text-sm text-muted">
+                      {f.v.email} · {pesos(f.v.monto)} · plan de {plan(f.v.meses)} · {fechaLarga(f.v.created_at.slice(0, 10))}
+                      {f.v.referencia ? ` · rastreo ${f.v.referencia}` : ""}
+                    </p>
+                  </>
+                )}
+              </div>
+              <button className="btn btn-primario py-1.5 text-sm" disabled={trabajando === id} onClick={() => (f.tipo === "clinicas" ? confirmar(f.v) : resolverMi(f.v, "confirmar"))}>
+                Confirmar (+{plan(f.v.meses)})
               </button>
-            )}
-          </li>
-        ))}
+              {porDescartar === id ? (
+                <>
+                  <button className="btn bg-danger py-1.5 text-sm text-panel" disabled={trabajando === id} onClick={() => (f.tipo === "clinicas" ? descartar(f.v) : resolverMi(f.v, "rechazar"))}>
+                    Sí, avisarle que no llegó
+                  </button>
+                  <button className="btn btn-sec py-1.5 text-sm" onClick={() => setPorDescartar(null)}>Cancelar</button>
+                </>
+              ) : (
+                <button className="btn btn-sec py-1.5 text-sm" disabled={trabajando === id} onClick={() => setPorDescartar(id)}>
+                  No llegó
+                </button>
+              )}
+            </li>
+          );
+        })}
       </ul>
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
     </section>

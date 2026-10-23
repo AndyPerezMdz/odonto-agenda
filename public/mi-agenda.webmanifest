@@ -2,7 +2,7 @@
   "id": "/personal",
   "name": "Mi agenda",
   "short_name": "Mi agenda",
-  "description": "Tu agenda personal: eventos, viajes, entregas y recordatorios.",
+  "description": "Tu agenda personal: eventos, pendientes, hábitos con racha, viajes y pagos.",
   "start_url": "/personal",
   "scope": "/",
   "display": "standalone",
@@ -10,8 +10,64 @@
   "theme_color": "#b4472e",
   "lang": "es",
   "icons": [
-    { "src": "/mi-agenda-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/mi-agenda-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/mi-agenda-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/mi-agenda-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/mi-agenda-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/mi-agenda-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Anotar algo",
+      "short_name": "Anotar",
+      "url": "/personal?nuevo=1",
+      "icons": [
+        {
+          "src": "/mi-agenda-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Hoy",
+      "url": "/personal",
+      "icons": [
+        {
+          "src": "/mi-agenda-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Hábitos",
+      "url": "/personal?ver=habitos",
+      "icons": [
+        {
+          "src": "/mi-agenda-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Pendientes",
+      "url": "/personal?ver=pendientes",
+      "icons": [
+        {
+          "src": "/mi-agenda-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
   ]
 }

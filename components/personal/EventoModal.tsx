@@ -40,6 +40,7 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
   const [repetir, setRepetir] = useState<Repetir>(evento?.repetir ?? b?.repetir ?? "nunca");
   const [hasta, setHasta] = useState(evento?.repetir_hasta ?? "");
   const [hecho, setHecho] = useState(evento?.hecho ?? false);
+  const [avisoMin, setAvisoMin] = useState<string>(evento?.aviso_min != null ? String(evento.aviso_min) : "");
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [borrar, setBorrar] = useState(false);
@@ -78,6 +79,8 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
       repetir_hasta: puedeRepetir && repetir !== "nunca" ? hasta || null : null,
       hecho: tipo === "entrega" ? hecho : false,
       hecho_at: tipo === "entrega" && hecho ? evento?.hecho_at ?? new Date().toISOString() : null,
+      // 2.7 · sólo se manda si se eligió algo (así funciona aunque falte el SQL 2.7)
+      ...(avisoMin !== "" || evento?.aviso_min != null ? { aviso_min: conHora && avisoMin !== "" ? Number(avisoMin) : null } : {}),
     };
     const { error } = nuevo
       ? await supabase.from("p_eventos").insert({ ...datos, user_id: userId })
@@ -223,6 +226,17 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
               )}
               {esSerie && <p className="col-span-2 text-xs text-muted">Los cambios aplican a toda la serie.</p>}
             </div>
+          )}
+
+          {conHora && (
+            <label className="col-span-2 text-sm"><span className="mb-1 block font-medium">Aviso en el cel</span>
+              <select className="campo" value={avisoMin} onChange={(e) => setAvisoMin(e.target.value)}>
+                <option value="">{tipo === "recordatorio" ? "A la hora" : "Sin aviso"}</option>
+                {tipo === "evento" && <option value="0">A la hora</option>}
+                {[5, 10, 15, 30, 60, 120].map((m) => <option key={m} value={m}>{m < 60 ? `${m} min antes` : m === 60 ? "1 hora antes" : "2 horas antes"}</option>)}
+              </select>
+              <span className="mt-1 block text-xs text-muted">Llega si activaste las notificaciones en Ajustes.</span>
+            </label>
           )}
 
           {tipo === "entrega" && !nuevo && (

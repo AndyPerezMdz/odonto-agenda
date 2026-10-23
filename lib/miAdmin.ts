@@ -105,7 +105,7 @@ export async function resumenMiAdmin(db: Db): Promise<ResumenMiAdmin> {
   };
 
   const renovaciones: RenovacionMi[] = lista
-    .filter((p) => (p.estado.tipo === "pro" || p.estado.tipo === "prueba") && p.estado.dias <= 30)
+    .filter((p) => (p.estado.tipo === "pro" || p.estado.tipo === "prueba") && Number.isFinite(p.estado.dias) && p.estado.dias <= 30)
     .map((p) => {
       const e = p.estado as { tipo: "pro" | "prueba"; hasta: string; dias: number };
       const u = ultimoPago.get(p.user_id);

@@ -5,7 +5,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Cita, Clinica, EstadoCita, Materia, Paciente, Perfil, Preferencias } from "@/lib/types";
 import { enlaceWhatsApp, enlaceConfirmar, mensajeConfirmar, IcoWhatsApp } from "@/lib/whatsapp";
 import { ChipPro } from "@/components/Candado";
-import { fechaLarga, hhmm, sumarMinutos } from "@/lib/fechas";
+import { fechaLarga, hhmm, hoyISO, sumarMinutos } from "@/lib/fechas";
+import { anotarCita } from "@/lib/anotarCita";
 import { sumarDias } from "@/lib/pagos";
 import { ESTADOS } from "@/lib/estados";
 import { clavePaciente, parecidos } from "@/lib/pacientes";
@@ -119,6 +120,9 @@ export default function CitaModal({
     if (!telefono && conTel?.telefono) setTelefono(conTel.telefono);
   }
   const [error, setError] = useState<string | null>(null);
+  // 2.8 · Anotar rápido: "Juan Pérez martes 10 clínica 2 endo" llena el formulario
+  const [rapido, setRapido] = useState("");
+  const [lleno, setLleno] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [confirmarBorrar, setConfirmarBorrar] = useState(false);
   const [estado, setEstado] = useState<EstadoCita | null>(cita?.estado ?? null);
@@ -148,6 +152,26 @@ export default function CitaModal({
     setMateriaId(id);
     const m = materias.find((x) => x.id === id);
     if (esNueva && m?.duracion_min && inicio) setFin(sumarMinutos(inicio, m.duracion_min));
+  }
+
+  function llenarRapido(e?: React.FormEvent | React.KeyboardEvent) {
+    e?.preventDefault();
+    if (rapido.trim().length < 3) return;
+    const nombres = [...new Set([...conocidos.map((c) => c.nombre), ...misPacientes.map((p) => p.nombre)])];
+    const b = anotarCita(rapido, hoyISO(), clinicas, materias, nombres);
+    const hecho: string[] = [];
+    if (b.paciente) { cambiarPaciente(b.paciente); hecho.push(b.conocido ? `${b.paciente} (ya es tu paciente)` : b.paciente); }
+    if (b.fecha) { setFecha(b.fecha); hecho.push(fechaLarga(b.fecha)); }
+    if (b.materiaId) { setMateriaId(b.materiaId); hecho.push(materias.find((m) => m.id === b.materiaId)?.nombre ?? ""); }
+    if (b.inicio) {
+      setInicio(b.inicio);
+      const m = materias.find((x) => x.id === (b.materiaId ?? materiaId));
+      setFin(b.fin ?? sumarMinutos(b.inicio, m?.duracion_min ?? preferencias.duracionMin));
+      hecho.push(b.fin ? `${b.inicio}–${b.fin}` : b.inicio);
+    }
+    if (b.clinicaId) { setClinicaId(b.clinicaId); hecho.push(`Clínica ${clinicas.find((c) => c.id === b.clinicaId)?.numero}`); }
+    else if (b.clinicaPedida) hecho.push(`(no tienes la clínica “${b.clinicaPedida}”: elígela abajo)`);
+    setLleno(hecho.length ? hecho.filter(Boolean).join(" · ") : "No le entendí. Prueba: “Juan Pérez martes 10 clínica 2”.");
   }
 
   // En catálogos, mostrar activos + el que ya tenga la cita (aunque esté inactivo)
@@ -275,6 +299,26 @@ export default function CitaModal({
               ))}
             </div>
             {estado === "cancelo" && <p className="mt-1 text-xs text-muted">Una cita cancelada ya no ocupa el horario ni te llega recordatorio.</p>}
+          </div>
+        )}
+
+        {esNueva && esMia && !plantilla && (
+          <div className="mb-4 rounded-xl border border-dashed border-line p-3">
+            <label htmlFor="cita-rapida" className="mb-1.5 block text-sm font-medium">Escríbela rápido <span className="font-normal text-muted">(opcional)</span></label>
+            <div className="flex gap-2">
+              <input
+                id="cita-rapida"
+                className="campo min-w-0 flex-1"
+                value={rapido}
+                onChange={(e) => { setRapido(e.target.value); setLleno(null); }}
+                onKeyDown={(e) => e.key === "Enter" && llenarRapido(e)}
+                placeholder="Juan Pérez martes 10 clínica 2 endo"
+                autoComplete="off"
+                enterKeyHint="done"
+              />
+              <button type="button" className="btn btn-sec shrink-0" onClick={() => llenarRapido()} disabled={rapido.trim().length < 3}>Llenar</button>
+            </div>
+            {lleno && <p className="mt-1.5 text-xs text-accent">✓ {lleno}. Revisa abajo y guarda.</p>}
           </div>
         )}
 

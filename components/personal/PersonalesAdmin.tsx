@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { PersonalAdmin, SolicitudAdmin } from "@/lib/personalServer";
-import type { AvisoMiAdmin } from "@/lib/planMiServer";
 import { normalizarPlanesMi, type EstadoMi, type PlanMi } from "@/lib/planMi";
 import { pesos } from "@/lib/pagos";
 import { fechaLarga } from "@/lib/fechas";
@@ -33,14 +32,12 @@ function useLlamar(onAviso: (m: string) => void, cargar: () => void) {
   return { llamar, ocupado, error };
 }
 
-/** Hoy → lo de Mi agenda que espera algo de ti: pagos por confirmar y solicitudes. */
+/** Hoy → solicitudes de Mi agenda (los pagos por confirmar van junto con los de clínicas, en el panel). */
 export function AvisosMi({ onAviso, onCambio }: { onAviso: (m: string) => void; onCambio?: () => void }) {
   const [solicitudes, setSolicitudes] = useState<SolicitudAdmin[]>([]);
-  const [avisos, setAvisos] = useState<AvisoMiAdmin[]>([]);
   const cargar = useCallback(async () => {
-    const [rs, ra] = await Promise.all([fetch("/api/admin/personales/solicitudes", { cache: "no-store" }), fetch("/api/admin/personales/avisos", { cache: "no-store" })]);
+    const rs = await fetch("/api/admin/personales/solicitudes", { cache: "no-store" });
     if (rs.ok) setSolicitudes((await rs.json()).solicitudes ?? []);
-    if (ra.ok) setAvisos((await ra.json()).avisos ?? []);
   }, []);
   useEffect(() => {
     cargar();
@@ -49,27 +46,9 @@ export function AvisosMi({ onAviso, onCambio }: { onAviso: (m: string) => void; 
     cargar();
     onCambio?.();
   });
-  if (!avisos.length && !solicitudes.length) return null;
+  if (!solicitudes.length) return null;
   return (
     <>
-      {avisos.length > 0 && (
-        <section className="rounded-2xl border-2 border-accent bg-panel p-4 sm:p-5">
-          <h2 className="font-semibold">Mi agenda · pagos por confirmar <span className="ml-1 rounded-full bg-danger px-1.5 text-[11px] text-panel">{avisos.length}</span></h2>
-          <p className="mb-3 mt-0.5 text-sm text-muted">Dijeron “Ya pagué” en su Mi agenda. Revisa tu banco (concepto MI-…) y confirma: se les suma el tiempo y les llega el correo.</p>
-          <ul className="divide-y divide-line rounded-xl border border-line">
-            {avisos.map((x) => (
-              <li key={x.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{x.nombre || x.email} · <span className="tabular-nums">{pesos(x.monto)}</span> <span className="text-xs font-normal text-muted">({x.meses === 12 ? "1 año" : `${x.meses} mes${x.meses === 1 ? "" : "es"}`})</span></p>
-                  <p className="truncate text-xs text-muted">{x.email} · concepto <b className="consola-mono">{x.codigo}</b>{x.referencia ? ` · rastreo ${x.referencia}` : ""} · avisó {hace(x.created_at)}</p>
-                </div>
-                <button className="btn btn-primario py-1 text-xs" disabled={!!ocupado} onClick={() => llamar("/api/admin/personales/avisos", "POST", { id: x.id, accion: "confirmar" }, `Pago confirmado: ${x.email} ya tiene Pro.`, x.id)}>Confirmar</button>
-                <button className="btn btn-sec py-1 text-xs" disabled={!!ocupado} onClick={() => llamar("/api/admin/personales/avisos", "POST", { id: x.id, accion: "rechazar" }, "Le avisamos que no llegó.", x.id)}>No llegó</button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
       {solicitudes.length > 0 && (
         <section className="rounded-2xl border-2 border-accent bg-panel p-4 sm:p-5">
           <h2 className="font-semibold">Quieren Mi agenda <span className="ml-1 rounded-full bg-danger px-1.5 text-[11px] text-panel">{solicitudes.length}</span></h2>
@@ -106,6 +85,7 @@ export default function PersonasMi({ onAviso, buscaInicial = "" }: { onAviso: (m
   const [pago, setPago] = useState<{ id: string; meses: number; monto: string } | null>(null);
   const [perfil, setPerfil] = useState<"" | "odonto" | "general">("");
   const [verAlta, setVerAlta] = useState(false);
+  const [menu, setMenu] = useState<string | null>(null);
   const [busca, setBusca] = useState(buscaInicial);
   const [filtro, setFiltro] = useState<FiltroMi>("todas");
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
@@ -150,7 +130,7 @@ export default function PersonasMi({ onAviso, buscaInicial = "" }: { onAviso: (m
             );
           })}
         </div>
-        <button onClick={() => setVerAlta(!verAlta)} className="btn btn-sec ml-auto py-1.5 text-xs">{verAlta ? "Cerrar" : "+ Dar de alta"}</button>
+        <button onClick={() => setVerAlta(!verAlta)} className="ml-auto text-xs text-muted underline-offset-2 hover:text-ink hover:underline">{verAlta ? "Cerrar" : "Regalar una cortesía…"}</button>
       </div>
       {errorCarga && <p className="text-sm text-danger">{errorCarga}</p>}
 
@@ -178,7 +158,7 @@ export default function PersonasMi({ onAviso, buscaInicial = "" }: { onAviso: (m
 
       )}
 
-      <section className="overflow-hidden rounded-2xl border border-line bg-panel">
+      <section className="rounded-2xl border border-line bg-panel">
         <div className="flex items-baseline justify-between border-b border-line px-4 py-3">
           <h2 className="font-semibold">Personas con Mi agenda</h2>
           <span className="text-xs tabular-nums text-muted">{lista ? `${visibles.length} de ${lista.length}` : "…"}</span>
@@ -220,22 +200,27 @@ export default function PersonasMi({ onAviso, buscaInicial = "" }: { onAviso: (m
                     <button className="btn btn-sec py-1" onClick={() => setBorrar(null)}>No</button>
                   </div>
                 ) : (
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="relative flex items-center gap-1.5">
                     {p.activo && (
                       <button className="btn btn-sec py-1 text-xs" disabled={ocupado === p.user_id} onClick={() => llamar(`/api/admin/personales/${p.user_id}`, "POST", null, `Link enviado a ${p.email}.`, p.user_id)}>
                         Mandar link
                       </button>
                     )}
-                    <button className="btn btn-sec py-1 text-xs" disabled={ocupado === p.user_id} onClick={() => llamar(`/api/admin/personales/${p.user_id}`, "PATCH", { activo: !p.activo }, p.activo ? "Pausada: ya no puede entrar." : "Reactivada.", p.user_id)}>
-                      {p.activo ? "Pausar" : "Reactivar"}
-                    </button>
                     <button className="btn btn-sec py-1 text-xs" onClick={() => setPago(pago?.id === p.user_id ? null : { id: p.user_id, meses: 1, monto: "" })}>+ Pago</button>
-                    {p.estado.tipo === "cortesia" ? (
-                      <button className="btn btn-sec py-1 text-xs" disabled={!!ocupado} title="Queda en Gratis desde hoy (o en Pro si su agenda de clínicas lo es)" onClick={() => llamar(`/api/admin/personales/${p.user_id}`, "PATCH", { cortesia: false }, "Cortesía quitada.", p.user_id)}>Quitar cortesía</button>
-                    ) : (
-                      <button className="btn btn-sec py-1 text-xs" disabled={!!ocupado} title="Pro sin fecha de vencimiento" onClick={() => llamar(`/api/admin/personales/${p.user_id}`, "PATCH", { cortesia: true }, "Ahora es de cortesía.", p.user_id)}>Cortesía</button>
+                    <button className="btn btn-sec px-2 py-1 text-xs" aria-label="Más acciones" aria-expanded={menu === p.user_id} onClick={() => setMenu(menu === p.user_id ? null : p.user_id)}>⋯</button>
+                    {menu === p.user_id && (
+                      <div className="absolute right-0 top-full z-20 mt-1 flex w-48 flex-col rounded-xl border border-line bg-panel p-1 text-sm shadow-xl" onMouseLeave={() => setMenu(null)}>
+                        <button className="rounded-lg px-3 py-2 text-left hover:bg-panel-2" disabled={!!ocupado} onClick={() => { setMenu(null); llamar(`/api/admin/personales/${p.user_id}`, "PATCH", { activo: !p.activo }, p.activo ? "Pausada: ya no puede entrar." : "Reactivada.", p.user_id); }}>
+                          {p.activo ? "Pausar" : "Reactivar"}
+                        </button>
+                        {p.estado.tipo === "cortesia" ? (
+                          <button className="rounded-lg px-3 py-2 text-left hover:bg-panel-2" disabled={!!ocupado} title="Queda en Gratis desde hoy (o en Pro si su agenda de clínicas lo es)" onClick={() => { setMenu(null); llamar(`/api/admin/personales/${p.user_id}`, "PATCH", { cortesia: false }, "Cortesía quitada.", p.user_id); }}>Quitar cortesía</button>
+                        ) : (
+                          <button className="rounded-lg px-3 py-2 text-left hover:bg-panel-2" disabled={!!ocupado} title="Pro sin fecha de vencimiento" onClick={() => { setMenu(null); llamar(`/api/admin/personales/${p.user_id}`, "PATCH", { cortesia: true }, "Ahora es de cortesía.", p.user_id); }}>Regalar cortesía</button>
+                        )}
+                        <button className="rounded-lg px-3 py-2 text-left text-danger hover:bg-panel-2" onClick={() => { setMenu(null); setBorrar(p.user_id); }}>Borrar…</button>
+                      </div>
                     )}
-                    <button className="btn btn-sec py-1 text-xs text-danger" onClick={() => setBorrar(p.user_id)}>Borrar</button>
                   </div>
                 )}
                 {pago?.id === p.user_id && (
@@ -270,8 +255,9 @@ function InsigniaPlan({ e }: { e: EstadoMi }) {
   const t =
     e.tipo === "cortesia" ? "Cortesía" :
     e.tipo === "clinicas" ? "Pro por clínicas" :
-    e.tipo === "prueba" ? `Prueba · ${e.dias} d` :
-    e.tipo === "pro" ? `Pro hasta ${fechaLarga(e.hasta)}` : "Gratis";
+    // (nunca "null d" aunque venga una fecha chueca)
+    e.tipo === "prueba" ? (Number.isFinite(e.dias) ? `Prueba · ${e.dias} d` : "En prueba") :
+    e.tipo === "pro" ? (/^\d{4}-\d{2}-\d{2}$/.test(e.hasta ?? "") ? `Pro hasta ${fechaLarga(e.hasta)}` : "Pro") : "Gratis";
   const color = e.tipo === "gratis" ? "bg-panel-2 text-muted" : "bg-accent-soft text-accent";
   return <span className={`ml-2 rounded px-1.5 py-px text-[10px] font-semibold uppercase ${color}`}>{t}</span>;
 }

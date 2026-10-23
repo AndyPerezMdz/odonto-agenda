@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const sitio = urlSitio(request.nextUrl.origin);
+    const { marcarCron } = await import("@/lib/salud");
+    await marcarCron(createAdminClient(), "recordatorios");
     const resultados = await enviarRecordatorios({ sitio });
     // Mismo cron: avisos de vencimiento de la suscripción a los dueños
     const vencimientos = await avisosVencimiento(createAdminClient(), sitio).catch((e) => [{ agenda: "-", aviso: "error: " + e.message }]);
@@ -27,8 +29,11 @@ export async function GET(request: NextRequest) {
     // Los domingos, "Tu semana" de Mi agenda (2.6, Pro)
     const { correosSemanaPersonales } = await import("@/lib/personalServer");
     const semanas = await correosSemanaPersonales(createAdminClient(), sitio).catch((e) => [{ persona: "-", estado: "error: " + e.message }]);
-    console.log("[recordatorios]", JSON.stringify({ resultados, vencimientos, personales, planesMi, semanas }));
-    return NextResponse.json({ ok: true, resultados, vencimientos, personales, planesMi, semanas });
+    // Los lunes, "Tu semana" para ti (2.8)
+    const { correoSemanaStaff } = await import("@/lib/staffSemana");
+    const staff = await correoSemanaStaff(createAdminClient(), sitio).catch((e) => ({ enviado: false, motivo: "error: " + e.message }));
+    console.log("[recordatorios]", JSON.stringify({ resultados, vencimientos, personales, planesMi, semanas, staff }));
+    return NextResponse.json({ ok: true, resultados, vencimientos, personales, planesMi, semanas, staff });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[recordatorios]", msg);

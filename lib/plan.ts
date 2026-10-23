@@ -36,8 +36,8 @@ export const BENEFICIOS_PRO_UADY = ["Ritmo y semáforo por materia", "Mi materia
 export const PAGO_EN_LINEA = false;
 
 /**
- * Aviso push "tu paciente llega en 1 hora": necesita el cron cada 15 min (sólo Vercel Pro).
- * En Hobby va en false. Al pasarte a Pro: ponlo en true y agrega a vercel.json
- *   un cron para /api/push/citas que corra cada 15 minutos.
+ * Aviso push "tu paciente llega en 1 hora" (Pro). Necesita un cron cada 15 min: en Vercel Hobby no se puede,
+ * así que lo dispara Supabase (pg_cron), igual que los recordatorios de Mi agenda: supabase/cron-recordatorios.sql.
+ * Si no corres ese SQL, ponlo en false (para no prometer un aviso que no llega).
  */
-export const AVISO_1H = false;
+export const AVISO_1H = true;

@@ -7,7 +7,7 @@ import { aISO, deISO, diasDelMes, DIAS_CORTOS_LUNES, hoyISO, MESES } from "@/lib
 import { sumarDias, diasEntre } from "@/lib/pagos";
 import { entregasPendientes, expandir, fechasQueVienen, hm, ICONO_TIPO, TIPOS, type Ocurrencia, type PCategoria, type PEvento, type PHabito, type PMarca, type PPendiente, type TipoEvento } from "@/lib/personal";
 import { PagoModal, RenglonPago, SeccionPagos, useAccionesVP, ViajeDetalle, type AccionesVP } from "@/components/personal/ViajesPagos";
-import { gastadoViaje, maletaViaje, pagosPorAtender, vencimientosEntre, type PCosa, type PPagoFijo, type PPagoHecho } from "@/lib/viajesPagos";
+import { gastadoViaje, maletaViaje, pagosPorAtender, totalMes, vencimientosEntre, type PCosa, type PPagoFijo, type PPagoHecho } from "@/lib/viajesPagos";
 import { pesos } from "@/lib/pagos";
 import { FechasQueVienen, HabitoModal, HabitosHoy, ICONO_LISTAS, Palomita, PendienteModal, SeccionHabitos, SeccionPendientes, useAccionesListas, type AccionesListas } from "@/components/personal/Listas";
 import EventoModal from "@/components/personal/EventoModal";
@@ -81,7 +81,7 @@ export default function AgendaPersonal({
   const accionesVP = useAccionesVP({ supabase, demo, setCosas, setPresupuestos, setPagosFijos, setPagosHechos, recargar, onPro: () => setHoja("pro") });
   const [viajeAbierto, setViajeAbierto] = useState<string | null>(null);
   const [lunesSemana, setLunesSemana] = useState<string | null>(null); // 2.6 · el domingo, "Ver" abre la semana que viene
-  const [modalPago, setModalPago] = useState<{ p: PPagoFijo | null } | null>(null);
+  const [modalPago, setModalPago] = useState<{ p: PPagoFijo | null; borrador?: Parameters<typeof PagoModal>[0]["borrador"] } | null>(null);
   const hoy = hoyISO();
   const [seccion, setSeccion] = useState<Seccion>("hoy");
   const [modal, setModal] = useState<Modal | null>(null);
@@ -92,6 +92,15 @@ export default function AgendaPersonal({
     if (!demo) document.cookie = "ultima_agenda=personal; path=/; max-age=31536000; samesite=lax";
   }, [demo]);
   const aClinicas = () => { document.cookie = "ultima_agenda=clinicas; path=/; max-age=31536000; samesite=lax"; };
+
+  // 2.8 · Atajos del ícono de la app (manifest): ?nuevo=1 abre "¿Qué anotamos?"; ?ver=habitos|pendientes|viajes|pagos|semana
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const ver = q.get("ver") as Seccion | null;
+    if (ver && ["semana", "pendientes", "habitos", "viajes", "pagos"].includes(ver)) setSeccion(ver);
+    if (q.get("nuevo") === "1") setHoja("nuevo");
+    if (q.has("ver") || q.has("nuevo")) history.replaceState(null, "", window.location.pathname);
+  }, []);
 
   // Escape cierra las hojas
   useEffect(() => {
@@ -111,6 +120,11 @@ export default function AgendaPersonal({
   function revisarBorrador(b: Borrador) {
     setHoja(null);
     if (b.clase === "pendiente") return setModalPend({ p: null, fecha: b.fecha, titulo: b.titulo });
+    if (b.clase === "pago") {
+      if (!pro) return setHoja("pro");
+      const f = b.fecha ? deISO(b.fecha) : deISO(hoy);
+      return setModalPago({ p: null, borrador: { nombre: b.titulo, monto: b.monto, frecuencia: b.repetir === "anual" ? "anual" : "mensual", dia: f.getDate(), mes: f.getMonth() + 1 } });
+    }
     if (b.tipo === "viaje" && !pro) return setHoja("pro");
     const f = b.fecha ?? fechaNuevo;
     setModal({ evento: null, fecha: f, tipo: b.tipo, borrador: { ...b, fecha: f } });
@@ -204,11 +218,11 @@ export default function AgendaPersonal({
             onSemana={() => ir("semana")} onViajes={() => ir("viajes")} onPendientes={() => ir("pendientes")} onHabitos={() => ir("habitos")}
             pendientes={pendientes} habitos={habitos} marcas={marcas} acciones={acciones}
             cosas={cosas} pagosFijos={pagosFijos} pagosHechos={pagosHechos} accionesVP={accionesVP} pro={pro}
-            onTuSemana={() => { setLunesSemana(sumarDias(hoy, 1)); ir("semana"); }}
+            onTuSemana={() => { setLunesSemana(sumarDias(hoy, 1)); ir("semana"); }} onPagos={() => ir("pagos")}
             onEditarPendiente={(p) => setModalPend({ p })} onNuevoHabito={() => setModalHab({ h: null })}
           />
         ) : seccion === "semana" ? (
-          <SeccionSemana key={lunesSemana ?? "hoy"} lunesInicial={lunesSemana} pro={pro} onPro={() => setHoja("pro")} eventos={visibles} hoy={hoy} categorias={categorias} ocultas={ocultas} setOcultas={setOcultas} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo} pendientes={pendientes} acciones={acciones} onEditarPendiente={(p) => setModalPend({ p })} pagosFijos={pagosFijos} pagosHechos={pagosHechos} accionesVP={accionesVP} />
+          <SeccionSemana key={lunesSemana ?? "hoy"} lunesInicial={lunesSemana} pro={pro} onPro={() => setHoja("pro")} eventos={visibles} hoy={hoy} categorias={categorias} ocultas={ocultas} setOcultas={setOcultas} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo} pendientes={pendientes} acciones={acciones} onEditarPendiente={(p) => setModalPend({ p })} pagosFijos={pagosFijos} pagosHechos={pagosHechos} accionesVP={accionesVP} cosas={cosas} />
         ) : seccion === "pendientes" ? (
           <SeccionPendientes pendientes={pendientes} hoy={hoy} acciones={acciones} onEditar={(p) => setModalPend({ p })} onNuevo={(lista) => setModalPend({ p: null, lista })} />
         ) : seccion === "pagos" ? (
@@ -265,6 +279,12 @@ export default function AgendaPersonal({
               <span className="serif text-xl leading-none">Hábito</span>
               <span className="text-xs text-muted">Lo palomeas y sube tu racha</span>
             </button>
+            <button onClick={() => { if (!pro) return setHoja("pro"); setHoja(null); setModalPago({ p: null }); }} className={`relative flex flex-col items-start gap-2 rounded-2xl border border-line bg-panel p-4 text-left transition hover:border-accent hover:bg-accent-soft/40 ${pro ? "" : "opacity-70"}`}>
+              {!pro && <span className="versalitas absolute right-3 top-3 flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-accent"><Ico d={I.candado} size={11} />Pro</span>}
+              <span className="grid h-10 w-10 place-items-center rounded-full bg-accent-soft text-accent"><Ico d={I.pagos} size={20} /></span>
+              <span className="serif text-xl leading-none">Pago fijo</span>
+              <span className="text-xs text-muted">Renta, tarjeta, Netflix…</span>
+            </button>
           </div>
           {fechaNuevo !== hoy && <p className="mt-3 text-center text-xs text-muted">Para el {DIAS_LARGOS[deISO(fechaNuevo).getDay()].toLowerCase()} {corta(fechaNuevo)}</p>}
         </Hoja>
@@ -309,7 +329,7 @@ export default function AgendaPersonal({
           onEditar={() => setModal({ evento: { ...viaje, dia: viaje.fecha, serie: false }, fecha: viaje.fecha })} onClose={() => setViajeAbierto(null)} onPro={() => setHoja("pro")}
         />
       )}
-      {modalPago && <PagoModal key={modalPago.p?.id ?? "nuevo"} pago={modalPago.p} acciones={accionesVP} onClose={() => setModalPago(null)} />}
+      {modalPago && <PagoModal key={modalPago.p?.id ?? "nuevo"} pago={modalPago.p} borrador={modalPago.borrador} acciones={accionesVP} onClose={() => setModalPago(null)} />}
       {modalPend && <PendienteModal key={modalPend.p?.id ?? "nuevo"} pendiente={modalPend.p} fechaInicial={modalPend.fecha} listaInicial={modalPend.lista} tituloInicial={modalPend.titulo} acciones={acciones} onClose={() => setModalPend(null)} />}
       {modalHab && <HabitoModal key={modalHab.h?.id ?? "nuevo"} habito={modalHab.h} acciones={acciones} onClose={() => setModalHab(null)} />}
 
@@ -372,13 +392,13 @@ const colorDe = (o: { categoria_id: string | null }, catPorId: Map<string, PCate
 
 function SeccionHoy({
   odonto, eventos, todos, hoy, nombre, catPorId, onAbrir, onMarcar, onNuevo, onSemana, onViajes, onPendientes, onHabitos,
-  pendientes, habitos, marcas, acciones, onEditarPendiente, onNuevoHabito, cosas, pagosFijos, pagosHechos, accionesVP, pro, onTuSemana,
+  pendientes, habitos, marcas, acciones, onEditarPendiente, onNuevoHabito, cosas, pagosFijos, pagosHechos, accionesVP, pro, onTuSemana, onPagos,
 }: {
   odonto: boolean; eventos: PEvento[]; todos: PEvento[]; hoy: string; nombre: string; catPorId: Map<string, PCategoria>;
   onAbrir: (o: Ocurrencia) => void; onMarcar: (e: PEvento, h: boolean) => void; onNuevo: (f?: string) => void; onSemana: () => void; onViajes: () => void;
   onPendientes: () => void; onHabitos: () => void;
   pendientes: PPendiente[]; habitos: PHabito[]; marcas: PMarca[]; acciones: AccionesListas; onEditarPendiente: (p: PPendiente) => void; onNuevoHabito: () => void;
-  cosas: PCosa[]; pagosFijos: PPagoFijo[]; pagosHechos: PPagoHecho[]; accionesVP: AccionesVP; pro: boolean; onTuSemana: () => void;
+  cosas: PCosa[]; pagosFijos: PPagoFijo[]; pagosHechos: PPagoHecho[]; accionesVP: AccionesVP; pro: boolean; onTuSemana: () => void; onPagos: () => void;
 }) {
   const [ahora, setAhora] = useState(ahoraHM);
   useEffect(() => {
@@ -496,6 +516,9 @@ function SeccionHoy({
 
       <HabitosHoy habitos={habitos} marcas={marcas} hoy={hoy} acciones={acciones} onVer={onHabitos} onNuevo={onNuevoHabito} />
 
+      {/* 2.8 · Atajos a Viajes y Pagos (lo de Pro, a la vista) */}
+      <Atajos todos={todos} hoy={hoy} pagosFijos={pagosFijos} pagosHechos={pagosHechos} pro={pro} onViajes={onViajes} onPagos={onPagos} />
+
       {/* Pendientes y entregas: post-it */}
       <section className="nota mb-8 -rotate-[0.6deg] rounded-sm p-5 shadow-[0_10px_20px_-12px_rgba(60,45,10,0.45)]">
         <div className="mb-3 flex items-baseline justify-between gap-3">
@@ -578,6 +601,27 @@ function SeccionHoy({
   );
 }
 
+function Atajos({ todos, hoy, pagosFijos, pagosHechos, pro, onViajes, onPagos }: { todos: PEvento[]; hoy: string; pagosFijos: PPagoFijo[]; pagosHechos: PPagoHecho[]; pro: boolean; onViajes: () => void; onPagos: () => void }) {
+  const viajes = todos.filter((e) => e.tipo === "viaje" && (e.fecha_fin ?? e.fecha) >= hoy).length;
+  const d = deISO(hoy);
+  const mesT = totalMes(pagosFijos, pagosHechos, d.getFullYear(), d.getMonth());
+  const tarjeta = (titulo: string, detalle: string, icono: string, onClick: () => void, candado: boolean) => (
+    <button onClick={onClick} className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-line bg-panel px-3.5 py-3 text-left hover:bg-panel-2">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-accent"><Ico d={icono} size={17} /></span>
+      <span className="min-w-0">
+        <span className="flex items-center gap-1.5 font-medium">{titulo}{candado && <span className="versalitas flex items-center gap-0.5 rounded-full bg-accent-soft px-1.5 text-accent"><Ico d={I.candado} size={10} />Pro</span>}</span>
+        <span className="block truncate text-xs text-muted">{detalle}</span>
+      </span>
+    </button>
+  );
+  return (
+    <div className="mb-8 flex gap-2.5">
+      {tarjeta("Viajes", viajes ? `${viajes} por venir` : "Planea el próximo", I.viajes, onViajes, !pro && !viajes)}
+      {tarjeta("Pagos", pagosFijos.length ? (mesT.falta ? `Faltan ${pesos(mesT.falta)} este mes` : "Todo pagado este mes ✓") : "Que no se te pase ninguno", I.pagos, onPagos, !pro && !pagosFijos.length)}
+    </div>
+  );
+}
+
 function MarcaAhora({ ahora, fin = false }: { ahora: string; fin?: boolean }) {
   return (
     <div className={`grid grid-cols-[3.5rem_1.25rem_minmax(0,1fr)] items-center ${fin ? "mt-1" : "mb-2.5"}`}>
@@ -647,12 +691,12 @@ function Boleto({ e, hoy, catPorId, onAbrir, enCurso = false, extra }: { e: Ocur
 /* ------------------------------ SEMANA / MES ------------------------------ */
 
 function SeccionSemana({
-  eventos, hoy, categorias, ocultas, setOcultas, catPorId, onAbrir, onMarcar, onNuevo, pendientes, acciones, onEditarPendiente, pagosFijos, pagosHechos, accionesVP, lunesInicial, pro, onPro,
+  eventos, hoy, categorias, ocultas, setOcultas, catPorId, onAbrir, onMarcar, onNuevo, pendientes, acciones, onEditarPendiente, pagosFijos, pagosHechos, accionesVP, lunesInicial, pro, onPro, cosas,
 }: {
   eventos: PEvento[]; hoy: string; categorias: PCategoria[]; ocultas: Set<string>; setOcultas: (s: Set<string>) => void; catPorId: Map<string, PCategoria>;
   onAbrir: (o: Ocurrencia) => void; onMarcar: (e: PEvento, h: boolean) => void; onNuevo: (f?: string) => void;
   pendientes: PPendiente[]; acciones: AccionesListas; onEditarPendiente: (p: PPendiente) => void;
-  pagosFijos: PPagoFijo[]; pagosHechos: PPagoHecho[]; accionesVP: AccionesVP; lunesInicial: string | null; pro: boolean; onPro: () => void;
+  pagosFijos: PPagoFijo[]; pagosHechos: PPagoHecho[]; accionesVP: AccionesVP; lunesInicial: string | null; pro: boolean; onPro: () => void; cosas: PCosa[];
 }) {
   const [vista, setVista] = useState<"semana" | "mes">("semana");
   const [lunes, setLunes] = useState(lunesInicial ?? lunesDe(hoy));
@@ -758,7 +802,18 @@ function SeccionSemana({
           })}
         </ol>
       ) : (
-        <Mes eventos={eventos} hoy={hoy} anio={mes.a} mes={mes.m} catPorId={catPorId} onDia={(dia) => { setLunes(lunesDe(dia)); setVista("semana"); }} />
+        <Mes
+          eventos={eventos} hoy={hoy} anio={mes.a} mes={mes.m} catPorId={catPorId} onDia={(dia) => { setLunes(lunesDe(dia)); setVista("semana"); }}
+          extras={(desde, hasta) => {
+            // 2.8 · también pendientes con fecha, pagos fijos y planes de viaje
+            const m = new Map<string, { pend: number; pago: number; plan: number }>();
+            const sumar = (d: string, k: "pend" | "pago" | "plan") => { const x = m.get(d) ?? { pend: 0, pago: 0, plan: 0 }; x[k]++; m.set(d, x); };
+            for (const p of pendientes) if (!p.padre_id && p.fecha && !p.hecho && p.fecha >= desde && p.fecha <= hasta) sumar(p.fecha, "pend");
+            for (const v of vencimientosEntre(pagosFijos, pagosHechos, desde, hasta)) if (!v.pagado) sumar(v.fecha, "pago");
+            for (const c of cosas) if ((c.tipo === "itinerario" || c.tipo === "reserva") && c.fecha && c.fecha >= desde && c.fecha <= hasta) sumar(c.fecha, "plan");
+            return m;
+          }}
+        />
       )}
     </div>
   );
@@ -800,7 +855,8 @@ function Renglon({ o, hoy, catPorId, onAbrir, onMarcar }: { o: Ocurrencia; hoy: 
   );
 }
 
-function Mes({ eventos, hoy, anio, mes, catPorId, onDia }: { eventos: PEvento[]; hoy: string; anio: number; mes: number; catPorId: Map<string, PCategoria>; onDia: (dia: string) => void }) {
+type ExtrasDia = Map<string, { pend: number; pago: number; plan: number }>;
+function Mes({ eventos, hoy, anio, mes, catPorId, onDia, extras }: { eventos: PEvento[]; hoy: string; anio: number; mes: number; catPorId: Map<string, PCategoria>; onDia: (dia: string) => void; extras: (desde: string, hasta: string) => ExtrasDia }) {
   const dias = useMemo(() => diasDelMes(anio, mes, true), [anio, mes]);
   const desde = aISO(dias[0]);
   const hasta = aISO(dias[dias.length - 1]);
@@ -809,6 +865,7 @@ function Mes({ eventos, hoy, anio, mes, catPorId, onDia }: { eventos: PEvento[];
     for (const o of expandir(eventos, desde, hasta)) m.set(o.dia, [...(m.get(o.dia) ?? []), o]);
     return m;
   }, [eventos, desde, hasta]);
+  const ext = extras(desde, hasta);
   return (
     <div className="overflow-hidden rounded-2xl border border-line bg-panel">
       <div className="grid grid-cols-7 border-b border-line">
@@ -824,8 +881,11 @@ function Mes({ eventos, hoy, anio, mes, catPorId, onDia }: { eventos: PEvento[];
             <button key={iso} onClick={() => onDia(iso)} className={`flex min-h-[64px] flex-col items-center gap-1 border-line p-1.5 sm:min-h-[84px] ${i % 7 ? "border-l" : ""} ${i >= 7 ? "border-t" : ""} ${fuera ? "opacity-35" : ""} hover:bg-panel-2`}>
               <span className={`serif grid h-8 w-8 place-items-center rounded-full text-lg leading-none ${iso === hoy ? "bg-accent text-panel" : ""}`}>{d.getDate()}</span>
               {viaje && <span className="h-1 w-full rounded-full" style={{ background: colorDe(viaje, catPorId) }} title={viaje.titulo} />}
+              {ext.get(iso)?.pago ? <span className="text-[9px] font-bold leading-none text-[#b8860b]" title="Pago">$</span> : null}
               <span className="flex flex-wrap justify-center gap-0.5">
                 {os.filter((o) => o.tipo !== "viaje").slice(0, 4).map((o) => <span key={o.id} className="h-1.5 w-1.5 rounded-full" style={{ background: colorDe(o, catPorId) }} />)}
+                {ext.get(iso)?.pend ? <span className="h-1.5 w-1.5 rounded-[2px] border border-muted" title="Pendiente" /> : null}
+                {ext.get(iso)?.plan ? <span className="h-1.5 w-1.5 rotate-45 bg-accent/70" title="Plan de viaje" /> : null}
               </span>
             </button>
           );

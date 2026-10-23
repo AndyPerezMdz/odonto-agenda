@@ -536,12 +536,14 @@ function Gastos({ viaje, cosas, presupuesto, hoy, pro, acciones, onPro }: { viaj
 
 /* =============================== Pagos fijos =============================== */
 
-export function PagoModal({ pago, acciones, onClose }: { pago: PPagoFijo | null; acciones: AccionesVP; onClose: () => void }) {
-  const [nombre, setNombre] = useState(pago?.nombre ?? "");
-  const [monto, setMonto] = useState(pago ? String(pago.monto) : "");
-  const [frecuencia, setFrecuencia] = useState<PPagoFijo["frecuencia"]>(pago?.frecuencia ?? "mensual");
-  const [dia, setDia] = useState(pago?.dia ?? new Date().getDate());
-  const [mes, setMes] = useState(pago?.mes ?? new Date().getMonth() + 1);
+export function PagoModal({
+  pago, acciones, onClose, borrador: b,
+}: { pago: PPagoFijo | null; acciones: AccionesVP; onClose: () => void; borrador?: { nombre?: string; monto?: number | null; frecuencia?: PPagoFijo["frecuencia"]; dia?: number; mes?: number } }) {
+  const [nombre, setNombre] = useState(pago?.nombre ?? b?.nombre ?? "");
+  const [monto, setMonto] = useState(pago ? String(pago.monto) : b?.monto != null ? String(b.monto) : "");
+  const [frecuencia, setFrecuencia] = useState<PPagoFijo["frecuencia"]>(pago?.frecuencia ?? b?.frecuencia ?? "mensual");
+  const [dia, setDia] = useState(pago?.dia ?? b?.dia ?? new Date().getDate());
+  const [mes, setMes] = useState(pago?.mes ?? b?.mes ?? new Date().getMonth() + 1);
   const [avisar, setAvisar] = useState(pago?.avisar_dias ?? 3);
   const [notas, setNotas] = useState(pago?.notas ?? "");
   const [error, setError] = useState<string | null>(null);

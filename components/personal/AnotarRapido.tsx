@@ -13,14 +13,14 @@ const EJEMPLOS = {
   general: ["Cena con Ana el viernes 9pm en La Chaya", "Gym todos los lunes 7am", "Cumple de mamá 26 de octubre", "Recuérdame pagar la luz el lunes 10am", "Viaje a Cancún del 31 de oct al 3 de nov"],
   odonto: ["Caso clínico de endo el viernes 10am", "Entregar historia clínica mañana", "Examen de perio el 5", "Recuérdame comprar resina el lunes", "Viaje al congreso del 12 al 14 de nov"],
 };
-const EMOJI: Record<string, string> = { evento: "📅", entrega: "📌", recordatorio: "⏰", viaje: "✈️", pendiente: "☑️" };
+const EMOJI: Record<string, string> = { evento: "📅", entrega: "📌", recordatorio: "⏰", viaje: "✈️", pendiente: "☑️", pago: "💸" };
 
 export default function AnotarRapido({ hoy, fechaDefault, odonto, onRevisar }: { hoy: string; fechaDefault: string; odonto: boolean; onRevisar: (b: Borrador) => void }) {
   const [t, setT] = useState("");
   const [ejemplo] = useState(() => Math.floor(Math.random() * 5));
   const ej = EJEMPLOS[odonto ? "odonto" : "general"];
   const b = useMemo(() => (t.trim().length >= 3 ? anotarRapido(t, hoy) : null), [t, hoy]);
-  const fecha = b?.fecha ?? (b?.clase === "pendiente" ? null : fechaDefault);
+  const fecha = b?.fecha ?? (b?.clase === "evento" ? fechaDefault : null);
   const cuando = (f: string) => {
     const n = diasEntre(hoy, f);
     const d = deISO(f);
@@ -31,7 +31,7 @@ export default function AnotarRapido({ hoy, fechaDefault, odonto, onRevisar }: {
   function revisar(e: React.FormEvent) {
     e.preventDefault();
     if (!b || !b.titulo) return;
-    onRevisar({ ...b, fecha: b.clase === "pendiente" ? b.fecha : fecha });
+    onRevisar({ ...b, fecha: b.clase === "evento" ? fecha : b.fecha });
   }
 
   return (
@@ -53,14 +53,19 @@ export default function AnotarRapido({ hoy, fechaDefault, odonto, onRevisar }: {
       {b && b.titulo && (
         <div className="mt-2 rounded-xl border border-dashed border-accent/50 bg-accent-soft/30 px-3 py-2" aria-live="polite">
           <p className="truncate text-sm font-semibold">
-            {EMOJI[b.clase === "pendiente" ? "pendiente" : b.tipo]} {b.titulo}
+            {EMOJI[b.clase === "evento" ? b.tipo : b.clase]} {b.titulo}
           </p>
           <p className="mt-1 flex flex-wrap gap-1.5 text-xs">
-            <Chip>{b.clase === "pendiente" ? "Pendiente" : TIPOS.find((x) => x.id === b.tipo)?.nombre}</Chip>
-            {fecha && <Chip apagado={!b.fecha}>{b.fecha_fin ? `${cuando(fecha)} → ${cuando(b.fecha_fin)}` : cuando(fecha)}{!b.fecha && " (no dijiste cuándo)"}</Chip>}
+            <Chip>{b.clase === "pendiente" ? "Pendiente" : b.clase === "pago" ? "Pago fijo" : TIPOS.find((x) => x.id === b.tipo)?.nombre}</Chip>
+            {b.clase === "pago" ? (
+              <>
+                {b.monto != null && <Chip>💲 {b.monto.toLocaleString("es-MX")}</Chip>}
+                <Chip>{b.repetir === "anual" ? `cada año${b.fecha ? `, ${deISO(b.fecha).getDate()} ${MESES[deISO(b.fecha).getMonth()].slice(0, 3).toLowerCase()}` : ""}` : `cada mes, el ${b.fecha ? deISO(b.fecha).getDate() : deISO(hoy).getDate()}`}</Chip>
+              </>
+            ) : fecha && <Chip apagado={!b.fecha}>{b.fecha_fin ? `${cuando(fecha)} → ${cuando(b.fecha_fin)}` : cuando(fecha)}{!b.fecha && " (no dijiste cuándo)"}</Chip>}
             {b.hora_inicio && <Chip>🕘 {b.hora_inicio}{b.hora_fin ? `–${b.hora_fin}` : ""}</Chip>}
             {b.lugar && <Chip>📍 {b.lugar}</Chip>}
-            {b.repetir !== "nunca" && <Chip>🔁 {REPETIR.find((r) => r.id === b.repetir)?.nombre.split(" (")[0].toLowerCase()}</Chip>}
+            {b.repetir !== "nunca" && b.clase !== "pago" && <Chip>🔁 {REPETIR.find((r) => r.id === b.repetir)?.nombre.split(" (")[0].toLowerCase()}</Chip>}
           </p>
         </div>
       )}

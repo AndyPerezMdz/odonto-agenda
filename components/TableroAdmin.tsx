@@ -487,61 +487,8 @@ export function FiltroUniversidad({ valor, agendas, onCambio }: { valor: FiltroU
           </button>
         ))}
       </div>
-      {valor !== "todas" && <span className="text-xs text-muted">Todo el panel muestra sólo la {valor.toUpperCase()}.</span>}
+      {valor !== "todas" && <span className="text-xs text-muted">Lo de Clínicas muestra sólo la {valor.toUpperCase()}.</span>}
     </div>
-  );
-}
-
-/** UPP contra UADY, lado a lado. */
-export function Comparativo({ agendas, resumen }: { agendas: AgendaAdmin[]; resumen: ResumenAdmin }) {
-  const hoy = hoyISO();
-  const hace7 = Date.now() - 7 * 86400000;
-  const col = (u: "upp" | "uady") => {
-    const as = agendas.filter((a) => a.universidad === u);
-    const pagan = as.filter((a) => pagando(a, hoy));
-    return {
-      agendas: as.length,
-      pagan: pagan.length,
-      mrr: pagan.reduce((n, a) => n + a.precio_mensual, 0),
-      prueba: as.filter((a) => enPruebaViva(a, hoy)).length,
-      cobrado: resumen.mesesUni[u].at(-1)?.cobrado ?? 0,
-      activas: as.filter((a) => a.ultimoAcceso && new Date(a.ultimoAcceso).getTime() >= hace7).length,
-      citas: as.reduce((n, a) => n + a.citasSemana, 0),
-    };
-  };
-  const upp = col("upp");
-  const uady = col("uady");
-  if (!uady.agendas) return null; // mientras no haya UADY no hay nada que comparar
-  const filas: [string, (c: typeof upp) => string][] = [
-    ["Agendas", (c) => String(c.agendas)],
-    ["Pagando", (c) => (c.pagan ? `${c.pagan} (${pesos(c.mrr)})` : "—")],
-    ["En prueba de Pro", (c) => String(c.prueba)],
-    [`Cobrado en ${mesLargo(resumen.meses.at(-1)!.mes)}`, (c) => pesos(c.cobrado)],
-    ["Entraron esta semana", (c) => (c.agendas ? `${c.activas} de ${c.agendas}` : "—")],
-    ["Citas nuevas esta semana", (c) => String(c.citas)],
-  ];
-  return (
-    <section className="rounded-2xl border border-line bg-panel">
-      <h2 className="px-4 pb-2 pt-3 font-semibold">UPP vs UADY</h2>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-y border-line bg-panel-2 text-left text-xs text-muted">
-            <th className="px-4 py-1.5 font-medium" />
-            <th className="px-2 py-1.5 text-right font-medium"><InsigniaUni uni="upp" /></th>
-            <th className="px-4 py-1.5 text-right font-medium"><InsigniaUni uni="uady" /></th>
-          </tr>
-        </thead>
-        <tbody>
-          {filas.map(([t, f]) => (
-            <tr key={t} className="border-b border-line last:border-0">
-              <td className="px-4 py-2 text-muted">{t}</td>
-              <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums">{f(upp)}</td>
-              <td className="whitespace-nowrap px-4 py-2 text-right tabular-nums font-medium">{f(uady)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
   );
 }
 

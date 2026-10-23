@@ -3,7 +3,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { fechaEnZona } from "@/lib/recordatorios";
 import { sumarDias } from "@/lib/pagos";
 import { expandir } from "@/lib/personal";
-import { eventosPersonalesDe, personalDe } from "@/lib/personalServer";
+import { eventosPersonalesDe, pagosPersonalesDe, personalDe } from "@/lib/personalServer";
+import { vencimientosEntre } from "@/lib/viajesPagos";
+import { pesos } from "@/lib/pagos";
 
 export const dynamic = "force-dynamic";
 
@@ -131,6 +133,39 @@ async function eventosPersonales(db: ReturnType<typeof createAdminClient>, userI
       "BEGIN:VEVENT", `UID:${o.id}-${o.dia}@mi-agenda`, `DTSTAMP:${ahora}`, ...cuando,
       `SUMMARY:${esc(titulo)}`, ...(o.lugar ? [`LOCATION:${esc(o.lugar)}`] : []), ...(o.notas ? [`DESCRIPTION:${esc(o.notas)}`] : []),
       ...aviso, "END:VEVENT"
+    );
+  }
+  // 2.8 · Pendientes con fecha, pagos fijos y planes del itinerario (si aún no existen esas tablas, nada)
+  const [{ data: pend }, todoPagos, { data: planes }] = await Promise.all([
+    db.from("p_pendientes").select("id,titulo,fecha,hecho").eq("user_id", userId).is("padre_id", null).not("fecha", "is", null).gte("fecha", desde).lte("fecha", hasta),
+    pagosPersonalesDe(db, [userId]),
+    db.from("p_viaje_cosas").select("id,tipo,titulo,fecha,hora,detalle").eq("user_id", userId).in("tipo", ["itinerario", "reserva"]).not("fecha", "is", null).gte("fecha", desde).lte("fecha", hasta),
+  ]);
+  for (const p of pend ?? []) {
+    if (p.hecho) continue;
+    salida.push(
+      "BEGIN:VEVENT", `UID:${p.id}@mi-agenda-pendiente`, `DTSTAMP:${ahora}`,
+      `DTSTART;VALUE=DATE:${fechaIcs(p.fecha)}`, `DTEND;VALUE=DATE:${fechaIcs(sumarDias(p.fecha, 1))}`,
+      `SUMMARY:${esc(`☑ ${p.titulo}`)}`, ...alarma(p.titulo, "PT9H"), "END:VEVENT"
+    );
+  }
+  for (const v of vencimientosEntre(todoPagos.pagos, todoPagos.hechos, hoy, hasta)) {
+    if (v.pagado) continue;
+    const antes = v.pago.avisar_dias;
+    salida.push(
+      "BEGIN:VEVENT", `UID:${v.pago.id}-${v.fecha}@mi-agenda-pago`, `DTSTAMP:${ahora}`,
+      `DTSTART;VALUE=DATE:${fechaIcs(v.fecha)}`, `DTEND;VALUE=DATE:${fechaIcs(sumarDias(v.fecha, 1))}`,
+      `SUMMARY:${esc(`💸 Pagar ${v.pago.nombre} · ${pesos(v.pago.monto)}`)}`,
+      ...alarma(`Pagar ${v.pago.nombre}`, antes > 0 ? `-PT${antes * 24 - 9}H` : "PT9H"), "END:VEVENT"
+    );
+  }
+  for (const c of planes ?? []) {
+    const hora = c.hora ? String(c.hora).slice(0, 5) : null;
+    const fin = hora ? `${String(Math.min(23, Number(hora.slice(0, 2)) + 1)).padStart(2, "0")}:${hora.slice(3)}` : null;
+    salida.push(
+      "BEGIN:VEVENT", `UID:${c.id}@mi-agenda-plan`, `DTSTAMP:${ahora}`,
+      ...(hora ? [`DTSTART:${utc(c.fecha, hora)}`, `DTEND:${utc(c.fecha, fin!)}`] : [`DTSTART;VALUE=DATE:${fechaIcs(c.fecha)}`, `DTEND;VALUE=DATE:${fechaIcs(sumarDias(c.fecha, 1))}`]),
+      `SUMMARY:${esc(`${c.tipo === "reserva" ? "📌" : "📍"} ${c.titulo}`)}`, ...(c.detalle ? [`DESCRIPTION:${esc(c.detalle)}`] : []), "END:VEVENT"
     );
   }
   return salida;
