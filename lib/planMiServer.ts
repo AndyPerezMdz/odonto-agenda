@@ -66,8 +66,8 @@ export async function idsProMi(db: Db, ids: string[]) {
 export async function activarPersonal(
   db: Db,
   user: { id: string; email?: string | null },
-  opts: { nombre?: string | null; conPassword: boolean }
-): Promise<{ ok: true; prueba: boolean; ya?: boolean } | { ok: false; error: string }> {
+  opts: { nombre?: string | null; conPassword: boolean; invitacion?: string | null }
+): Promise<{ ok: true; prueba: boolean; ya?: boolean; regalo?: boolean } | { ok: false; error: string }> {
   const email = user.email ?? "";
   const { data: ya } = await db.from("personales").select("activo").eq("user_id", user.id).maybeSingle();
   if (ya?.activo) return { ok: true, prueba: false, ya: true };
@@ -95,7 +95,13 @@ export async function activarPersonal(
   if (nombre && !perfil?.nombre) await db.from("perfiles").update({ nombre }).eq("id", user.id);
   const { count } = await db.from("p_categorias").select("id", { count: "exact", head: true }).eq("user_id", user.id);
   if (!count) await db.from("p_categorias").insert(categoriasIniciales(tipo).map((c) => ({ ...c, user_id: user.id })));
-  return { ok: true, prueba: false };
+  // 2.9 · Llegó con el link de un amigo: un mes de Pro para los dos
+  let regalo = false;
+  if (opts.invitacion) {
+    const { premiarInvitacion } = await import("@/lib/invitarMi");
+    regalo = (await premiarInvitacion(db, user.id, user.email, opts.invitacion).catch(() => ({ ok: false }))).ok;
+  }
+  return { ok: true, prueba: false, regalo };
 }
 
 /** ¿Puede activar su prueba de Mi agenda? No la ha usado (por correo), nunca ha pagado y hoy no es Pro. */

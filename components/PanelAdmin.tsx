@@ -9,7 +9,7 @@ import type { CodigoAdmin } from "@/app/api/admin/codigos/route";
 import type { CuentaAdmin, SugerenciaAdmin } from "@/lib/staff";
 import { AnunciosAdmin, Buzon, CobrosQueVienen, CuentasAMedias, cuentasAMedias, Embudo, PreciosUni } from "@/components/StaffPiezas";
 import { estadoPago, pesos, codigoAgenda, sumarDias } from "@/lib/pagos";
-import PersonasMi, { AvisosMi, PreciosMi } from "@/components/personal/PersonalesAdmin";
+import PersonasMi, { PreciosMi } from "@/components/personal/PersonalesAdmin";
 import { DesgloseDinero, DineroMi, HoyMi, IngresosJuntos, UsoMi } from "@/components/MiAdmin";
 import type { ResumenMiAdmin } from "@/lib/miAdmin";
 import type { AvisoMiAdmin } from "@/lib/planMiServer";
@@ -167,7 +167,7 @@ export default function PanelAdmin({ email }: { email: string }) {
       (!q || a.nombre.toLowerCase().includes(q) || a.miembros.some((m) => `${m.email} ${m.nombre}`.toLowerCase().includes(q)))
   );
 
-  const pendientesMi = (mi?.pendientes.avisos ?? 0) + (mi?.pendientes.solicitudes ?? 0);
+  const pendientesMi = mi?.pendientes.avisos ?? 0;
   const insignia: Partial<Record<Pestana, number>> = { hoy: avisosUni.length + pendientesMi || undefined, cuentas: medias || undefined, buzon: nuevas || undefined };
   const cuenta: Partial<Record<Pestana, number>> = { agendas: agendas ? delaUni.length : undefined, personas: mi?.personas.total };
   const grupos = GRUPOS.map((g) => ({ ...g, items: g.items.filter((p) => p !== "uady" || hayUady) }));
@@ -334,7 +334,6 @@ export default function PanelAdmin({ email }: { email: string }) {
               recargar();
             }}
           />
-          <AvisosMi onAviso={setAviso} onCambio={recargar} />
           <HoyTeToca agendas={delaUni} avisosPendientes={avisosUni.length} onVer={verAgenda} onAviso={setAviso} />
           {mi && <HoyMi r={mi} onVer={verPersona} />}
         </div>

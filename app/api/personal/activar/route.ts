@@ -17,9 +17,9 @@ export async function POST(request: NextRequest) {
   if (!user.email_confirmed_at) return NextResponse.json({ error: "Primero confirma tu correo con el código." }, { status: 403 });
   const db = createAdminClient();
   if (await esSuperadmin(db, user.id)) return NextResponse.json({ error: "La cuenta de administrador no puede tener agenda." }, { status: 403 });
-  const b = (await request.json().catch(() => ({}))) as { nombre?: string };
+  const b = (await request.json().catch(() => ({}))) as { nombre?: string; inv?: string };
   // Quien llega aquí ya tiene contraseña (se registró con una, o ya entraba a clínicas)
-  const r = await activarPersonal(db, user, { nombre: b.nombre ?? null, conPassword: true });
+  const r = await activarPersonal(db, user, { nombre: b.nombre ?? null, conPassword: true, invitacion: b.inv ?? null });
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 409 });
   const res = NextResponse.json(r);
   res.cookies.set("ultima_agenda", "personal", { path: "/", maxAge: 31536000, sameSite: "lax" });

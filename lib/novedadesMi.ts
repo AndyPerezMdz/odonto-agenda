@@ -1,0 +1,57 @@
+// 2.9 · Novedades de Mi agenda ("¿Qué hay de nuevo?") y la bienvenida de 3 pasos.
+// Al agregar algo nuevo: pon una versión ARRIBA. A quien ya entró le sale una vez.
+
+export type NovedadMi = { e: string; t: string; x: string; pro?: boolean };
+export const NOVEDADES_MI: { version: string; titulo: string; items: NovedadMi[] }[] = [
+  {
+    version: "2.9",
+    titulo: "Tu agenda, a tu modo",
+    items: [
+      { e: "🎁", t: "Invita a un amigo", x: "Si alguien crea su Mi agenda con tu link, los dos ganan un mes de Pro. Está en Ajustes." },
+      { e: "🧩", t: "Arma tu Hoy", x: "Abajo de Hoy, “Personalizar”: oculta lo que no usas." },
+      { e: "📦", t: "Tus datos", x: "Descárgalos o borra tu agenda tú solo, desde Ajustes." },
+    ],
+  },
+  {
+    version: "2.8",
+    titulo: "Avisos y rachas",
+    items: [
+      { e: "⏰", t: "Avisos antes", x: "Recordatorios y eventos te avisan a la hora o hasta 2 horas antes." },
+      { e: "🔥", t: "Hábitos con hora y para presumir", x: "Tu hábito te pregunta “¿ya lo hiciste?” a su hora, y tu racha se comparte como story." },
+      { e: "💸", t: "Anota pagos como lo dirías", x: "“Pagar la renta el 5 de cada mes $6,500” y listo.", pro: true },
+    ],
+  },
+  {
+    version: "2.6",
+    titulo: "Escríbelo como lo dirías",
+    items: [
+      { e: "✍️", t: "Anotar rápido", x: "“Cena con Ana el viernes 9pm en La Chaya”: se arma solo y tú revisas." },
+      { e: "🗓️", t: "Tu semana", x: "Cada domingo, lo que viene: entregas, pagos, cumpleaños y viajes.", pro: true },
+    ],
+  },
+  {
+    version: "2.5",
+    titulo: "Viajes y pagos",
+    items: [
+      { e: "✈️", t: "Viajes completos", x: "Itinerario por día, maleta con palomitas, reservas y gastos.", pro: true },
+      { e: "💳", t: "Pagos fijos", x: "Renta, tarjeta, Netflix: te avisa antes y palomeas “Ya pagué”.", pro: true },
+    ],
+  },
+  {
+    version: "2.4",
+    titulo: "Pendientes y hábitos",
+    items: [
+      { e: "☑️", t: "Pendientes", x: "Por hacer y “algún día”, con subtareas." },
+      { e: "🔥", t: "Hábitos con racha", x: "Palomea cada día y ve crecer tu racha. Todos los que quieras." },
+      { e: "🎂", t: "Cada año", x: "Cumpleaños y aniversarios, con aviso en Hoy unos días antes." },
+    ],
+  },
+];
+export const ULTIMA_MI = NOVEDADES_MI[0].version;
+
+/** Lo que no ha visto (si nunca vio nada: sólo la última). */
+export function novedadesSinVer(vista: string | undefined) {
+  if (!vista) return NOVEDADES_MI.slice(0, 1);
+  const n = (v: string) => v.split(".").map(Number).reduce((a, b) => a * 100 + b, 0);
+  return NOVEDADES_MI.filter((x) => n(x.version) > n(vista));
+}

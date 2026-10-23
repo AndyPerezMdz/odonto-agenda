@@ -21,7 +21,13 @@ export default async function AjustesPersonalPage() {
   return (
     <div className="mi-agenda">
       <SoloNavegador>
-        <AjustesPersonal userId={user.id} email={user.email ?? ""} pro={(await estadoMiDe(createAdminClient(), user.id))?.pro ?? true} />
+        <AjustesPersonal
+          userId={user.id}
+          email={user.email ?? ""}
+          pro={(await estadoMiDe(createAdminClient(), user.id))?.pro ?? true}
+          perfil={p.perfil === "odonto" ? "odonto" : "general"}
+          tieneClinica={!!(await createAdminClient().from("perfiles").select("agenda_id").eq("id", user.id).maybeSingle()).data?.agenda_id}
+        />
       </SoloNavegador>
     </div>
   );

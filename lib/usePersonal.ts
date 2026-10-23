@@ -1,11 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ejemploListas, ejemploPersonal, type PCategoria, type PEvento, type PerfilPersonal, type PHabito, type PMarca, type PPendiente } from "@/lib/personal";
 import { hoyISO } from "@/lib/fechas";
 import { sumarDias } from "@/lib/pagos";
 import { CAMPOS_COSA, CAMPOS_PAGO, ejemploViajesPagos, type PCosa, type PPagoFijo, type PPagoHecho } from "@/lib/viajesPagos";
+
+/** Preferencias de Mi agenda (personales.prefs). */
+export type PrefsMi = { correo?: boolean; semana?: boolean; dia?: boolean; bienvenida?: boolean; novedades?: string; hoy_ocultos?: string[] };
 
 export const CAMPOS_P = "id,user_id,tipo,titulo,fecha,fecha_fin,hora_inicio,hora_fin,lugar,notas,categoria_id,hecho,hecho_at,repetir,repetir_hasta,excepciones";
 const CAMPOS_PEND = "id,user_id,padre_id,titulo,notas,lista,fecha,hecho,hecho_at,orden,created_at";
@@ -23,7 +26,9 @@ export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto")
   const [presupuestos, setPresupuestos] = useState<Record<string, number | null>>({});
   const [pagosFijos, setPagosFijos] = useState<PPagoFijo[]>([]);
   const [pagosHechos, setPagosHechos] = useState<PPagoHecho[]>([]);
-  const [prefs, setPrefs] = useState<{ correo?: boolean; semana?: boolean; dia?: boolean }>({});
+  const [prefs, setPrefs] = useState<PrefsMi>({});
+  const [prefsCargadas, setPrefsCargadas] = useState(false);
+  const prefsRef = useRef<PrefsMi>({});
   const [error, setError] = useState<string | null>(null);
 
   const recargar = useCallback(async () => {
@@ -62,7 +67,9 @@ export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto")
       setEventos(((e.data ?? []) as PEvento[]).map((x) => ({ ...x, excepciones: x.excepciones ?? [] })));
     }
     setCategorias((c.data ?? []) as PCategoria[]);
-    setPrefs(((p.data?.prefs ?? {}) as { correo?: boolean; semana?: boolean; dia?: boolean }) || {});
+    prefsRef.current = ((p.data?.prefs ?? {}) as PrefsMi) || {};
+    setPrefs(prefsRef.current);
+    setPrefsCargadas(!p.error);
     // (si aún no se corre el SQL de 2.4, estas tablas no existen: se quedan vacías sin tronar)
     setPendientes(pe.error ? [] : ((pe.data ?? []) as PPendiente[]));
     setHabitos(h.error ? [] : ((h.data ?? []) as PHabito[]));
@@ -74,6 +81,19 @@ export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto")
     setPagosHechos(ph.error ? [] : ((ph.data ?? []) as PPagoHecho[]));
   }, [supabase, demo, perfilDemo]);
 
+  /** Cambia algunas preferencias (en la demo sólo aquí, sin guardar). */
+  const guardarPrefs = useCallback(
+    async (cambios: Partial<PrefsMi>) => {
+      const nuevas: PrefsMi = { ...prefsRef.current, ...cambios };
+      prefsRef.current = nuevas;
+      setPrefs(nuevas);
+      if (demo) return;
+      const { data: u } = await supabase.auth.getUser();
+      if (u.user) await supabase.from("personales").update({ prefs: nuevas }).eq("user_id", u.user.id);
+    },
+    [supabase, demo]
+  );
+
   useEffect(() => {
     recargar();
     // Si vuelve a la pestaña (o al cel), refresca
@@ -83,7 +103,7 @@ export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto")
   }, [recargar]);
 
   return {
-    supabase, eventos, categorias, pendientes, habitos, marcas, prefs, error, recargar, setEventos, setPendientes, setHabitos, setMarcas,
+    supabase, eventos, categorias, pendientes, habitos, marcas, prefs, prefsCargadas, guardarPrefs, error, recargar, setEventos, setPendientes, setHabitos, setMarcas,
     cosas, setCosas, presupuestos, setPresupuestos, pagosFijos, setPagosFijos, pagosHechos, setPagosHechos,
   };
 }

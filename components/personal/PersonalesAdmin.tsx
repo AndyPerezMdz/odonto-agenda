@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { PersonalAdmin, SolicitudAdmin } from "@/lib/personalServer";
+import type { PersonalAdmin } from "@/lib/personalServer";
 import { normalizarPlanesMi, type EstadoMi, type PlanMi } from "@/lib/planMi";
 import { pesos } from "@/lib/pagos";
 import { fechaLarga } from "@/lib/fechas";
@@ -30,46 +30,6 @@ function useLlamar(onAviso: (m: string) => void, cargar: () => void) {
     return r.ok;
   };
   return { llamar, ocupado, error };
-}
-
-/** Hoy → solicitudes de Mi agenda (los pagos por confirmar van junto con los de clínicas, en el panel). */
-export function AvisosMi({ onAviso, onCambio }: { onAviso: (m: string) => void; onCambio?: () => void }) {
-  const [solicitudes, setSolicitudes] = useState<SolicitudAdmin[]>([]);
-  const cargar = useCallback(async () => {
-    const rs = await fetch("/api/admin/personales/solicitudes", { cache: "no-store" });
-    if (rs.ok) setSolicitudes((await rs.json()).solicitudes ?? []);
-  }, []);
-  useEffect(() => {
-    cargar();
-  }, [cargar]);
-  const { llamar, ocupado, error } = useLlamar(onAviso, () => {
-    cargar();
-    onCambio?.();
-  });
-  if (!solicitudes.length) return null;
-  return (
-    <>
-      {solicitudes.length > 0 && (
-        <section className="rounded-2xl border-2 border-accent bg-panel p-4 sm:p-5">
-          <h2 className="font-semibold">Quieren Mi agenda <span className="ml-1 rounded-full bg-danger px-1.5 text-[11px] text-panel">{solicitudes.length}</span></h2>
-          <p className="mb-3 mt-0.5 text-sm text-muted">Lo pidieron desde su agenda de clínicas (“La quiero”). Al aprobar se les activa y les llega su link.</p>
-          <ul className="divide-y divide-line rounded-xl border border-line">
-            {solicitudes.map((x) => (
-              <li key={x.user_id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{x.nombre || x.email}</p>
-                  <p className="truncate text-xs text-muted">{x.email} · pidió {hace(x.created_at)}{x.tieneClinica ? " · usa clínicas" : ""}</p>
-                </div>
-                <button className="btn btn-primario py-1 text-xs" disabled={!!ocupado} onClick={() => llamar("/api/admin/personales/solicitudes", "POST", { user_id: x.user_id, accion: "aprobar" }, `Aprobada: le llegó su link a ${x.email}.`, x.user_id)}>Aprobar</button>
-                <button className="btn btn-sec py-1 text-xs" disabled={!!ocupado} onClick={() => llamar("/api/admin/personales/solicitudes", "POST", { user_id: x.user_id, accion: "descartar" }, "Solicitud descartada.", x.user_id)}>Descartar</button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {error && <p className="text-sm text-danger">{error}</p>}
-    </>
-  );
 }
 
 type FiltroMi = "todas" | EstadoMi["tipo"];
@@ -178,14 +138,7 @@ export default function PersonasMi({ onAviso, buscaInicial = "" }: { onAviso: (m
                     {p.nombre || p.email}
                     {!p.activo && <span className="ml-2 rounded bg-panel-2 px-1.5 py-px text-[10px] font-semibold uppercase text-muted">Pausada</span>}
                     {p.tieneClinica && <span className="ml-2 rounded bg-panel-2 px-1.5 py-px text-[10px] font-semibold uppercase text-muted">También clínicas</span>}
-                    <button
-                      className="ml-2 rounded bg-panel-2 px-1.5 py-px text-[10px] font-semibold uppercase text-muted hover:text-ink"
-                      title="Cambiar: odonto ↔ general (textos y ejemplos de su agenda)"
-                      disabled={!!ocupado}
-                      onClick={() => llamar(`/api/admin/personales/${p.user_id}`, "PATCH", { perfil: p.perfil === "odonto" ? "general" : "odonto" }, "Tipo cambiado.", p.user_id)}
-                    >
-                      {p.perfil === "odonto" ? "Odonto" : "General"} ⇄
-                    </button>
+                    <span className="ml-2 rounded bg-panel-2 px-1.5 py-px text-[10px] font-semibold uppercase text-muted" title="Lo elige cada quien en sus Ajustes">{p.perfil === "odonto" ? "Odonto" : "General"}</span>
                     <InsigniaPlan e={p.estado} />
                   </p>
                   <p className="truncate text-xs text-muted">

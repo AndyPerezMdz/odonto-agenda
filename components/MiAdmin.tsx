@@ -257,6 +257,7 @@ export function UsoMi({ r }: { r: ResumenMiAdmin }) {
             <Par t="Sólo Mi agenda" n={p.soloMi} total={p.total} />
             <Par t="También usan clínicas" n={p.total - p.soloMi} total={p.total} />
             <Par t="Nuevas esta semana" n={p.nuevas7} total={p.total} />
+            <Par t="Llegaron por un amigo" n={r.invitados} total={p.total} />
           </ul>
         </section>
       </div>

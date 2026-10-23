@@ -106,7 +106,8 @@ export default function PrivacidadPage() {
         <li><b>Para qué:</b> para mostrarte tu agenda, mandarte los avisos que tú actives (el correo de la mañana, notificaciones y el link de tu calendario), confirmar tus pagos y avisarte cuando tu Pro esté por terminar.</li>
         <li><b>Quién la ve:</b> sólo tú. Nadie más en la app, tampoco tu compañero/a de clínica si lo tienes. El panel de administración no muestra lo que anotas: sólo tu correo, tu nombre y cuántos registros tienes.</li>
         <li><b>Proveedores:</b> los mismos de la sección 6 (base de datos, página, correos y, si las activas, notificaciones).</li>
-        <li><b>Cuánto tiempo:</b> mientras tengas tu agenda. Si la das de baja, borramos tus eventos, viajes, pagos fijos, pendientes, hábitos y categorías; si no usas la agenda de clínicas, también tu cuenta. Puedes pedir que borremos tu pedido o tus datos escribiéndonos como dice la sección 9.</li>
+        <li><b>Cuánto tiempo:</b> mientras tengas tu agenda. Si la das de baja, borramos tus eventos, viajes, pagos fijos, pendientes, hábitos y categorías; si no usas la agenda de clínicas, también tu cuenta. En <b>Ajustes → Tus datos</b> puedes <b>descargar</b> todo lo que tienes (un archivo) o <b>borrar</b> tu Mi agenda tú mismo/a, en cualquier momento; también puedes escribirnos como dice la sección 9.</li>
+        <li><b>Invita a un amigo:</b> si alguien crea su Mi agenda con tu link, guardamos quién invitó a quién (y el correo de quien llegó) sólo para darles el mes de Pro a los dos, y para que cada correo cuente una sola vez. Tu link no muestra tu nombre ni tu correo.</li>
       </ul>
     </DocLegal>
   );

@@ -1282,6 +1282,23 @@ alter table public.p_habitos_avisados enable row level security;
 revoke all on public.p_habitos_avisados from anon, authenticated;
 
 -- =====================================================================
+-- 2.9 · Mi agenda: "Invita a un amigo" (los dos ganan un mes de Pro; máximo 6 por persona)
+-- =====================================================================
+create table if not exists public.p_invitaciones (
+  id         uuid primary key default gen_random_uuid(),
+  correo     text not null unique,   -- a cada correo sólo lo premian una vez (aunque borre su cuenta y vuelva)
+  invitado   uuid references public.perfiles (id) on delete set null,
+  invitador  uuid not null references public.perfiles (id) on delete cascade,
+  dias       int not null default 30,
+  created_at timestamptz not null default now()
+);
+create index if not exists p_invitaciones_invitador_idx on public.p_invitaciones (invitador);
+alter table public.p_invitaciones enable row level security;
+revoke all on public.p_invitaciones from anon, authenticated;  -- sólo el servidor
+
+-- (2.9: las solicitudes "La quiero" con aprobación ya no se usan; la tabla p_solicitudes se queda por historial)
+
+-- =====================================================================
 -- Listo. Las cuentas nuevas se registran solas en /registro.
 -- En Supabase: Authentication → Sign In / Providers → Email:
 --   "Enable email signups" y "Confirm email" ENCENDIDOS.

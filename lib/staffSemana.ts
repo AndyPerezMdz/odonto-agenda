@@ -54,7 +54,6 @@ export async function correoSemanaStaff(db: Db, sitio: string, forzar = false) {
       bloque("Te espera en el panel", [
         pendientes ? li(`<b>${pendientes}</b> pago${pendientes === 1 ? "" : "s"} por confirmar`) : "",
         sugerencias?.length ? li(`<b>${sugerencias.length}</b> sugerencia${sugerencias.length === 1 ? "" : "s"} nueva${sugerencias.length === 1 ? "" : "s"} en el buzón`) : "",
-        mi?.pendientes.solicitudes ? li(`<b>${mi.pendientes.solicitudes}</b> solicitud${mi.pendientes.solicitudes === 1 ? "" : "es"} de Mi agenda`) : "",
         salud?.problemas ? li(`<b style="color:#b4322b;">${salud.problemas}</b> cosa${salud.problemas === 1 ? "" : "s"} por revisar en Salud (llaves, crons o SQL)`) : "",
       ].filter(Boolean)) +
       bloque("Vencen esta semana", [

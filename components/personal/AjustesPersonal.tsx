@@ -6,8 +6,10 @@ import { usePersonal } from "@/lib/usePersonal";
 import { PALETA_P, type PCategoria } from "@/lib/personal";
 import { Calendario, Notificaciones } from "@/components/TarjetaAvisos";
 import TarjetaPlanMi from "@/components/personal/TarjetaPlanMi";
+import { InvitaAmigo, ParaQuien, TusDatos } from "@/components/personal/AjustesCuenta";
+import type { PerfilPersonal } from "@/lib/personal";
 
-export default function AjustesPersonal({ userId, email, pro = true }: { userId: string; email: string; pro?: boolean }) {
+export default function AjustesPersonal({ userId, email, pro = true, perfil = "general", tieneClinica = false }: { userId: string; email: string; pro?: boolean; perfil?: PerfilPersonal; tieneClinica?: boolean }) {
   const { supabase, categorias, prefs, recargar } = usePersonal();
   async function guardarPref(k: "dia" | "correo" | "semana", v: boolean) {
     await supabase.from("personales").update({ prefs: { ...prefs, [k]: v } }).eq("user_id", userId);
@@ -26,6 +28,7 @@ export default function AjustesPersonal({ userId, email, pro = true }: { userId:
 
       <div className="flex flex-col gap-5">
         <TarjetaPlanMi />
+        <InvitaAmigo />
 
         {pro ? (
           <Categorias supabase={supabase} userId={userId} categorias={categorias} onCambio={recargar} />
@@ -56,7 +59,9 @@ export default function AjustesPersonal({ userId, email, pro = true }: { userId:
           <SoloPro titulo="Tu agenda en el calendario del cel" texto="Todo lo de tu agenda en Google Calendar o en el del iPhone, con alarmas." />
         )}
 
+        <ParaQuien perfil={perfil} />
         <CambiarPassword />
+        <TusDatos tieneClinica={tieneClinica} />
       </div>
     </div>
   );

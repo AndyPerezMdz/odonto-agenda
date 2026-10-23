@@ -28,7 +28,7 @@ function Registro() {
   const unir = q.get("unir") ?? "";
   const [paso, setPaso] = useState<"datos" | "codigo" | "listo">(q.get("confirmar") ? "codigo" : "datos");
   // 2.8 · ¿Para qué es la agenda? Personal (Mi agenda) o Escolar (clínicas). Con link de compa o código, ya se sabe.
-  const [para, setPara] = useState<"personal" | "escolar" | null>(unir || q.get("confirmar") || q.get("codigo") || q.get("para") === "escolar" ? "escolar" : q.get("para") === "personal" ? "personal" : null);
+  const [para, setPara] = useState<"personal" | "escolar" | null>(unir || q.get("confirmar") || q.get("codigo") || q.get("para") === "escolar" ? "escolar" : q.get("para") === "personal" || q.get("inv") ? "personal" : null);
   const [enlace, setEnlace] = useState<Enlace | null>(null);
   const [errorEnlace, setErrorEnlace] = useState<string | null>(null);
 

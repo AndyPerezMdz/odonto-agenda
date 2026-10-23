@@ -3,7 +3,7 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 import { fechaEnZona } from "@/lib/recordatorios";
 import { diasEntre } from "@/lib/pagos";
 import type { MesResumen } from "@/lib/admin";
-import { listarPersonales, listarSolicitudes } from "@/lib/personalServer";
+import { listarPersonales } from "@/lib/personalServer";
 import { listarAvisosMi } from "@/lib/planMiServer";
 
 type Db = ReturnType<typeof createAdminClient>;
@@ -31,9 +31,10 @@ export type ResumenMiAdmin = {
   pagando: number;
   pruebas: { activas: number; terminanSemana: number; convertidas: number; perdidas: number };
   renovaciones: RenovacionMi[]; // Pro o prueba que termina en 30 días
-  pendientes: { avisos: number; solicitudes: number };
+  pendientes: { avisos: number };
   uso: UsoFuncion[];
   marcas7: number; // palomitas de hábitos esta semana (todas las personas)
+  invitados: number; // 2.9 · llegaron con el link de un amigo
 };
 
 const ZONA = "America/Merida";
@@ -48,11 +49,10 @@ async function conteo(p: PromiseLike<{ data: { user_id: string }[] | null; error
 
 export async function resumenMiAdmin(db: Db): Promise<ResumenMiAdmin> {
   const hoy = fechaEnZona(0);
-  const [lista, { data: pagos }, avisos, solicitudes] = await Promise.all([
+  const [lista, { data: pagos }, avisos] = await Promise.all([
     listarPersonales(db),
     db.from("p_pagos").select("user_id,monto,meses,cubre_hasta,created_at").order("created_at", { ascending: false }),
     listarAvisosMi(db).catch(() => []),
-    listarSolicitudes(db).catch(() => []),
   ]);
   const hace = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
 
@@ -143,8 +143,9 @@ export async function resumenMiAdmin(db: Db): Promise<ResumenMiAdmin> {
     pagando: pagan.length,
     pruebas,
     renovaciones,
-    pendientes: { avisos: avisos.length, solicitudes: solicitudes.length },
+    pendientes: { avisos: avisos.length },
     uso,
     marcas7: marcas.total,
+    invitados: await db.from("p_invitaciones").select("id", { count: "exact", head: true }).then((r) => (r.error ? 0 : r.count ?? 0)),
   };
 }

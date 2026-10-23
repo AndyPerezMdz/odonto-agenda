@@ -22,6 +22,12 @@ export default function RegistroMiAgenda({ onVolver }: { onVolver?: () => void }
   const [yaExiste, setYaExiste] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [espera, setEspera] = useState(0);
+  // 2.9 · Llegó con el link de un amigo (?inv=CODIGO): un mes de Pro para los dos
+  const [inv, setInv] = useState<string | null>(null);
+  useEffect(() => {
+    const c = new URLSearchParams(window.location.search).get("inv");
+    if (c && /^[0-9a-f]{8}$/i.test(c)) setInv(c);
+  }, []);
 
   useEffect(() => {
     if (espera <= 0) return;
@@ -30,7 +36,7 @@ export default function RegistroMiAgenda({ onVolver }: { onVolver?: () => void }
   }, [espera]);
 
   async function activar() {
-    const r = await fetch("/api/personal/activar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre: nombre.trim() }) });
+    const r = await fetch("/api/personal/activar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre: nombre.trim(), inv }) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) {
       setCargando(false);
@@ -126,6 +132,7 @@ export default function RegistroMiAgenda({ onVolver }: { onVolver?: () => void }
 
   return (
     <AuthCard logo="/mi-agenda-icon.svg" serif titulo="Crea tu agenda" subtitulo={`Gratis para siempre. Cuando quieras, pruebas Pro ${DIAS_PRUEBA_MI} días sin pagar. Sin tarjeta.`}>
+      {inv && <p className="mb-4 rounded-xl bg-accent-soft px-3 py-2.5 text-sm text-accent">🎁 Te invitó un amigo: al crear tu agenda, los dos ganan <b>1 mes de Pro</b>.</p>}
       <form onSubmit={registrar}>
         <label className="mb-1 block text-sm font-medium" htmlFor="nombre">¿Cómo te llamas?</label>
         <input id="nombre" required className="campo mb-4" value={nombre} onChange={(e) => setNombre(e.target.value)} autoComplete="given-name" />

@@ -64,17 +64,8 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
   const s = await superadminEnSesion();
   if (!s) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   const { id } = await params;
-  await s.db.from("p_eventos").delete().eq("user_id", id);
-  await s.db.from("p_categorias").delete().eq("user_id", id);
-  // 2.4 · pendientes y hábitos (las marcas se van con sus hábitos)
-  await s.db.from("p_pendientes").delete().eq("user_id", id);
-  await s.db.from("p_habitos").delete().eq("user_id", id);
-  // 2.5 · pagos fijos (lo de los viajes se va con sus viajes)
-  await s.db.from("p_pagos_fijos").delete().eq("user_id", id);
-  const { error } = await s.db.from("personales").delete().eq("user_id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  // Si sólo tenía agenda personal, la cuenta ya no sirve para nada: se borra también
-  const { data: p } = await s.db.from("perfiles").select("agenda_id").eq("id", id).maybeSingle();
-  if (!p?.agenda_id) await s.db.auth.admin.deleteUser(id);
+  const { borrarMiAgenda } = await import("@/lib/miDatos");
+  const r = await borrarMiAgenda(s.db, id);
+  if (!r.ok) return NextResponse.json({ error: r.error }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

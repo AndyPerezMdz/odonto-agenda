@@ -412,58 +412,7 @@ export async function enviarEnlaceEntrada(db: Db, email: string, sitio: string):
   return "enviado";
 }
 
-/* ---------------- 2.2 · Solicitudes "La quiero" ---------------- */
-
-export type SolicitudAdmin = { user_id: string; email: string | null; nombre: string | null; created_at: string; tieneClinica: boolean };
-
-/** Alguien de clínicas pide su agenda personal: queda pendiente y te llega un correo. */
-export async function solicitarPersonal(db: Db, userId: string, sitio: string): Promise<"ya-tiene" | "pendiente" | "creada"> {
-  if (await personalDe(db, userId)) return "ya-tiene";
-  const { data: ya } = await db.from("p_solicitudes").select("estado").eq("user_id", userId).maybeSingle();
-  if (ya?.estado === "pendiente") return "pendiente";
-  if (ya) await db.from("p_solicitudes").update({ estado: "pendiente", created_at: new Date().toISOString(), resuelta_at: null }).eq("user_id", userId);
-  else await db.from("p_solicitudes").insert({ user_id: userId, estado: "pendiente" });
-  try {
-    const [{ data: u }, { data: p }] = await Promise.all([db.auth.admin.getUserById(userId), db.from("perfiles").select("nombre").eq("id", userId).maybeSingle()]);
-    const { correosSuperadmin, envolver } = await import("@/lib/pagosServer");
-    const para = await correosSuperadmin(db);
-    for (const c of para) {
-      await enviarConResend({
-        para: c,
-        asunto: `Quieren Mi agenda: ${p?.nombre ?? u.user?.email ?? ""}`,
-        html: envolver("Nueva solicitud de Mi agenda", `<p style="margin:0;color:#4a4843;"><b>${esc(p?.nombre ?? "")}</b> (${esc(u.user?.email ?? "")}) pidió su agenda personal desde la de clínicas.</p>`, { texto: "Revisar en el panel", url: `${sitio}/admin#hoy` }),
-        texto: `${p?.nombre ?? ""} (${u.user?.email ?? ""}) pidió su agenda personal. ${sitio}/admin#hoy`,
-      });
-    }
-  } catch (e) {
-    console.error("[solicitud personal]", e);
-  }
-  return "creada";
-}
-
-export async function listarSolicitudes(db: Db): Promise<SolicitudAdmin[]> {
-  const { data } = await db.from("p_solicitudes").select("user_id,created_at").eq("estado", "pendiente").order("created_at");
-  if (!data?.length) return [];
-  const [{ data: usuarios }, { data: perfiles }] = await Promise.all([db.auth.admin.listUsers({ perPage: 1000 }), db.from("perfiles").select("id,nombre,agenda_id").in("id", data.map((d) => d.user_id))]);
-  const usr = new Map((usuarios?.users ?? []).map((u) => [u.id, u.email ?? null]));
-  const per = new Map((perfiles ?? []).map((p) => [p.id, p]));
-  return data.map((d) => ({ user_id: d.user_id, email: usr.get(d.user_id) ?? null, nombre: per.get(d.user_id)?.nombre ?? null, created_at: d.created_at, tieneClinica: !!per.get(d.user_id)?.agenda_id }));
-}
-
-/** Aprobar = dar de alta y mandarle su link. Descartar = sólo cerrarla. */
-export async function resolverSolicitud(db: Db, userId: string, accion: "aprobar" | "descartar", sitio: string) {
-  if (accion === "aprobar") {
-    const { data: u } = await db.auth.admin.getUserById(userId);
-    if (!u.user?.email) return { error: "No encontré esa cuenta." };
-    const { data: p } = await db.from("perfiles").select("nombre").eq("id", userId).maybeSingle();
-    const r = await altaPersonal(db, u.user.email, p?.nombre ?? null);
-    if (r.error) return { error: r.error };
-    await enviarEnlacePersonal(db, u.user.email, sitio, { forzar: true }).catch((e) => console.error("[aprobar]", e));
-  }
-  await db.from("p_solicitudes").update({ estado: accion === "aprobar" ? "aprobada" : "descartada", resuelta_at: new Date().toISOString() }).eq("user_id", userId);
-  return { ok: true };
-}
-
+/* (2.9: se quitaron las solicitudes "La quiero" con aprobación: la Mi agenda se activa al instante) */
 
 /**
  * 2.4 · Recordatorios (y 2.7 · eventos con aviso) cuyo aviso toca "ahora": de hace 20 min a dentro de 2 (por si el cron se atrasa).
