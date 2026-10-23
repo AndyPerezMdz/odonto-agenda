@@ -69,6 +69,8 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
   // 2.4 · pendientes y hábitos (las marcas se van con sus hábitos)
   await s.db.from("p_pendientes").delete().eq("user_id", id);
   await s.db.from("p_habitos").delete().eq("user_id", id);
+  // 2.5 · pagos fijos (lo de los viajes se va con sus viajes)
+  await s.db.from("p_pagos_fijos").delete().eq("user_id", id);
   const { error } = await s.db.from("personales").delete().eq("user_id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   // Si sólo tenía agenda personal, la cuenta ya no sirve para nada: se borra también

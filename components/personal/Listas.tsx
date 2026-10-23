@@ -167,7 +167,7 @@ export function PendienteModal({
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={conFecha} onChange={(e) => setConFecha(e.target.checked)} /> Para el…
             </label>
-            {conFecha && <input type="date" className="campo w-auto py-1.5" value={fecha} onChange={(e) => setFecha(e.target.value)} />}
+            {conFecha && <input type="date" style={{ width: "auto" }} className="campo py-1.5" value={fecha} onChange={(e) => setFecha(e.target.value)} />}
             {conFecha && <span className="text-xs text-muted">sale en Hoy ese día</span>}
           </div>
         )}

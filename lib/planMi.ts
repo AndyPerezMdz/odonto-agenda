@@ -31,7 +31,8 @@ export const planMiDe = (planes: PlanMi[], id: unknown) => planes.find((p) => p.
 
 /** Lo que trae Pro en Mi agenda (para la página pública, los candados y la tarjeta del plan). */
 export const BENEFICIOS_MI_PRO = [
-  "Viajes con pase de abordar",
+  "Viajes completos: itinerario, maleta, reservas y gastos",
+  "Pagos fijos con aviso y “Ya pagué”",
   "Tus categorías y colores",
   "Correo cada mañana con tu día",
   "Resumen diario en tu cel",

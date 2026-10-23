@@ -22,11 +22,12 @@ const Ico = ({ d, size = 22 }: { d: string; size?: number }) => (
 
 const COSAS = [
   { t: "Tu día, de un vistazo", x: "Una línea del tiempo con lo de hoy y una rayita que te dice qué hora es. Lo que ya pasó se va apagando.", d: "M12 3v2M12 19v2M5.6 5.6 7 7M17 17l1.4 1.4M3 12h2M19 12h2M5.6 18.4 7 17M17 7l1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" },
-  { t: "Viajes con pase de abordar", x: "Cada viaje cuenta los días que faltan. Y cuando ya vas: “día 2 de 4”.", d: "M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" },
+  { t: "Viajes completos", x: "Pase de abordar con cuenta regresiva, itinerario por día, maleta con palomitas, reservas a la mano y cuánto llevas gastado.", d: "M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" },
   { t: "Entregas en un post-it", x: "Lo que tienes que entregar esta semana, con palomita. Las atrasadas te gritan en rojo.", d: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" },
   { t: "Hábitos con racha", x: "Agua, gym, leer… Los palomeas cada día y ves crecer tu racha. Gratis y sin límite.", d: "M12 22c4 0 7-3 7-7 0-3-2-5-3-7-1 2-2 3-3.5 3C13 8 12 5 9 2c0 4-4 7-4 13 0 4 3 7 7 7z" },
   { t: "Pendientes", x: "Por hacer y “algún día”, con subtareas. Ponles fecha y te salen en Hoy.", d: "M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" },
   { t: "Se repite sola", x: "El gym diario, la clase de cada semana, el pago de cada mes, los cumpleaños cada año. Lo anotas una vez.", d: "M17 2l4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3" },
+  { t: "Pagos fijos", x: "Renta, tarjeta, celular, Netflix: te avisa antes, palomeas “Ya pagué” y ves cuánto se te va al mes.", d: "M3 7h18v12H3zM3 11h18M7 15h3" },
   { t: "Tus colores", x: "Categorías como Trabajo, Escuela, Viajes o Personal, con el color que quieras.", d: "M12 22a10 10 0 1 1 10-10c0 2.8-2.2 4-4 4h-2a2 2 0 0 0-1.5 3.3A2 2 0 0 1 12 22zM7.5 10.5h.01M12 7.5h.01M16.5 10.5h.01" },
   { t: "Te avisa", x: "Notificación en tu cel a la hora de cada recordatorio. Con Pro, además, un correo cada mañana y tu agenda en el calendario del teléfono.", d: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" },
 ];

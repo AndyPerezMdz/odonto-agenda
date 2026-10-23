@@ -6,6 +6,9 @@ import { usePersonal } from "@/lib/usePersonal";
 import { aISO, deISO, diasDelMes, DIAS_CORTOS_LUNES, hoyISO, MESES } from "@/lib/fechas";
 import { sumarDias, diasEntre } from "@/lib/pagos";
 import { entregasPendientes, expandir, fechasQueVienen, hm, ICONO_TIPO, TIPOS, type Ocurrencia, type PCategoria, type PEvento, type PHabito, type PMarca, type PPendiente, type TipoEvento } from "@/lib/personal";
+import { PagoModal, RenglonPago, SeccionPagos, useAccionesVP, ViajeDetalle, type AccionesVP } from "@/components/personal/ViajesPagos";
+import { gastadoViaje, maletaViaje, pagosPorAtender, vencimientosEntre, type PCosa, type PPagoFijo, type PPagoHecho } from "@/lib/viajesPagos";
+import { pesos } from "@/lib/pagos";
 import { FechasQueVienen, HabitoModal, HabitosHoy, ICONO_LISTAS, Palomita, PendienteModal, SeccionHabitos, SeccionPendientes, useAccionesListas, type AccionesListas } from "@/components/personal/Listas";
 import EventoModal from "@/components/personal/EventoModal";
 import BotonActivar from "@/components/personal/BotonActivar";
@@ -14,10 +17,11 @@ import { BENEFICIOS_MI_PRO, type EstadoMi } from "@/lib/planMi";
 import { fechaLarga } from "@/lib/fechas";
 
 // 2.3 · Mi agenda con cara de agenda de papel: Hoy (línea del tiempo), Semana (o mes) y Viajes (pases de abordar).
+// 2.5 · + Viajes completos (itinerario, maleta, reservas, gastos) y Pagos fijos (Pro).
 // 2.4 · + Pendientes (por hacer / algún día) y Hábitos con racha; "cada año" y fechas que vienen.
 
 type Modal = { evento: PEvento | Ocurrencia | null; fecha: string; tipo?: TipoEvento };
-type Seccion = "hoy" | "semana" | "pendientes" | "habitos" | "viajes";
+type Seccion = "hoy" | "semana" | "pendientes" | "habitos" | "viajes" | "pagos";
 
 const DIAS_LARGOS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 const MES_CORTO = (iso: string) => MESES[deISO(iso).getMonth()].slice(0, 3).toLowerCase();
@@ -45,6 +49,7 @@ const I = {
   viajes: ICONO_TIPO.viaje,
   pendientes: ICONO_LISTAS.pendiente,
   habitos: ICONO_LISTAS.habito,
+  pagos: "M3 7h18v12H3zM3 11h18M7 15h3",
   mas: "M5 12h.01M12 12h.01M19 12h.01",
   mas1: "M12 5v14M5 12h14",
   clinicas: "M7 16 3 12l4-4M3 12h13M17 8l4 4-4 4",
@@ -62,14 +67,20 @@ export default function AgendaPersonal({
   // 2.3 · Gratis / Pro (la demo enseña todo)
   const pro = demo || !estado || estado.pro;
   // odonto: textos y ejemplos de estudiante de odonto; si no, de cualquier persona. publico: demo sin cuenta (/mi-agenda/demo).
-  const { supabase, eventos, categorias, pendientes, habitos, marcas, error, recargar, setEventos, setPendientes, setHabitos, setMarcas } = usePersonal(demo, odonto ? "odonto" : "general");
+  const {
+    supabase, eventos, categorias, pendientes, habitos, marcas, error, recargar, setEventos, setPendientes, setHabitos, setMarcas,
+    cosas, setCosas, presupuestos, setPresupuestos, pagosFijos, setPagosFijos, pagosHechos, setPagosHechos,
+  } = usePersonal(demo, odonto ? "odonto" : "general");
   const acciones = useAccionesListas({ supabase, demo, setPendientes, setHabitos, setMarcas, recargar });
   const [modalPend, setModalPend] = useState<{ p: PPendiente | null; fecha?: string | null; lista?: PPendiente["lista"] } | null>(null);
   const [modalHab, setModalHab] = useState<{ h: PHabito | null } | null>(null);
+  const [hoja, setHoja] = useState<"nuevo" | "mas" | "pro" | null>(null);
+  const accionesVP = useAccionesVP({ supabase, demo, setCosas, setPresupuestos, setPagosFijos, setPagosHechos, recargar, onPro: () => setHoja("pro") });
+  const [viajeAbierto, setViajeAbierto] = useState<string | null>(null);
+  const [modalPago, setModalPago] = useState<{ p: PPagoFijo | null } | null>(null);
   const hoy = hoyISO();
   const [seccion, setSeccion] = useState<Seccion>("hoy");
   const [modal, setModal] = useState<Modal | null>(null);
-  const [hoja, setHoja] = useState<"nuevo" | "mas" | "pro" | null>(null);
   const [fechaNuevo, setFechaNuevo] = useState(hoy);
   const [ocultas, setOcultas] = useState<Set<string>>(new Set());
 
@@ -104,7 +115,9 @@ export default function AgendaPersonal({
     await supabase.from("p_eventos").update({ hecho, hecho_at: hecho ? new Date().toISOString() : null }).eq("id", e.id);
     recargar();
   }
-  const abrir = (o: Ocurrencia) => setModal({ evento: o, fecha: o.dia });
+  // Los viajes se abren en su detalle (itinerario, maleta, reservas, gastos)
+  const abrir = (o: Ocurrencia) => (o.tipo === "viaje" ? setViajeAbierto(o.id) : setModal({ evento: o, fecha: o.dia }));
+  const viaje = viajeAbierto ? eventos?.find((e) => e.id === viajeAbierto && e.tipo === "viaje") : undefined;
 
   const nav: { id: Seccion; t: string; d: string }[] = [
     { id: "hoy", t: "Hoy", d: I.hoy },
@@ -112,6 +125,7 @@ export default function AgendaPersonal({
     { id: "pendientes", t: "Pendientes", d: I.pendientes },
     { id: "habitos", t: "Hábitos", d: I.habitos },
     { id: "viajes", t: "Viajes", d: I.viajes },
+    { id: "pagos", t: "Pagos", d: I.pagos },
   ];
   const ir = (x: Seccion) => {
     setSeccion(x);
@@ -169,7 +183,7 @@ export default function AgendaPersonal({
         {demo && <BannerDemo publico={publico} />}
         {!demo && estado && <AvisoPlan e={estado} prueba={pruebaDisponible} />}
         {error && <p className="mb-4 rounded-xl bg-panel-2 p-3 text-sm text-danger">No se pudo cargar tu agenda: {error}</p>}
-        {acciones.error && <p className="mb-4 rounded-xl bg-panel-2 p-3 text-sm text-danger">No se pudo guardar: {acciones.error}</p>}
+        {(acciones.error || accionesVP.error) && <p className="mb-4 rounded-xl bg-panel-2 p-3 text-sm text-danger">No se pudo guardar: {acciones.error || accionesVP.error}</p>}
         {!eventos ? (
           <p className="serif py-24 text-center text-2xl text-muted">Abriendo tu agenda…</p>
         ) : seccion === "hoy" ? (
@@ -177,16 +191,19 @@ export default function AgendaPersonal({
             odonto={odonto} eventos={visibles} todos={eventos} hoy={hoy} nombre={nombre} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo}
             onSemana={() => ir("semana")} onViajes={() => ir("viajes")} onPendientes={() => ir("pendientes")} onHabitos={() => ir("habitos")}
             pendientes={pendientes} habitos={habitos} marcas={marcas} acciones={acciones}
+            cosas={cosas} pagosFijos={pagosFijos} pagosHechos={pagosHechos} accionesVP={accionesVP}
             onEditarPendiente={(p) => setModalPend({ p })} onNuevoHabito={() => setModalHab({ h: null })}
           />
         ) : seccion === "semana" ? (
-          <SeccionSemana eventos={visibles} hoy={hoy} categorias={categorias} ocultas={ocultas} setOcultas={setOcultas} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo} pendientes={pendientes} acciones={acciones} onEditarPendiente={(p) => setModalPend({ p })} />
+          <SeccionSemana eventos={visibles} hoy={hoy} categorias={categorias} ocultas={ocultas} setOcultas={setOcultas} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo} pendientes={pendientes} acciones={acciones} onEditarPendiente={(p) => setModalPend({ p })} pagosFijos={pagosFijos} pagosHechos={pagosHechos} accionesVP={accionesVP} />
         ) : seccion === "pendientes" ? (
           <SeccionPendientes pendientes={pendientes} hoy={hoy} acciones={acciones} onEditar={(p) => setModalPend({ p })} onNuevo={(lista) => setModalPend({ p: null, lista })} />
+        ) : seccion === "pagos" ? (
+          <SeccionPagos pagos={pagosFijos} hechos={pagosHechos} hoy={hoy} pro={pro} acciones={accionesVP} onEditar={(p) => setModalPago({ p })} onNuevo={() => setModalPago({ p: null })} onPro={() => setHoja("pro")} />
         ) : seccion === "habitos" ? (
           <SeccionHabitos habitos={habitos} marcas={marcas} hoy={hoy} acciones={acciones} onEditar={(h) => setModalHab({ h })} onNuevo={() => setModalHab({ h: null })} />
         ) : (
-          <SeccionViajes eventos={eventos} hoy={hoy} catPorId={catPorId} onAbrir={(e) => abrir({ ...e, dia: e.fecha, serie: false })} onNuevo={() => (pro ? setModal({ evento: null, fecha: hoy, tipo: "viaje" }) : setHoja("pro"))} />
+          <SeccionViajes eventos={eventos} hoy={hoy} catPorId={catPorId} cosas={cosas} onAbrir={(e) => abrir({ ...e, dia: e.fecha, serie: false })} onNuevo={() => (pro ? setModal({ evento: null, fecha: hoy, tipo: "viaje" }) : setHoja("pro"))} />
         )}
         <p className="serif mt-12 text-center text-sm italic text-muted">{demo ? "Demo con datos de ejemplo" : "Mi agenda · sólo tú la ves"}</p>
       </main>
@@ -256,9 +273,11 @@ export default function AgendaPersonal({
       )}
       {hoja === "mas" && (
         <Hoja onClose={() => setHoja(null)} titulo="Mi agenda">
-          <button onClick={() => ir("viajes")} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-muted hover:bg-panel-2 hover:text-ink">
-            <Ico d={I.viajes} /> Viajes {!pro && <Ico d={I.candado} size={13} />}
-          </button>
+          {nav.slice(4).map((n) => (
+            <button key={n.id} onClick={() => ir(n.id)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-muted hover:bg-panel-2 hover:text-ink">
+              <Ico d={n.d} /> {n.t} {!pro && <Ico d={I.candado} size={13} />}
+            </button>
+          ))}
           {demo ? (
             <p className="mt-2 text-sm text-muted">Es una demo: arriba está el botón para pedir la tuya.</p>
           ) : (
@@ -268,6 +287,14 @@ export default function AgendaPersonal({
         </Hoja>
       )}
 
+      {viaje && (
+        <ViajeDetalle
+          viaje={viaje} cosas={cosas.filter((c) => c.viaje_id === viaje.id)} todas={cosas} viajes={(eventos ?? []).filter((e) => e.tipo === "viaje")}
+          presupuesto={presupuestos[viaje.id] ?? null} hoy={hoy} pro={pro} acciones={accionesVP}
+          onEditar={() => setModal({ evento: { ...viaje, dia: viaje.fecha, serie: false }, fecha: viaje.fecha })} onClose={() => setViajeAbierto(null)} onPro={() => setHoja("pro")}
+        />
+      )}
+      {modalPago && <PagoModal key={modalPago.p?.id ?? "nuevo"} pago={modalPago.p} acciones={accionesVP} onClose={() => setModalPago(null)} />}
       {modalPend && <PendienteModal key={modalPend.p?.id ?? "nuevo"} pendiente={modalPend.p} fechaInicial={modalPend.fecha} listaInicial={modalPend.lista} acciones={acciones} onClose={() => setModalPend(null)} />}
       {modalHab && <HabitoModal key={modalHab.h?.id ?? "nuevo"} habito={modalHab.h} acciones={acciones} onClose={() => setModalHab(null)} />}
 
@@ -313,7 +340,7 @@ function ItemMenu({ href, onClick, d, t }: { href: string; onClick?: () => void;
 
 function Hoja({ titulo, onClose, children }: { titulo: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
       <div className="w-full max-w-md rounded-t-3xl border border-line bg-bg p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={titulo}>
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line sm:hidden" />
         <p className="serif mb-4 text-2xl">{titulo}</p>
@@ -329,12 +356,13 @@ const colorDe = (o: { categoria_id: string | null }, catPorId: Map<string, PCate
 
 function SeccionHoy({
   odonto, eventos, todos, hoy, nombre, catPorId, onAbrir, onMarcar, onNuevo, onSemana, onViajes, onPendientes, onHabitos,
-  pendientes, habitos, marcas, acciones, onEditarPendiente, onNuevoHabito,
+  pendientes, habitos, marcas, acciones, onEditarPendiente, onNuevoHabito, cosas, pagosFijos, pagosHechos, accionesVP,
 }: {
   odonto: boolean; eventos: PEvento[]; todos: PEvento[]; hoy: string; nombre: string; catPorId: Map<string, PCategoria>;
   onAbrir: (o: Ocurrencia) => void; onMarcar: (e: PEvento, h: boolean) => void; onNuevo: (f?: string) => void; onSemana: () => void; onViajes: () => void;
   onPendientes: () => void; onHabitos: () => void;
   pendientes: PPendiente[]; habitos: PHabito[]; marcas: PMarca[]; acciones: AccionesListas; onEditarPendiente: (p: PPendiente) => void; onNuevoHabito: () => void;
+  cosas: PCosa[]; pagosFijos: PPagoFijo[]; pagosHechos: PPagoHecho[]; accionesVP: AccionesVP;
 }) {
   const [ahora, setAhora] = useState(ahoraHM);
   useEffect(() => {
@@ -353,6 +381,8 @@ function SeccionHoy({
   const pendHoy = pendientes.filter((p) => !p.padre_id && p.lista === "hacer" && p.fecha && p.fecha <= hoy && (!p.hecho || (p.hecho_at ?? "").slice(0, 10) === hoy)).sort((a, b) => (a.fecha ?? "").localeCompare(b.fecha ?? ""));
   const sinFecha = pendientes.filter((p) => !p.padre_id && p.lista === "hacer" && !p.hecho && !p.fecha).length;
   const fechas = fechasQueVienen(eventos, hoy, 14);
+  const pagosHoy = pagosPorAtender(pagosFijos, pagosHechos, hoy);
+  const planesHoy = viaje ? cosas.filter((c) => c.viaje_id === viaje.id && (c.tipo === "itinerario" || c.tipo === "reserva") && c.fecha === hoy).sort((a, b) => (a.hora ?? "99").localeCompare(b.hora ?? "99")) : [];
   const proximoViaje = !viaje ? todos.filter((e) => e.tipo === "viaje" && e.fecha > hoy).sort((a, b) => a.fecha.localeCompare(b.fecha))[0] : undefined;
   const semana = expandir(eventos, sumarDias(hoy, 1), sumarDias(hoy, 6)).filter((o) => o.tipo !== "viaje" || o.dia === o.fecha);
   const porDia = new Map<string, Ocurrencia[]>();
@@ -377,7 +407,17 @@ function SeccionHoy({
         </div>
       </header>
 
-      {viaje && <Boleto e={viaje} hoy={hoy} catPorId={catPorId} onAbrir={() => onAbrir(viaje)} enCurso />}
+      {viaje && <Boleto e={viaje} hoy={hoy} catPorId={catPorId} onAbrir={() => onAbrir(viaje)} enCurso extra={extraViaje(cosas, viaje.id)} />}
+      {planesHoy.length > 0 && (
+        <ul className="-mt-3 mb-6 rounded-b-2xl border border-t-0 border-line bg-panel/70 px-4 py-2 text-sm">
+          {planesHoy.map((c) => (
+            <li key={c.id} className="flex gap-3 py-0.5">
+              <span className="w-11 shrink-0 tabular-nums text-muted">{c.hora ? hm(c.hora) : "—"}</span>
+              <span className="min-w-0 flex-1 truncate">{c.tipo === "reserva" ? "📌 " : ""}{c.titulo}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {/* Línea del tiempo */}
       <section className="mb-8">
@@ -445,10 +485,11 @@ function SeccionHoy({
           <h2 className="serif text-2xl">No se te olvide</h2>
           <button onClick={onPendientes} className="text-xs underline-offset-2 opacity-75 hover:underline">{sinFecha ? `+${sinFecha} sin fecha →` : "Pendientes →"}</button>
         </div>
-        {vencidas.length + proximas.length + pendHoy.length === 0 ? (
+        {vencidas.length + proximas.length + pendHoy.length + pagosHoy.length === 0 ? (
           <p className="serif text-lg italic opacity-80">Nada pendiente. Milagro.</p>
         ) : (
           <ul className="flex flex-col gap-2">
+            {pagosHoy.map((v) => <RenglonPago key={`${v.pago.id}-${v.fecha}`} v={v} hoy={hoy} acciones={accionesVP} />)}
             {pendHoy.map((p) => (
               <li key={p.id} className="flex items-start gap-3">
                 <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-[var(--nota-ink)]" checked={p.hecho} onChange={(x) => acciones.marcarPendiente(p, x.target.checked)} aria-label={`Hecho: ${p.titulo}`} />
@@ -475,7 +516,7 @@ function SeccionHoy({
             <h2 className="serif text-2xl">Tu próximo viaje</h2>
             <button onClick={onViajes} className="text-sm font-medium text-accent hover:underline">Todos</button>
           </div>
-          <Boleto e={{ ...proximoViaje, dia: proximoViaje.fecha, serie: false }} hoy={hoy} catPorId={catPorId} onAbrir={() => onAbrir({ ...proximoViaje, dia: proximoViaje.fecha, serie: false })} />
+          <Boleto e={{ ...proximoViaje, dia: proximoViaje.fecha, serie: false }} hoy={hoy} catPorId={catPorId} onAbrir={() => onAbrir({ ...proximoViaje, dia: proximoViaje.fecha, serie: false })} extra={extraViaje(cosas, proximoViaje.id)} />
         </div>
       )}
 
@@ -532,7 +573,15 @@ function MarcaAhora({ ahora, fin = false }: { ahora: string; fin?: boolean }) {
 
 /* --------------------------- PASE DE ABORDAR --------------------------- */
 
-function Boleto({ e, hoy, catPorId, onAbrir, enCurso = false }: { e: Ocurrencia; hoy: string; catPorId: Map<string, PCategoria>; onAbrir: () => void; enCurso?: boolean }) {
+/** "Maleta 2/6 · $8,840" debajo del pase de abordar */
+function extraViaje(cosas: PCosa[], id: string) {
+  const mias = cosas.filter((c) => c.viaje_id === id);
+  const m = maletaViaje(mias);
+  const g = gastadoViaje(mias);
+  return [m.total ? `Maleta ${m.listas}/${m.total}` : "", g ? `${pesos(g)} gastado` : ""].filter(Boolean).join(" · ");
+}
+
+function Boleto({ e, hoy, catPorId, onAbrir, enCurso = false, extra }: { e: Ocurrencia; hoy: string; catPorId: Map<string, PCategoria>; onAbrir: () => void; enCurso?: boolean; extra?: string }) {
   const fin = e.fecha_fin && e.fecha_fin > e.fecha ? e.fecha_fin : e.fecha;
   const dias = diasEntre(e.fecha, fin) + 1;
   const falta = diasEntre(hoy, e.fecha);
@@ -550,6 +599,7 @@ function Boleto({ e, hoy, catPorId, onAbrir, enCurso = false }: { e: Ocurrencia;
           <span><span className="versalitas block text-muted">Regreso</span>{corta(fin)}</span>
         </span>
         {e.lugar && <span className="mt-2 flex items-center gap-1 truncate text-xs text-muted"><Ico d={I.lugar} size={12} />{e.lugar}</span>}
+        {extra && <span className="versalitas mt-1.5 block text-accent">{extra}</span>}
       </span>
       <span className="boleto-corte grid w-24 shrink-0 place-items-center px-2 text-center">
         <span>
@@ -580,11 +630,12 @@ function Boleto({ e, hoy, catPorId, onAbrir, enCurso = false }: { e: Ocurrencia;
 /* ------------------------------ SEMANA / MES ------------------------------ */
 
 function SeccionSemana({
-  eventos, hoy, categorias, ocultas, setOcultas, catPorId, onAbrir, onMarcar, onNuevo, pendientes, acciones, onEditarPendiente,
+  eventos, hoy, categorias, ocultas, setOcultas, catPorId, onAbrir, onMarcar, onNuevo, pendientes, acciones, onEditarPendiente, pagosFijos, pagosHechos, accionesVP,
 }: {
   eventos: PEvento[]; hoy: string; categorias: PCategoria[]; ocultas: Set<string>; setOcultas: (s: Set<string>) => void; catPorId: Map<string, PCategoria>;
   onAbrir: (o: Ocurrencia) => void; onMarcar: (e: PEvento, h: boolean) => void; onNuevo: (f?: string) => void;
   pendientes: PPendiente[]; acciones: AccionesListas; onEditarPendiente: (p: PPendiente) => void;
+  pagosFijos: PPagoFijo[]; pagosHechos: PPagoHecho[]; accionesVP: AccionesVP;
 }) {
   const [vista, setVista] = useState<"semana" | "mes">("semana");
   const [lunes, setLunes] = useState(lunesDe(hoy));
@@ -596,6 +647,8 @@ function SeccionSemana({
   for (const o of os) porDia.set(o.dia, [...(porDia.get(o.dia) ?? []), o]);
   const pendPorDia = new Map<string, PPendiente[]>();
   for (const p of pendientes) if (!p.padre_id && p.lista === "hacer" && p.fecha && p.fecha >= lunes && p.fecha <= domingo) pendPorDia.set(p.fecha, [...(pendPorDia.get(p.fecha) ?? []), p]);
+
+  const pagosSemana = vencimientosEntre(pagosFijos, pagosHechos, lunes, domingo);
 
   function moverMes(n: number) {
     const d = new Date(mes.a, mes.m + n, 1);
@@ -652,6 +705,7 @@ function SeccionSemana({
             const d = deISO(dia);
             const lista = porDia.get(dia) ?? [];
             const pends = pendPorDia.get(dia) ?? [];
+            const pagos = pagosSemana.filter((v) => v.fecha === dia);
             const esHoy = dia === hoy;
             return (
               <li key={dia} className={`grid grid-cols-[3.75rem_minmax(0,1fr)] gap-3 rounded-2xl border bg-panel p-3 ${esHoy ? "border-accent shadow-[0_0_0_3px_var(--accent-soft)]" : "border-line"} ${dia < hoy ? "opacity-70" : ""}`}>
@@ -659,7 +713,7 @@ function SeccionSemana({
                   <span className={`versalitas block ${esHoy ? "text-accent" : "text-muted"}`}>{DIAS_CORTOS_LUNES[(d.getDay() + 6) % 7]}</span>
                   <span className={`serif block text-4xl leading-none ${esHoy ? "text-accent" : ""}`}>{d.getDate()}</span>
                 </button>
-                {lista.length + pends.length === 0 ? (
+                {lista.length + pends.length + pagos.length === 0 ? (
                   <button onClick={() => onNuevo(dia)} className="self-center text-left text-sm italic text-muted hover:text-ink">— libre</button>
                 ) : (
                   <ul className="flex min-w-0 flex-col gap-1">
@@ -669,6 +723,14 @@ function SeccionSemana({
                         <Palomita chica checked={p.hecho} onChange={(v) => acciones.marcarPendiente(p, v)} etiqueta={`Hecho: ${p.titulo}`} />
                         <button onClick={() => onEditarPendiente(p)} className={`min-w-0 flex-1 truncate text-left ${p.hecho ? "text-muted line-through" : ""}`}>{p.titulo}</button>
                         <span className="versalitas shrink-0 text-muted">pendiente</span>
+                      </li>
+                    ))}
+                    {pagos.map((v) => (
+                      <li key={`${v.pago.id}-${v.fecha}`} className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm hover:bg-panel-2">
+                        <Palomita chica checked={v.pagado} onChange={(x) => accionesVP.marcarPagado(v.pago, v.fecha, x)} etiqueta={`Ya pagué: ${v.pago.nombre}`} />
+                        <span className={`min-w-0 flex-1 truncate ${v.pagado ? "text-muted line-through" : ""}`}>{v.pago.nombre}</span>
+                        <span className="shrink-0 text-xs tabular-nums text-muted">{pesos(v.pago.monto)}</span>
+                        <span className={`versalitas shrink-0 ${!v.pagado && v.fecha < hoy ? "text-danger" : "text-muted"}`}>pago</span>
                       </li>
                     ))}
                   </ul>
@@ -757,7 +819,7 @@ function Mes({ eventos, hoy, anio, mes, catPorId, onDia }: { eventos: PEvento[];
 
 /* ------------------------------ VIAJES ------------------------------ */
 
-function SeccionViajes({ eventos, hoy, catPorId, onAbrir, onNuevo }: { eventos: PEvento[]; hoy: string; catPorId: Map<string, PCategoria>; onAbrir: (e: PEvento) => void; onNuevo: () => void }) {
+function SeccionViajes({ eventos, hoy, catPorId, cosas, onAbrir, onNuevo }: { eventos: PEvento[]; hoy: string; catPorId: Map<string, PCategoria>; cosas: PCosa[]; onAbrir: (e: PEvento) => void; onNuevo: () => void }) {
   const viajes = eventos.filter((e) => e.tipo === "viaje");
   const fin = (e: PEvento) => (e.fecha_fin && e.fecha_fin > e.fecha ? e.fecha_fin : e.fecha);
   const proximos = viajes.filter((e) => fin(e) >= hoy).sort((a, b) => a.fecha.localeCompare(b.fecha));
@@ -782,7 +844,7 @@ function SeccionViajes({ eventos, hoy, catPorId, onAbrir, onNuevo }: { eventos: 
           <p className="mt-1 text-sm text-muted">Anota el próximo y aquí te cuenta los días que faltan.</p>
         </div>
       ) : (
-        proximos.map((e) => <Boleto key={e.id} e={{ ...e, dia: e.fecha, serie: false }} hoy={hoy} catPorId={catPorId} onAbrir={() => onAbrir(e)} enCurso={e.fecha <= hoy} />)
+        proximos.map((e) => <Boleto key={e.id} e={{ ...e, dia: e.fecha, serie: false }} hoy={hoy} catPorId={catPorId} onAbrir={() => onAbrir(e)} enCurso={e.fecha <= hoy} extra={extraViaje(cosas, e.id) || "Itinerario, maleta, reservas y gastos →"} />)
       )}
 
       {pasados.length > 0 && (
@@ -823,8 +885,8 @@ function AvisoPlan({ e, prueba }: { e: EstadoMi; prueba: boolean }) {
     texto = e.dias === 0 ? <>Hoy es tu <b>último día de {e.tipo === "prueba" ? "prueba de " : ""}Pro</b>. Mañana sigues en Gratis.</> : <>Te quedan <b>{e.dias} día{e.dias === 1 ? "" : "s"} de {e.tipo === "prueba" ? "prueba de " : ""}Pro</b> (hasta el {fechaLarga(e.hasta)}).</>;
   else if (e.tipo === "gratis")
     texto = prueba
-      ? <>Estás en <b>Gratis</b>. ¿Quieres probar los viajes, tus colores y el resumen de cada mañana? Tienes <b>15 días de Pro gratis</b> cuando quieras.</>
-      : <>Estás en <b>Gratis</b>: tus cosas siguen aquí. Viajes, tus colores y los avisos de la mañana vuelven con Pro.</>;
+      ? <>Estás en <b>Gratis</b>. ¿Quieres probar los viajes completos, los pagos fijos y el resumen de cada mañana? Tienes <b>15 días de Pro gratis</b> cuando quieras.</>
+      : <>Estás en <b>Gratis</b>: tus cosas siguen aquí. Viajes, pagos fijos, tus colores y los avisos de la mañana vuelven con Pro.</>;
   if (!texto) return null;
   return (
     <div className="nota mb-6 flex flex-wrap items-center gap-3 rounded-sm px-4 py-3 text-sm shadow-[0_10px_20px_-14px_rgba(60,45,10,0.5)]">

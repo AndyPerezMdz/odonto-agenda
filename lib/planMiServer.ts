@@ -276,7 +276,7 @@ export async function avisosPlanMi(db: Db, sitio: string) {
     if (!d.email) continue;
     const prueba = f.prueba_hasta && f.prueba_hasta === f.pagado_hasta;
     const asunto = dias === 0 ? `Hoy es tu último día de Pro` : `Te quedan ${AVISAR_MI} días de Pro`;
-    const cuerpo = `${d.nombre ? `Hola, ${esc(d.nombre)}. ` : ""}Tu ${prueba ? "prueba de " : ""}Pro de Mi agenda ${dias === 0 ? "termina hoy" : `termina el <b>${fechaLarga(f.pagado_hasta)}</b>`}. Después tu agenda sigue en <b>Gratis</b> (eventos, pendientes, hábitos y recordatorios) y no pierdes nada; sólo se apagan los viajes nuevos, tus colores, el correo y el resumen de la mañana.`;
+    const cuerpo = `${d.nombre ? `Hola, ${esc(d.nombre)}. ` : ""}Tu ${prueba ? "prueba de " : ""}Pro de Mi agenda ${dias === 0 ? "termina hoy" : `termina el <b>${fechaLarga(f.pagado_hasta)}</b>`}. Después tu agenda sigue en <b>Gratis</b> (eventos, pendientes, hábitos y recordatorios) y no pierdes nada; sólo no puedes crear viajes ni pagos fijos nuevos, y se apagan tus colores, el correo y el resumen de la mañana.`;
     try {
       await enviarConResend({
         para: d.email,

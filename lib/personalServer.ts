@@ -4,7 +4,8 @@ import { enviarConResend, esc, fechaEnZona } from "@/lib/recordatorios";
 import { estadoMi, type EstadoMi } from "@/lib/planMi";
 import { categoriasIniciales, entregasPendientes, expandir, textoHora, type PEvento, type PerfilPersonal } from "@/lib/personal";
 import { fechaLarga } from "@/lib/fechas";
-import { sumarDias } from "@/lib/pagos";
+import { pesos, sumarDias } from "@/lib/pagos";
+import { CAMPOS_PAGO, pagosPorAtender, type PPagoFijo, type PPagoHecho } from "@/lib/viajesPagos";
 
 type Db = ReturnType<typeof createAdminClient>;
 
@@ -174,6 +175,26 @@ async function eventosDe(db: Db, ids: string[]) {
   return (data ?? []) as Fila[];
 }
 
+/** 2.5 · Pagos fijos y "ya pagué" de esas personas (vacío si aún no existe la tabla). */
+async function pagosDe(db: Db, ids: string[]) {
+  if (!ids.length) return { pagos: [] as PPagoFijo[], hechos: [] as PPagoHecho[] };
+  const desde = sumarDias(fechaEnZona(0), -70);
+  const [{ data: pagos }, { data: hechos }] = await Promise.all([
+    db.from("p_pagos_fijos").select(CAMPOS_PAGO).in("user_id", ids).eq("activo", true),
+    db.from("p_pagos_fijos_hechos").select("pago_id,user_id,periodo,monto,pagado_at").in("user_id", ids).gte("periodo", desde),
+  ]);
+  return {
+    pagos: ((pagos ?? []) as PPagoFijo[]).map((p) => ({ ...p, monto: Number(p.monto) })),
+    hechos: (hechos ?? []) as (PPagoHecho & { user_id: string })[],
+  };
+}
+/** Lo que toca pagar (vencido o dentro de sus días de aviso) de una persona. */
+function pagosPorAtenderDe(todo: Awaited<ReturnType<typeof pagosDe>>, userId: string, hoy: string) {
+  const mios = todo.pagos.filter((p) => p.user_id === userId);
+  const ids = new Set(mios.map((p) => p.id));
+  return pagosPorAtender(mios, todo.hechos.filter((h) => ids.has(h.pago_id)), hoy);
+}
+
 /** Lo de hoy para una persona: ocurrencias de hoy (sin entregas) y entregas pendientes. */
 export function resumenDia(eventos: PEvento[], hoy: string) {
   const deHoy = expandir(eventos, hoy, hoy).filter((o) => o.tipo !== "entrega");
@@ -190,16 +211,17 @@ export async function correosPersonales(db: Db, sitio: string) {
   const pro = await idsProMi(db, (filas ?? []).map((f) => f.user_id as string));
   const activos = (filas ?? []).filter((f) => pro.has(f.user_id) && (f.prefs as { correo?: boolean } | null)?.correo !== false);
   if (!activos.length) return [];
-  const [eventos, { data: usuarios }] = await Promise.all([eventosDe(db, activos.map((f) => f.user_id)), db.auth.admin.listUsers({ perPage: 1000 })]);
+  const [eventos, { data: usuarios }, todoPagos] = await Promise.all([eventosDe(db, activos.map((f) => f.user_id)), db.auth.admin.listUsers({ perPage: 1000 }), pagosDe(db, activos.map((f) => f.user_id))]);
   const correo = new Map((usuarios?.users ?? []).map((u) => [u.id, u.email]));
   const out: { persona: string; estado: string }[] = [];
   for (const f of activos) {
     const para = correo.get(f.user_id);
     const mios = eventos.filter((e) => e.user_id === f.user_id);
     const { deHoy, vencidas, proximas } = resumenDia(mios, hoy);
+    const pagar = pagosPorAtenderDe(todoPagos, f.user_id, hoy);
     const persona = f.nombre ?? para ?? f.user_id;
     if (!para) { out.push({ persona, estado: "sin correo" }); continue; }
-    if (!deHoy.length && !vencidas.length && !proximas.length) { out.push({ persona, estado: "nada hoy" }); continue; }
+    if (!deHoy.length && !vencidas.length && !proximas.length && !pagar.length) { out.push({ persona, estado: "nada hoy" }); continue; }
     const li = (t: string) => `<li style="margin:0 0 6px;">${t}</li>`;
     const bloque = (titulo: string, items: string[]) =>
       items.length ? `<p style="margin:16px 0 6px;font-weight:bold;">${titulo}</p><ul style="margin:0;padding-left:18px;color:#4a4d55;">${items.join("")}</ul>` : "";
@@ -207,16 +229,18 @@ export async function correosPersonales(db: Db, sitio: string) {
       `Tu día: ${esc(fechaLarga(hoy))}`,
       bloque("Hoy", deHoy.map((o) => li(`<b>${esc(textoHora(o))}</b> · ${esc(o.titulo)}${o.lugar ? ` · ${esc(o.lugar)}` : ""}${o.tipo === "viaje" ? " ✈" : ""}`))) +
         bloque("Se te pasó", vencidas.map((e) => li(`${esc(e.titulo)} <span style="color:#b4322b;">(era el ${esc(fechaLarga(e.fecha))})</span>`))) +
-        bloque("Por entregar", proximas.map((e) => li(`${esc(e.titulo)} · ${e.fecha === hoy ? "<b>hoy</b>" : e.fecha === sumarDias(hoy, 1) ? "mañana" : esc(fechaLarga(e.fecha))}`))),
+        bloque("Por entregar", proximas.map((e) => li(`${esc(e.titulo)} · ${e.fecha === hoy ? "<b>hoy</b>" : e.fecha === sumarDias(hoy, 1) ? "mañana" : esc(fechaLarga(e.fecha))}`))) +
+        bloque("Toca pagar", pagar.map((v) => li(`${esc(v.pago.nombre)} · ${esc(pesos(v.pago.monto))} · ${v.fecha < hoy ? `<span style="color:#b4322b;">era el ${esc(fechaLarga(v.fecha))}</span>` : v.fecha === hoy ? "<b>hoy</b>" : esc(fechaLarga(v.fecha))}`))),
       { texto: "Abrir mi agenda", url: `${sitio}/personal` }
     );
     const texto = [
       ...deHoy.map((o) => `${textoHora(o)} · ${o.titulo}`),
       ...vencidas.map((e) => `Se te pasó: ${e.titulo}`),
       ...proximas.map((e) => `Por entregar: ${e.titulo} (${e.fecha})`),
+      ...pagar.map((v) => `Toca pagar: ${v.pago.nombre} ${pesos(v.pago.monto)} (${v.fecha})`),
     ].join("\n");
     try {
-      await enviarConResend({ para, nombreRemitente: "Mi agenda", asunto: deHoy.length ? `Hoy: ${deHoy.length} en tu agenda` : "Tienes entregas pendientes", html, texto, idempotencia: `personal-${f.user_id}-${hoy}` });
+      await enviarConResend({ para, nombreRemitente: "Mi agenda", asunto: deHoy.length ? `Hoy: ${deHoy.length} en tu agenda` : pagar.length && !vencidas.length && !proximas.length ? "Tienes pagos por hacer" : "Tienes entregas pendientes", html, texto, idempotencia: `personal-${f.user_id}-${hoy}` });
       out.push({ persona, estado: "enviado" });
     } catch (e) {
       out.push({ persona, estado: "error: " + (e as Error).message });
@@ -233,16 +257,19 @@ export async function resumenesPushPersonales(db: Db) {
   const { idsProMi } = await import("@/lib/planMiServer");
   const pro = await idsProMi(db, (filas ?? []).map((f) => f.user_id as string));
   const ids = (filas ?? []).map((f) => f.user_id as string).filter((id) => pro.has(id));
-  const eventos = await eventosDe(db, ids);
+  const [eventos, todoPagos] = await Promise.all([eventosDe(db, ids), pagosDe(db, ids)]);
   const r = new Map<string, { titulo: string; cuerpo: string }>();
   for (const id of ids) {
     const { deHoy, vencidas, proximas } = resumenDia(eventos.filter((e) => e.user_id === id), hoy);
     const entHoy = proximas.filter((e) => e.fecha === hoy).length;
-    if (!deHoy.length && !vencidas.length && !entHoy) continue;
+    // Pagos: los de hoy o atrasados (los "en 3 días" ya salen en la agenda)
+    const pagosHoy = pagosPorAtenderDe(todoPagos, id, hoy).filter((v) => v.fecha <= hoy);
+    if (!deHoy.length && !vencidas.length && !entHoy && !pagosHoy.length) continue;
     const partes = [
       deHoy.length ? `${deHoy.length} en tu agenda${deHoy[0].hora_inicio ? ` (la primera a las ${deHoy[0].hora_inicio.slice(0, 5)})` : ""}` : null,
       entHoy ? `${entHoy} entrega${entHoy === 1 ? "" : "s"} hoy` : null,
       vencidas.length ? `${vencidas.length} pendiente${vencidas.length === 1 ? "" : "s"} atrasada${vencidas.length === 1 ? "" : "s"}` : null,
+      pagosHoy.length ? `pagar: ${pagosHoy.map((v) => v.pago.nombre).join(", ")}` : null,
     ].filter(Boolean);
     r.set(id, { titulo: "Tu día", cuerpo: partes.join(" · ") });
   }

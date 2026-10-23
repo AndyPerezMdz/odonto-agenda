@@ -1170,6 +1170,98 @@ alter table public.p_push_enviados enable row level security;
 revoke all on public.p_push_enviados from anon, authenticated;
 
 -- =====================================================================
+-- 2.5 · Mi agenda: viajes completos (itinerario, maleta, reservas, gastos) y pagos fijos. Pro.
+-- (En Gratis lo que ya tenías se ve, se edita y se palomea; sólo no se crea nuevo.)
+-- =====================================================================
+alter table public.p_eventos add column if not exists presupuesto numeric(12,2);
+alter table public.p_eventos drop constraint if exists p_eventos_presupuesto;
+alter table public.p_eventos add constraint p_eventos_presupuesto check (presupuesto is null or presupuesto >= 0);
+
+create table if not exists public.p_viaje_cosas (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null default auth.uid() references public.perfiles (id) on delete cascade,
+  viaje_id   uuid not null references public.p_eventos (id) on delete cascade,
+  tipo       text not null check (tipo in ('itinerario', 'maleta', 'reserva', 'gasto')),
+  subtipo    text check (subtipo is null or subtipo in ('vuelo', 'hotel', 'auto', 'actividad', 'otro')),
+  titulo     text not null check (char_length(titulo) between 1 and 200),
+  fecha      date,
+  hora       time,
+  detalle    text check (detalle is null or char_length(detalle) <= 500),
+  monto      numeric(12,2) check (monto is null or monto >= 0),
+  hecho      boolean not null default false,
+  orden      double precision not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists p_viaje_cosas_user_idx on public.p_viaje_cosas (user_id);
+create index if not exists p_viaje_cosas_viaje_idx on public.p_viaje_cosas (viaje_id);
+alter table public.p_viaje_cosas enable row level security;
+drop policy if exists p_viaje_cosas_propias on public.p_viaje_cosas;
+create policy p_viaje_cosas_propias on public.p_viaje_cosas for all to authenticated
+  using (user_id = auth.uid() and public.soy_personal())
+  with check (
+    user_id = auth.uid() and public.soy_personal()
+    and exists (select 1 from public.p_eventos e where e.id = viaje_id and e.user_id = auth.uid() and e.tipo = 'viaje')
+  );
+
+create table if not exists public.p_pagos_fijos (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null default auth.uid() references public.perfiles (id) on delete cascade,
+  nombre      text not null check (char_length(nombre) between 1 and 80),
+  monto       numeric(12,2) not null default 0 check (monto >= 0),
+  frecuencia  text not null default 'mensual' check (frecuencia in ('mensual', 'anual')),
+  dia         int not null check (dia between 1 and 31),
+  mes         int check (mes is null or mes between 1 and 12),
+  avisar_dias int not null default 3 check (avisar_dias between 0 and 15),
+  desde       date not null default current_date,
+  activo      boolean not null default true,
+  notas       text check (notas is null or char_length(notas) <= 500),
+  created_at  timestamptz not null default now(),
+  constraint p_pagos_fijos_anual check (frecuencia = 'mensual' or mes is not null)
+);
+create index if not exists p_pagos_fijos_user_idx on public.p_pagos_fijos (user_id);
+alter table public.p_pagos_fijos enable row level security;
+drop policy if exists p_pagos_fijos_propios on public.p_pagos_fijos;
+create policy p_pagos_fijos_propios on public.p_pagos_fijos for all to authenticated
+  using (user_id = auth.uid() and public.soy_personal())
+  with check (user_id = auth.uid() and public.soy_personal());
+
+-- "Ya pagué": uno por pago y vencimiento
+create table if not exists public.p_pagos_fijos_hechos (
+  pago_id   uuid not null references public.p_pagos_fijos (id) on delete cascade,
+  user_id   uuid not null default auth.uid() references public.perfiles (id) on delete cascade,
+  periodo   date not null,          -- la fecha en que tocaba pagar
+  monto     numeric(12,2) check (monto is null or monto >= 0),
+  pagado_at timestamptz not null default now(),
+  primary key (pago_id, periodo)
+);
+create index if not exists p_pagos_fijos_hechos_user_idx on public.p_pagos_fijos_hechos (user_id, periodo);
+alter table public.p_pagos_fijos_hechos enable row level security;
+drop policy if exists p_pagos_fijos_hechos_propios on public.p_pagos_fijos_hechos;
+create policy p_pagos_fijos_hechos_propios on public.p_pagos_fijos_hechos for all to authenticated
+  using (user_id = auth.uid() and public.soy_personal())
+  with check (
+    user_id = auth.uid() and public.soy_personal()
+    and exists (select 1 from public.p_pagos_fijos f where f.id = pago_id and f.user_id = auth.uid())
+  );
+
+grant select, insert, update, delete on public.p_viaje_cosas, public.p_pagos_fijos, public.p_pagos_fijos_hechos to authenticated;
+
+-- Crear cosas nuevas de viaje o pagos fijos es de Pro
+create or replace function public.p_nuevo_pro()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  if auth.role() = 'authenticated' and not public.personal_pro() then
+    raise exception 'Eso es de Pro' using errcode = 'P0001', hint = 'pro';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists p_viaje_cosas_pro on public.p_viaje_cosas;
+create trigger p_viaje_cosas_pro before insert on public.p_viaje_cosas for each row execute function public.p_nuevo_pro();
+drop trigger if exists p_pagos_fijos_pro on public.p_pagos_fijos;
+create trigger p_pagos_fijos_pro before insert on public.p_pagos_fijos for each row execute function public.p_nuevo_pro();
+
+-- =====================================================================
 -- Listo. Las cuentas nuevas se registran solas en /registro.
 -- En Supabase: Authentication → Sign In / Providers → Email:
 --   "Enable email signups" y "Confirm email" ENCENDIDOS.

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { ejemploListas, ejemploPersonal, type PCategoria, type PEvento, type PerfilPersonal, type PHabito, type PMarca, type PPendiente } from "@/lib/personal";
 import { hoyISO } from "@/lib/fechas";
 import { sumarDias } from "@/lib/pagos";
+import { CAMPOS_COSA, CAMPOS_PAGO, ejemploViajesPagos, type PCosa, type PPagoFijo, type PPagoHecho } from "@/lib/viajesPagos";
 
 export const CAMPOS_P = "id,user_id,tipo,titulo,fecha,fecha_fin,hora_inicio,hora_fin,lugar,notas,categoria_id,hecho,hecho_at,repetir,repetir_hasta,excepciones";
 const CAMPOS_PEND = "id,user_id,padre_id,titulo,notas,lista,fecha,hecho,hecho_at,orden,created_at";
@@ -17,6 +18,11 @@ export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto")
   const [pendientes, setPendientes] = useState<PPendiente[]>([]);
   const [habitos, setHabitos] = useState<PHabito[]>([]);
   const [marcas, setMarcas] = useState<PMarca[]>([]);
+  // 2.5 · viajes completos y pagos fijos
+  const [cosas, setCosas] = useState<PCosa[]>([]);
+  const [presupuestos, setPresupuestos] = useState<Record<string, number | null>>({});
+  const [pagosFijos, setPagosFijos] = useState<PPagoFijo[]>([]);
+  const [pagosHechos, setPagosHechos] = useState<PPagoHecho[]>([]);
   const [prefs, setPrefs] = useState<{ correo?: boolean }>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -30,16 +36,25 @@ export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto")
       setPendientes((x) => (x.length ? x : l.pendientes));
       setHabitos((x) => (x.length ? x : l.habitos));
       setMarcas((x) => (x.length ? x : l.marcas));
+      const vp = ejemploViajesPagos(hoy, perfilDemo);
+      setCosas((x) => (x.length ? x : vp.cosas));
+      setPresupuestos((x) => (Object.keys(x).length ? x : { "demo-4": 12000 }));
+      setPagosFijos((x) => (x.length ? x : vp.pagos));
+      setPagosHechos((x) => (x.length ? x : vp.hechos));
       return;
     }
     const desde = sumarDias(hoyISO(), -400);
-    const [e, c, p, pe, h, m] = await Promise.all([
+    const [e, c, p, pe, h, m, vc, pr, pf, ph] = await Promise.all([
       supabase.from("p_eventos").select(CAMPOS_P).order("fecha"),
       supabase.from("p_categorias").select("id,nombre,color,orden").order("orden").order("created_at"),
       supabase.from("personales").select("prefs").maybeSingle(),
       supabase.from("p_pendientes").select(CAMPOS_PEND).order("orden").order("created_at"),
       supabase.from("p_habitos").select("id,user_id,nombre,color,dias,orden,archivado,created_at").order("orden").order("created_at"),
       supabase.from("p_habito_marcas").select("habito_id,fecha").gte("fecha", desde),
+      supabase.from("p_viaje_cosas").select(CAMPOS_COSA).order("orden").order("created_at"),
+      supabase.from("p_eventos").select("id,presupuesto").eq("tipo", "viaje"),
+      supabase.from("p_pagos_fijos").select(CAMPOS_PAGO).order("dia"),
+      supabase.from("p_pagos_fijos_hechos").select("pago_id,periodo,monto,pagado_at").gte("periodo", desde),
     ]);
     if (e.error) setError(e.error.message);
     else {
@@ -52,6 +67,11 @@ export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto")
     setPendientes(pe.error ? [] : ((pe.data ?? []) as PPendiente[]));
     setHabitos(h.error ? [] : ((h.data ?? []) as PHabito[]));
     setMarcas(m.error ? [] : ((m.data ?? []) as PMarca[]));
+    // (2.5: lo mismo si aún no se corre su SQL)
+    setCosas(vc.error ? [] : ((vc.data ?? []) as PCosa[]));
+    setPresupuestos(pr.error ? {} : Object.fromEntries(((pr.data ?? []) as { id: string; presupuesto: number | null }[]).map((x) => [x.id, x.presupuesto == null ? null : Number(x.presupuesto)])));
+    setPagosFijos(pf.error ? [] : ((pf.data ?? []) as PPagoFijo[]).map((x) => ({ ...x, monto: Number(x.monto) })));
+    setPagosHechos(ph.error ? [] : ((ph.data ?? []) as PPagoHecho[]));
   }, [supabase, demo, perfilDemo]);
 
   useEffect(() => {
@@ -62,5 +82,8 @@ export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto")
     return () => document.removeEventListener("visibilitychange", alVolver);
   }, [recargar]);
 
-  return { supabase, eventos, categorias, pendientes, habitos, marcas, prefs, error, recargar, setEventos, setPendientes, setHabitos, setMarcas };
+  return {
+    supabase, eventos, categorias, pendientes, habitos, marcas, prefs, error, recargar, setEventos, setPendientes, setHabitos, setMarcas,
+    cosas, setCosas, presupuestos, setPresupuestos, pagosFijos, setPagosFijos, pagosHechos, setPagosHechos,
+  };
 }
