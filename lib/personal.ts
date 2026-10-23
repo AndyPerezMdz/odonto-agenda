@@ -2,7 +2,7 @@
 import { sumarDias, sumarMeses, diasEntre } from "@/lib/pagos";
 
 export type TipoEvento = "evento" | "viaje" | "entrega" | "recordatorio";
-export type Repetir = "nunca" | "diario" | "semanal" | "quincenal" | "mensual";
+export type Repetir = "nunca" | "diario" | "semanal" | "quincenal" | "mensual" | "anual";
 
 export type PEvento = {
   id: string;
@@ -41,6 +41,7 @@ export const REPETIR: { id: Repetir; nombre: string }[] = [
   { id: "semanal", nombre: "Cada semana" },
   { id: "quincenal", nombre: "Cada 2 semanas" },
   { id: "mensual", nombre: "Cada mes" },
+  { id: "anual", nombre: "Cada año (cumpleaños, aniversarios)" },
 ];
 
 /** 2.3 · Para quién es la agenda: estudiante de odonto (lo de siempre) o cualquier persona. */
@@ -93,7 +94,7 @@ export function ocurrencias(e: PEvento, desde: string, hasta: string): Ocurrenci
   for (let i = 0; d <= tope && out.length < MAX_OCURRENCIAS; i++) {
     empuja(d, true);
     if (paso) d = sumarDias(d, paso);
-    else d = sumarMeses(e.fecha, i + 1);
+    else d = sumarMeses(e.fecha, (i + 1) * (e.repetir === "anual" ? 12 : 1));
   }
   return out;
 }
@@ -149,6 +150,7 @@ export function ejemploPersonal(hoy: string, perfil: PerfilPersonal = "odonto"):
         base("demo-7", { tipo: "recordatorio", titulo: "Pagar la tarjeta", fecha: hoy, hora_inicio: "10:00:00", categoria_id: pers2 }),
         base("demo-8", { tipo: "entrega", titulo: "Presentación para el cliente", fecha: d(4), categoria_id: trab, hecho: true }),
         base("demo-9", { titulo: "Cena con amigos", fecha: d(3), hora_inicio: "21:00:00", lugar: "La Chaya Maya", categoria_id: pers2 }),
+        base("demo-10", { titulo: "Cumpleaños de mamá", fecha: sumarMeses(d(4), -24), repetir: "anual", categoria_id: pers2 }),
       ],
     };
   }
@@ -163,6 +165,95 @@ export function ejemploPersonal(hoy: string, perfil: PerfilPersonal = "odonto"):
       base("demo-6", { tipo: "entrega", titulo: "Reporte de prácticas", fecha: d(-1), categoria_id: esc }),
       base("demo-7", { tipo: "recordatorio", titulo: "Pagar inscripción", fecha: hoy, hora_inicio: "10:00:00", categoria_id: pers }),
       base("demo-8", { tipo: "entrega", titulo: "Historia clínica firmada", fecha: d(4), categoria_id: esc, hecho: true }),
+      base("demo-10", { titulo: "Cumpleaños de mamá", fecha: sumarMeses(d(4), -24), repetir: "anual", categoria_id: pers }),
     ],
   };
+}
+
+/* ---------------- 2.4 · Fechas de cada año, pendientes y hábitos ---------------- */
+
+/** Lo de "cada año" que viene en los próximos `dias` (cumpleaños, aniversarios…), sin contar hoy. */
+export function fechasQueVienen(eventos: PEvento[], hoy: string, dias = 14) {
+  return expandir(eventos.filter((e) => e.repetir === "anual"), sumarDias(hoy, 1), sumarDias(hoy, dias));
+}
+
+export type PPendiente = {
+  id: string;
+  user_id: string;
+  padre_id: string | null;
+  titulo: string;
+  notas: string | null;
+  lista: "hacer" | "algun_dia";
+  fecha: string | null; // "para el…": sale ese día en Hoy y en la Semana
+  hecho: boolean;
+  hecho_at: string | null;
+  orden: number;
+  created_at: string;
+};
+
+export type PHabito = { id: string; user_id: string; nombre: string; color: string; dias: number[]; orden: number; archivado: boolean; created_at: string };
+export type PMarca = { habito_id: string; fecha: string };
+
+export const PALETA_HABITOS = ["#b4472e", "#2563eb", "#059669", "#9333ea", "#db2777", "#ca8a04", "#0891b2", "#64748b"];
+export const DIAS_LETRA = ["D", "L", "M", "M", "J", "V", "S"]; // 0 = domingo
+
+const diaSemana = (iso: string) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+};
+/** ¿Ese hábito toca ese día? */
+export const tocaHabito = (h: Pick<PHabito, "dias">, fecha: string) => (h.dias?.length ? h.dias.includes(diaSemana(fecha)) : true);
+
+/**
+ * Racha actual: días seguidos (de los que tocan) con palomita, hasta hoy.
+ * Si hoy toca y todavía no la marcas, no rompe la racha: se cuenta desde ayer.
+ */
+export function rachaActual(h: PHabito, marcas: Set<string>, hoy: string) {
+  let n = 0;
+  let d = hoy;
+  if (tocaHabito(h, d) && !marcas.has(d)) d = sumarDias(d, -1);
+  const inicio = h.created_at.slice(0, 10);
+  for (let i = 0; i < 1000; i++, d = sumarDias(d, -1)) {
+    if (d < inicio && !marcas.has(d)) break;
+    if (!tocaHabito(h, d)) continue;
+    if (marcas.has(d)) n++;
+    else break;
+  }
+  return n;
+}
+
+/** La mejor racha que ha tenido. */
+export function mejorRacha(h: PHabito, marcas: Set<string>, hoy: string) {
+  const fechas = [...marcas].sort();
+  if (!fechas.length) return 0;
+  let mejor = 0;
+  let n = 0;
+  for (let d = fechas[0]; d <= hoy; d = sumarDias(d, 1)) {
+    if (!tocaHabito(h, d)) continue;
+    if (marcas.has(d)) mejor = Math.max(mejor, ++n);
+    else if (d !== hoy) n = 0;
+  }
+  return mejor;
+}
+
+/** 2.4 · Pendientes y hábitos de ejemplo para la demo. */
+export function ejemploListas(hoy: string, perfil: PerfilPersonal = "odonto"): { pendientes: PPendiente[]; habitos: PHabito[]; marcas: PMarca[] } {
+  const p = (id: string, o: Partial<PPendiente>): PPendiente => ({ id, user_id: "demo", padre_id: null, titulo: "", notas: null, lista: "hacer", fecha: null, hecho: false, hecho_at: null, orden: 0, created_at: hoy, ...o });
+  const general = perfil === "general";
+  const pendientes = [
+    p("pd-1", { titulo: general ? "Renovar la licencia" : "Comprar resina A2", orden: 1, fecha: hoy }),
+    p("pd-2", { titulo: general ? "Organizar el viaje a Cancún" : "Imprimir historias clínicas", orden: 2 }),
+    p("pd-2a", { padre_id: "pd-2", titulo: general ? "Reservar hotel" : "Las de Endodoncia", hecho: true }),
+    p("pd-2b", { padre_id: "pd-2", titulo: general ? "Comprar boletos" : "Las de Periodoncia" }),
+    p("pd-3", { titulo: "Llamar a mi abuela", orden: 3 }),
+    p("pd-4", { titulo: "Aprender a nadar", lista: "algun_dia", orden: 1 }),
+    p("pd-5", { titulo: "Leer Cien años de soledad", lista: "algun_dia", orden: 2 }),
+  ];
+  const h = (id: string, nombre: string, color: string, dias: number[]): PHabito => ({ id, user_id: "demo", nombre, color, dias, orden: 0, archivado: false, created_at: sumarDias(hoy, -40) });
+  const habitos = [h("hb-1", "Tomar 2 L de agua", "#0891b2", [0, 1, 2, 3, 4, 5, 6]), h("hb-2", "Gym", "#9333ea", [1, 2, 3, 4, 5]), h("hb-3", "Leer 20 minutos", "#ca8a04", [0, 1, 2, 3, 4, 5, 6])];
+  const marcas: PMarca[] = [];
+  for (let i = 1; i <= 12; i++) marcas.push({ habito_id: "hb-1", fecha: sumarDias(hoy, -i) });
+  for (let i = 1; i <= 20; i++) if (tocaHabito(habitos[1], sumarDias(hoy, -i))) marcas.push({ habito_id: "hb-2", fecha: sumarDias(hoy, -i) });
+  for (const i of [0, 1, 2, 4, 5]) marcas.push({ habito_id: "hb-3", fecha: sumarDias(hoy, -i) });
+  return { pendientes, habitos, marcas };
 }

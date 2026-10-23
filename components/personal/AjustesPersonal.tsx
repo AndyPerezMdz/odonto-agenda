@@ -29,7 +29,20 @@ export default function AjustesPersonal({ userId, email, pro = true }: { userId:
           <SoloPro titulo="Tus categorías y colores" texto="Crea las tuyas (Trabajo, Gym, Viajes…) con el color que quieras. Las que ya tienes se siguen viendo." />
         )}
 
-        {!pro && <SoloPro titulo="Avisos" texto="El correo de cada mañana, el resumen diario en tu cel y tu agenda en el calendario del teléfono." />}
+        {/* 2.4 · Las notificaciones son de todos: avisan a la hora de cada recordatorio */}
+        <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
+          <Notificaciones
+            descripcion={
+              pro ? (
+                <>Te avisa a la hora de cada <b>recordatorio</b> y, cada mañana, te llega <b>“Tu día”</b> con lo que tienes. Se activa en cada celular o compu por separado.</>
+              ) : (
+                <>Te avisa a la hora de cada <b>recordatorio</b>. Se activa en cada celular o compu por separado. (Con Pro, además, “Tu día” cada mañana.)</>
+              )
+            }
+          />
+        </section>
+
+        {!pro && <SoloPro titulo="Más avisos" texto="El correo de cada mañana, “Tu día” en tu cel y tu agenda en el calendario del teléfono." />}
         {pro && <>
         <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
           <h2 className="serif text-xl">Correo de la mañana</h2>
@@ -48,10 +61,7 @@ export default function AjustesPersonal({ userId, email, pro = true }: { userId:
         </section>
 
         <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
-          <Notificaciones descripcion={<>Cada mañana te llega <b>“Tu día”</b> con lo que tienes y tus entregas pendientes. Se activa en cada celular o compu por separado.</>} />
-          <div className="mt-5 border-t border-line pt-5">
-            <Calendario descripcion="Todo lo de tu agenda aparece solo en Google Calendar o en el calendario del iPhone, con alarma 1 hora antes (y un día antes para las entregas). Se actualiza cada pocas horas (lo decide tu calendario)." />
-          </div>
+          <Calendario descripcion="Todo lo de tu agenda aparece solo en Google Calendar o en el calendario del iPhone, con alarma 1 hora antes (y un día antes para las entregas). Se actualiza cada pocas horas (lo decide tu calendario)." />
         </section>
         </>}
 

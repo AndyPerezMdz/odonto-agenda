@@ -52,7 +52,7 @@ export default function GanchoMiAgenda() {
             </>
           )}
         </div>
-        {estado !== "tiene" && <p className="mt-3 text-xs text-muted">Si tu agenda de clínicas es Pro, tu Mi agenda también, sin pagar extra. En Gratis tienes eventos y entregas.</p>}
+        {estado !== "tiene" && <p className="mt-3 text-xs text-muted">Si tu agenda de clínicas es Pro, tu Mi agenda también, sin pagar extra. En Gratis tienes eventos, pendientes, hábitos y recordatorios.</p>}
       </div>
     </section>
   );

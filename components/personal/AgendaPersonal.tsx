@@ -5,7 +5,8 @@ import Link from "next/link";
 import { usePersonal } from "@/lib/usePersonal";
 import { aISO, deISO, diasDelMes, DIAS_CORTOS_LUNES, hoyISO, MESES } from "@/lib/fechas";
 import { sumarDias, diasEntre } from "@/lib/pagos";
-import { entregasPendientes, expandir, hm, ICONO_TIPO, TIPOS, type Ocurrencia, type PCategoria, type PEvento, type TipoEvento } from "@/lib/personal";
+import { entregasPendientes, expandir, fechasQueVienen, hm, ICONO_TIPO, TIPOS, type Ocurrencia, type PCategoria, type PEvento, type PHabito, type PMarca, type PPendiente, type TipoEvento } from "@/lib/personal";
+import { FechasQueVienen, HabitoModal, HabitosHoy, ICONO_LISTAS, Palomita, PendienteModal, SeccionHabitos, SeccionPendientes, useAccionesListas, type AccionesListas } from "@/components/personal/Listas";
 import EventoModal from "@/components/personal/EventoModal";
 import BotonActivar from "@/components/personal/BotonActivar";
 import ProbarMi from "@/components/personal/ProbarMi";
@@ -13,9 +14,10 @@ import { BENEFICIOS_MI_PRO, type EstadoMi } from "@/lib/planMi";
 import { fechaLarga } from "@/lib/fechas";
 
 // 2.3 · Mi agenda con cara de agenda de papel: Hoy (línea del tiempo), Semana (o mes) y Viajes (pases de abordar).
+// 2.4 · + Pendientes (por hacer / algún día) y Hábitos con racha; "cada año" y fechas que vienen.
 
 type Modal = { evento: PEvento | Ocurrencia | null; fecha: string; tipo?: TipoEvento };
-type Seccion = "hoy" | "semana" | "viajes";
+type Seccion = "hoy" | "semana" | "pendientes" | "habitos" | "viajes";
 
 const DIAS_LARGOS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 const MES_CORTO = (iso: string) => MESES[deISO(iso).getMonth()].slice(0, 3).toLowerCase();
@@ -41,7 +43,9 @@ const I = {
   hoy: "M12 3v2M12 19v2M5.6 5.6 7 7M17 17l1.4 1.4M3 12h2M19 12h2M5.6 18.4 7 17M17 7l1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
   semana: "M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M8 14h2M14 14h2M8 17h2",
   viajes: ICONO_TIPO.viaje,
-  mas: "M4 6h16M4 12h16M4 18h16",
+  pendientes: ICONO_LISTAS.pendiente,
+  habitos: ICONO_LISTAS.habito,
+  mas: "M5 12h.01M12 12h.01M19 12h.01",
   mas1: "M12 5v14M5 12h14",
   clinicas: "M7 16 3 12l4-4M3 12h13M17 8l4 4-4 4",
   ajustes: "M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6",
@@ -58,7 +62,10 @@ export default function AgendaPersonal({
   // 2.3 · Gratis / Pro (la demo enseña todo)
   const pro = demo || !estado || estado.pro;
   // odonto: textos y ejemplos de estudiante de odonto; si no, de cualquier persona. publico: demo sin cuenta (/mi-agenda/demo).
-  const { supabase, eventos, categorias, error, recargar, setEventos } = usePersonal(demo, odonto ? "odonto" : "general");
+  const { supabase, eventos, categorias, pendientes, habitos, marcas, error, recargar, setEventos, setPendientes, setHabitos, setMarcas } = usePersonal(demo, odonto ? "odonto" : "general");
+  const acciones = useAccionesListas({ supabase, demo, setPendientes, setHabitos, setMarcas, recargar });
+  const [modalPend, setModalPend] = useState<{ p: PPendiente | null; fecha?: string | null; lista?: PPendiente["lista"] } | null>(null);
+  const [modalHab, setModalHab] = useState<{ h: PHabito | null } | null>(null);
   const hoy = hoyISO();
   const [seccion, setSeccion] = useState<Seccion>("hoy");
   const [modal, setModal] = useState<Modal | null>(null);
@@ -102,8 +109,15 @@ export default function AgendaPersonal({
   const nav: { id: Seccion; t: string; d: string }[] = [
     { id: "hoy", t: "Hoy", d: I.hoy },
     { id: "semana", t: "Semana", d: I.semana },
+    { id: "pendientes", t: "Pendientes", d: I.pendientes },
+    { id: "habitos", t: "Hábitos", d: I.habitos },
     { id: "viajes", t: "Viajes", d: I.viajes },
   ];
+  const ir = (x: Seccion) => {
+    setSeccion(x);
+    setHoja(null);
+    window.scrollTo({ top: 0 });
+  };
 
   const extras = !demo && (
     <>
@@ -132,7 +146,7 @@ export default function AgendaPersonal({
           {nav.map((n) => (
             <button
               key={n.id}
-              onClick={() => setSeccion(n.id)}
+              onClick={() => ir(n.id)}
               aria-current={seccion === n.id ? "page" : undefined}
               className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium ${seccion === n.id ? "bg-accent-soft text-accent" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
             >
@@ -144,16 +158,33 @@ export default function AgendaPersonal({
       </aside>
 
       {/* ---------- Contenido ---------- */}
-      <main className="mx-auto w-full max-w-2xl px-4 pb-32 pt-5 sm:px-6 lg:pb-12 lg:pt-8">
+      <main className="mx-auto w-full max-w-2xl px-4 pb-32 pt-3 sm:px-6 lg:pb-12 lg:pt-8">
+        {/* Cel: marca y menú arriba (abajo van las secciones) */}
+        <div className="mb-3 flex items-center justify-between lg:hidden">
+          <span className="serif text-lg leading-none text-muted">Mi agenda</span>
+          <button onClick={() => setHoja("mas")} aria-label="Más opciones" className="grid h-9 w-9 place-items-center rounded-full border border-line bg-panel text-muted hover:text-ink">
+            <Ico d={I.mas} size={20} w={3} />
+          </button>
+        </div>
         {demo && <BannerDemo publico={publico} />}
         {!demo && estado && <AvisoPlan e={estado} prueba={pruebaDisponible} />}
         {error && <p className="mb-4 rounded-xl bg-panel-2 p-3 text-sm text-danger">No se pudo cargar tu agenda: {error}</p>}
+        {acciones.error && <p className="mb-4 rounded-xl bg-panel-2 p-3 text-sm text-danger">No se pudo guardar: {acciones.error}</p>}
         {!eventos ? (
           <p className="serif py-24 text-center text-2xl text-muted">Abriendo tu agenda…</p>
         ) : seccion === "hoy" ? (
-          <SeccionHoy odonto={odonto} eventos={visibles} todos={eventos} hoy={hoy} nombre={nombre} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo} onSemana={() => setSeccion("semana")} onViajes={() => setSeccion("viajes")} />
+          <SeccionHoy
+            odonto={odonto} eventos={visibles} todos={eventos} hoy={hoy} nombre={nombre} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo}
+            onSemana={() => ir("semana")} onViajes={() => ir("viajes")} onPendientes={() => ir("pendientes")} onHabitos={() => ir("habitos")}
+            pendientes={pendientes} habitos={habitos} marcas={marcas} acciones={acciones}
+            onEditarPendiente={(p) => setModalPend({ p })} onNuevoHabito={() => setModalHab({ h: null })}
+          />
         ) : seccion === "semana" ? (
-          <SeccionSemana eventos={visibles} hoy={hoy} categorias={categorias} ocultas={ocultas} setOcultas={setOcultas} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo} />
+          <SeccionSemana eventos={visibles} hoy={hoy} categorias={categorias} ocultas={ocultas} setOcultas={setOcultas} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo} pendientes={pendientes} acciones={acciones} onEditarPendiente={(p) => setModalPend({ p })} />
+        ) : seccion === "pendientes" ? (
+          <SeccionPendientes pendientes={pendientes} hoy={hoy} acciones={acciones} onEditar={(p) => setModalPend({ p })} onNuevo={(lista) => setModalPend({ p: null, lista })} />
+        ) : seccion === "habitos" ? (
+          <SeccionHabitos habitos={habitos} marcas={marcas} hoy={hoy} acciones={acciones} onEditar={(h) => setModalHab({ h })} onNuevo={() => setModalHab({ h: null })} />
         ) : (
           <SeccionViajes eventos={eventos} hoy={hoy} catPorId={catPorId} onAbrir={(e) => abrir({ ...e, dia: e.fecha, serie: false })} onNuevo={() => (pro ? setModal({ evento: null, fecha: hoy, tipo: "viaje" }) : setHoja("pro"))} />
         )}
@@ -163,14 +194,13 @@ export default function AgendaPersonal({
       {/* ---------- Barra de abajo (cel) ---------- */}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-panel/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Navegación">
         <div className="mx-auto grid max-w-md grid-cols-5 items-end px-2">
-          {nav.slice(0, 2).map((n) => <BotonNav key={n.id} activo={seccion === n.id} d={n.d} t={n.t} onClick={() => setSeccion(n.id)} />)}
+          {nav.slice(0, 2).map((n) => <BotonNav key={n.id} activo={seccion === n.id} d={n.d} t={n.t} onClick={() => ir(n.id)} />)}
           <div className="grid place-items-center">
             <button onClick={() => nuevo()} aria-label="Anotar algo" className="-mt-6 grid h-14 w-14 place-items-center rounded-full bg-accent text-panel shadow-lg ring-4 ring-bg">
               <Ico d={I.mas1} size={26} w={2.4} />
             </button>
           </div>
-          <BotonNav activo={seccion === "viajes"} d={I.viajes} t="Viajes" onClick={() => setSeccion("viajes")} />
-          <BotonNav activo={hoja === "mas"} d={I.mas} t="Más" onClick={() => setHoja("mas")} aria="Más opciones" />
+          {nav.slice(2, 4).map((n) => <BotonNav key={n.id} activo={seccion === n.id} d={n.d} t={n.t} onClick={() => ir(n.id)} />)}
         </div>
       </nav>
 
@@ -193,13 +223,23 @@ export default function AgendaPersonal({
                 </button>
               );
             })}
+            <button onClick={() => { setHoja(null); setModalPend({ p: null, fecha: fechaNuevo !== hoy ? fechaNuevo : null }); }} className="flex flex-col items-start gap-2 rounded-2xl border border-line bg-panel p-4 text-left transition hover:border-accent hover:bg-accent-soft/40">
+              <span className="grid h-10 w-10 place-items-center rounded-full bg-accent-soft text-accent"><Ico d={ICONO_LISTAS.pendiente} size={20} /></span>
+              <span className="serif text-xl leading-none">Pendiente</span>
+              <span className="text-xs text-muted">Algo por hacer, con o sin fecha</span>
+            </button>
+            <button onClick={() => { setHoja(null); setModalHab({ h: null }); }} className="flex flex-col items-start gap-2 rounded-2xl border border-line bg-panel p-4 text-left transition hover:border-accent hover:bg-accent-soft/40">
+              <span className="grid h-10 w-10 place-items-center rounded-full bg-accent-soft text-accent"><Ico d={ICONO_LISTAS.habito} size={20} /></span>
+              <span className="serif text-xl leading-none">Hábito</span>
+              <span className="text-xs text-muted">Lo palomeas y sube tu racha</span>
+            </button>
           </div>
           {fechaNuevo !== hoy && <p className="mt-3 text-center text-xs text-muted">Para el {DIAS_LARGOS[deISO(fechaNuevo).getDay()].toLowerCase()} {corta(fechaNuevo)}</p>}
         </Hoja>
       )}
       {hoja === "pro" && (
         <Hoja onClose={() => setHoja(null)} titulo="Eso es de Pro">
-          <p className="-mt-2 mb-3 text-sm text-muted">Estás en <b className="text-ink">Gratis</b>: eventos, entregas, recordatorios y repetir. Con Pro también tienes:</p>
+          <p className="-mt-2 mb-3 text-sm text-muted">Estás en <b className="text-ink">Gratis</b>: eventos, pendientes, hábitos, recordatorios y repetir. Con Pro también tienes:</p>
           <ul className="mb-5 flex flex-col gap-1.5 text-sm">
             {BENEFICIOS_MI_PRO.map((b) => <li key={b} className="flex gap-2"><span className="text-accent">✓</span>{b}</li>)}
           </ul>
@@ -216,14 +256,20 @@ export default function AgendaPersonal({
       )}
       {hoja === "mas" && (
         <Hoja onClose={() => setHoja(null)} titulo="Mi agenda">
+          <button onClick={() => ir("viajes")} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-muted hover:bg-panel-2 hover:text-ink">
+            <Ico d={I.viajes} /> Viajes {!pro && <Ico d={I.candado} size={13} />}
+          </button>
           {demo ? (
-            <p className="text-sm text-muted">Es una demo: arriba está el botón para pedir la tuya.</p>
+            <p className="mt-2 text-sm text-muted">Es una demo: arriba está el botón para pedir la tuya.</p>
           ) : (
             <div className="flex flex-col">{extras}</div>
           )}
           <p className="mt-3 border-t border-line pt-3 text-xs text-muted">Esta agenda es sólo tuya: ni tu compa ni nadie más la ve.</p>
         </Hoja>
       )}
+
+      {modalPend && <PendienteModal key={modalPend.p?.id ?? "nuevo"} pendiente={modalPend.p} fechaInicial={modalPend.fecha} listaInicial={modalPend.lista} acciones={acciones} onClose={() => setModalPend(null)} />}
+      {modalHab && <HabitoModal key={modalHab.h?.id ?? "nuevo"} habito={modalHab.h} acciones={acciones} onClose={() => setModalHab(null)} />}
 
       {modal && (
         <EventoModal
@@ -282,10 +328,13 @@ const colorDe = (o: { categoria_id: string | null }, catPorId: Map<string, PCate
 /* ------------------------------ HOY ------------------------------ */
 
 function SeccionHoy({
-  odonto, eventos, todos, hoy, nombre, catPorId, onAbrir, onMarcar, onNuevo, onSemana, onViajes,
+  odonto, eventos, todos, hoy, nombre, catPorId, onAbrir, onMarcar, onNuevo, onSemana, onViajes, onPendientes, onHabitos,
+  pendientes, habitos, marcas, acciones, onEditarPendiente, onNuevoHabito,
 }: {
   odonto: boolean; eventos: PEvento[]; todos: PEvento[]; hoy: string; nombre: string; catPorId: Map<string, PCategoria>;
   onAbrir: (o: Ocurrencia) => void; onMarcar: (e: PEvento, h: boolean) => void; onNuevo: (f?: string) => void; onSemana: () => void; onViajes: () => void;
+  onPendientes: () => void; onHabitos: () => void;
+  pendientes: PPendiente[]; habitos: PHabito[]; marcas: PMarca[]; acciones: AccionesListas; onEditarPendiente: (p: PPendiente) => void; onNuevoHabito: () => void;
 }) {
   const [ahora, setAhora] = useState(ahoraHM);
   useEffect(() => {
@@ -300,6 +349,10 @@ function SeccionHoy({
   const conHora = linea.filter((o) => o.hora_inicio);
   const iAhora = conHora.findIndex((o) => hm(o.hora_inicio) > ahora);
   const { vencidas, proximas } = entregasPendientes(todos, hoy, 7);
+  // Pendientes con fecha de hoy o atrasados (los de "algún día" no estorban aquí)
+  const pendHoy = pendientes.filter((p) => !p.padre_id && p.lista === "hacer" && p.fecha && p.fecha <= hoy && (!p.hecho || (p.hecho_at ?? "").slice(0, 10) === hoy)).sort((a, b) => (a.fecha ?? "").localeCompare(b.fecha ?? ""));
+  const sinFecha = pendientes.filter((p) => !p.padre_id && p.lista === "hacer" && !p.hecho && !p.fecha).length;
+  const fechas = fechasQueVienen(eventos, hoy, 14);
   const proximoViaje = !viaje ? todos.filter((e) => e.tipo === "viaje" && e.fecha > hoy).sort((a, b) => a.fecha.localeCompare(b.fecha))[0] : undefined;
   const semana = expandir(eventos, sumarDias(hoy, 1), sumarDias(hoy, 6)).filter((o) => o.tipo !== "viaje" || o.dia === o.fecha);
   const porDia = new Map<string, Ocurrencia[]>();
@@ -384,22 +437,31 @@ function SeccionHoy({
         )}
       </section>
 
-      {/* Por entregar: post-it */}
+      <HabitosHoy habitos={habitos} marcas={marcas} hoy={hoy} acciones={acciones} onVer={onHabitos} onNuevo={onNuevoHabito} />
+
+      {/* Pendientes y entregas: post-it */}
       <section className="nota mb-8 -rotate-[0.6deg] rounded-sm p-5 shadow-[0_10px_20px_-12px_rgba(60,45,10,0.45)]">
         <div className="mb-3 flex items-baseline justify-between gap-3">
-          <h2 className="serif text-2xl">Por entregar</h2>
-          <span className="text-xs opacity-75">esta semana</span>
+          <h2 className="serif text-2xl">No se te olvide</h2>
+          <button onClick={onPendientes} className="text-xs underline-offset-2 opacity-75 hover:underline">{sinFecha ? `+${sinFecha} sin fecha →` : "Pendientes →"}</button>
         </div>
-        {vencidas.length + proximas.length === 0 ? (
+        {vencidas.length + proximas.length + pendHoy.length === 0 ? (
           <p className="serif text-lg italic opacity-80">Nada pendiente. Milagro.</p>
         ) : (
           <ul className="flex flex-col gap-2">
+            {pendHoy.map((p) => (
+              <li key={p.id} className="flex items-start gap-3">
+                <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-[var(--nota-ink)]" checked={p.hecho} onChange={(x) => acciones.marcarPendiente(p, x.target.checked)} aria-label={`Hecho: ${p.titulo}`} />
+                <button onClick={() => onEditarPendiente(p)} className={`min-w-0 flex-1 text-left leading-snug ${p.hecho ? "line-through opacity-60" : ""}`}>{p.titulo}</button>
+                <span className={`shrink-0 text-xs ${p.fecha! < hoy ? "font-bold text-danger" : "opacity-75"}`}>{p.fecha! < hoy ? `atrasado ${diasEntre(p.fecha!, hoy)} d` : "hoy"}</span>
+              </li>
+            ))}
             {[...vencidas, ...proximas].map((e) => (
               <li key={e.id} className="flex items-start gap-3">
                 <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-[var(--nota-ink)]" checked={e.hecho} onChange={(x) => onMarcar(e, x.target.checked)} aria-label={`Entregada: ${e.titulo}`} />
                 <button onClick={() => onAbrir({ ...e, dia: e.fecha, serie: false })} className="min-w-0 flex-1 text-left leading-snug">{e.titulo}</button>
                 <span className={`shrink-0 text-xs ${e.fecha < hoy ? "font-bold text-danger" : e.fecha === hoy ? "font-bold" : "opacity-75"}`}>
-                  {e.fecha < hoy ? `atrasada ${diasEntre(e.fecha, hoy)} d` : cuando(hoy, e.fecha)}
+                  {e.fecha < hoy ? `entrega atrasada ${diasEntre(e.fecha, hoy)} d` : `entrega ${cuando(hoy, e.fecha)}`}
                 </span>
               </li>
             ))}
@@ -416,6 +478,8 @@ function SeccionHoy({
           <Boleto e={{ ...proximoViaje, dia: proximoViaje.fecha, serie: false }} hoy={hoy} catPorId={catPorId} onAbrir={() => onAbrir({ ...proximoViaje, dia: proximoViaje.fecha, serie: false })} />
         </div>
       )}
+
+      <FechasQueVienen fechas={fechas} hoy={hoy} onAbrir={onAbrir} />
 
       {/* Lo que viene */}
       <section>
@@ -516,10 +580,11 @@ function Boleto({ e, hoy, catPorId, onAbrir, enCurso = false }: { e: Ocurrencia;
 /* ------------------------------ SEMANA / MES ------------------------------ */
 
 function SeccionSemana({
-  eventos, hoy, categorias, ocultas, setOcultas, catPorId, onAbrir, onMarcar, onNuevo,
+  eventos, hoy, categorias, ocultas, setOcultas, catPorId, onAbrir, onMarcar, onNuevo, pendientes, acciones, onEditarPendiente,
 }: {
   eventos: PEvento[]; hoy: string; categorias: PCategoria[]; ocultas: Set<string>; setOcultas: (s: Set<string>) => void; catPorId: Map<string, PCategoria>;
   onAbrir: (o: Ocurrencia) => void; onMarcar: (e: PEvento, h: boolean) => void; onNuevo: (f?: string) => void;
+  pendientes: PPendiente[]; acciones: AccionesListas; onEditarPendiente: (p: PPendiente) => void;
 }) {
   const [vista, setVista] = useState<"semana" | "mes">("semana");
   const [lunes, setLunes] = useState(lunesDe(hoy));
@@ -529,6 +594,8 @@ function SeccionSemana({
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
   const porDia = new Map<string, Ocurrencia[]>();
   for (const o of os) porDia.set(o.dia, [...(porDia.get(o.dia) ?? []), o]);
+  const pendPorDia = new Map<string, PPendiente[]>();
+  for (const p of pendientes) if (!p.padre_id && p.lista === "hacer" && p.fecha && p.fecha >= lunes && p.fecha <= domingo) pendPorDia.set(p.fecha, [...(pendPorDia.get(p.fecha) ?? []), p]);
 
   function moverMes(n: number) {
     const d = new Date(mes.a, mes.m + n, 1);
@@ -584,6 +651,7 @@ function SeccionSemana({
           {dias.map((dia) => {
             const d = deISO(dia);
             const lista = porDia.get(dia) ?? [];
+            const pends = pendPorDia.get(dia) ?? [];
             const esHoy = dia === hoy;
             return (
               <li key={dia} className={`grid grid-cols-[3.75rem_minmax(0,1fr)] gap-3 rounded-2xl border bg-panel p-3 ${esHoy ? "border-accent shadow-[0_0_0_3px_var(--accent-soft)]" : "border-line"} ${dia < hoy ? "opacity-70" : ""}`}>
@@ -591,11 +659,18 @@ function SeccionSemana({
                   <span className={`versalitas block ${esHoy ? "text-accent" : "text-muted"}`}>{DIAS_CORTOS_LUNES[(d.getDay() + 6) % 7]}</span>
                   <span className={`serif block text-4xl leading-none ${esHoy ? "text-accent" : ""}`}>{d.getDate()}</span>
                 </button>
-                {lista.length === 0 ? (
+                {lista.length + pends.length === 0 ? (
                   <button onClick={() => onNuevo(dia)} className="self-center text-left text-sm italic text-muted hover:text-ink">— libre</button>
                 ) : (
                   <ul className="flex min-w-0 flex-col gap-1">
                     {lista.map((o) => <Renglon key={`${o.id}-${o.dia}`} o={o} hoy={hoy} catPorId={catPorId} onAbrir={() => onAbrir(o)} onMarcar={onMarcar} />)}
+                    {pends.map((p) => (
+                      <li key={p.id} className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm hover:bg-panel-2">
+                        <Palomita chica checked={p.hecho} onChange={(v) => acciones.marcarPendiente(p, v)} etiqueta={`Hecho: ${p.titulo}`} />
+                        <button onClick={() => onEditarPendiente(p)} className={`min-w-0 flex-1 truncate text-left ${p.hecho ? "text-muted line-through" : ""}`}>{p.titulo}</button>
+                        <span className="versalitas shrink-0 text-muted">pendiente</span>
+                      </li>
+                    ))}
                   </ul>
                 )}
               </li>

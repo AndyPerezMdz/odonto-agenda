@@ -347,3 +347,30 @@ export async function resolverSolicitud(db: Db, userId: string, accion: "aprobar
   return { ok: true };
 }
 
+
+/**
+ * 2.4 · Recordatorios con hora que tocan "ahora" (de hace 20 min a dentro de 2 min, por si el cron se atrasa).
+ * Gratis: le llega a cualquiera con Mi agenda y notificaciones encendidas. Uno por recordatorio y día (p_push_enviados).
+ */
+export async function recordatoriosPorAvisar(db: Db, hoy: string, minutoAhora: number) {
+  const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  const desde = hhmm(Math.max(0, minutoAhora - 20));
+  const hasta = hhmm(Math.min(23 * 60 + 59, minutoAhora + 2));
+  const { data } = await db
+    .from("p_eventos")
+    .select("id,user_id,tipo,titulo,fecha,fecha_fin,hora_inicio,hora_fin,lugar,notas,categoria_id,hecho,hecho_at,repetir,repetir_hasta,excepciones")
+    .eq("tipo", "recordatorio")
+    .lte("fecha", hoy)
+    .not("hora_inicio", "is", null)
+    .gte("hora_inicio", desde)
+    .lte("hora_inicio", `${hasta}:59`);
+  const filas = ((data ?? []) as Fila[]).filter((e) => e.fecha === hoy || e.repetir !== "nunca");
+  const tocan = filas.filter((e) => expandir([{ ...e, excepciones: e.excepciones ?? [] }], hoy, hoy).length > 0);
+  if (!tocan.length) return [];
+  // Sólo quien tiene Mi agenda activa
+  const { data: activos } = await db.from("personales").select("user_id").eq("activo", true).in("user_id", [...new Set(tocan.map((e) => e.user_id))]);
+  const ok = new Set((activos ?? []).map((a) => a.user_id as string));
+  const { data: ya } = await db.from("p_push_enviados").select("evento_id").eq("dia", hoy).in("evento_id", tocan.map((e) => e.id));
+  const enviados = new Set((ya ?? []).map((x) => x.evento_id as string));
+  return tocan.filter((e) => ok.has(e.user_id) && !enviados.has(e.id));
+}

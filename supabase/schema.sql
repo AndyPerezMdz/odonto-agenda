@@ -1098,6 +1098,78 @@ $$;
 revoke execute on function public.registrar_pago_personal(uuid, numeric, int, text, text, date) from public, anon, authenticated;
 
 -- =====================================================================
+-- 2.4 · Mi agenda: cada año, pendientes, hábitos con racha y aviso a la hora
+-- =====================================================================
+alter table public.p_eventos drop constraint if exists p_eventos_repetir_check;
+alter table public.p_eventos add constraint p_eventos_repetir_check
+  check (repetir in ('nunca', 'diario', 'semanal', 'quincenal', 'mensual', 'anual'));
+
+create table if not exists public.p_pendientes (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null default auth.uid() references public.perfiles (id) on delete cascade,
+  padre_id   uuid references public.p_pendientes (id) on delete cascade,   -- subtarea
+  titulo     text not null check (char_length(titulo) between 1 and 200),
+  notas      text check (notas is null or char_length(notas) <= 1000),
+  lista      text not null default 'hacer' check (lista in ('hacer', 'algun_dia')),
+  fecha      date,                                -- "para el…" (opcional)
+  hecho      boolean not null default false,
+  hecho_at   timestamptz,
+  orden      double precision not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists p_pendientes_user_idx on public.p_pendientes (user_id);
+alter table public.p_pendientes enable row level security;
+drop policy if exists p_pendientes_propios on public.p_pendientes;
+create policy p_pendientes_propios on public.p_pendientes for all to authenticated
+  using (user_id = auth.uid() and public.soy_personal())
+  with check (user_id = auth.uid() and public.soy_personal());
+
+create table if not exists public.p_habitos (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null default auth.uid() references public.perfiles (id) on delete cascade,
+  nombre     text not null check (char_length(nombre) between 1 and 60),
+  color      text not null default '#2f6f5e' check (color ~ '^#[0-9a-fA-F]{6}$'),
+  dias       int[] not null default '{0,1,2,3,4,5,6}',   -- 0 = domingo
+  orden      double precision not null default 0,
+  archivado  boolean not null default false,
+  created_at timestamptz not null default now(),
+  constraint p_habitos_dias check (cardinality(dias) between 1 and 7 and dias <@ array[0,1,2,3,4,5,6])
+);
+create index if not exists p_habitos_user_idx on public.p_habitos (user_id);
+alter table public.p_habitos enable row level security;
+drop policy if exists p_habitos_propios on public.p_habitos;
+create policy p_habitos_propios on public.p_habitos for all to authenticated
+  using (user_id = auth.uid() and public.soy_personal())
+  with check (user_id = auth.uid() and public.soy_personal());
+
+create table if not exists public.p_habito_marcas (
+  habito_id uuid not null references public.p_habitos (id) on delete cascade,
+  user_id   uuid not null default auth.uid() references public.perfiles (id) on delete cascade,
+  fecha     date not null,
+  primary key (habito_id, fecha)
+);
+create index if not exists p_habito_marcas_user_idx on public.p_habito_marcas (user_id, fecha);
+alter table public.p_habito_marcas enable row level security;
+drop policy if exists p_habito_marcas_propias on public.p_habito_marcas;
+create policy p_habito_marcas_propias on public.p_habito_marcas for all to authenticated
+  using (user_id = auth.uid() and public.soy_personal())
+  with check (
+    user_id = auth.uid() and public.soy_personal()
+    and exists (select 1 from public.p_habitos h where h.id = habito_id and h.user_id = auth.uid())
+  );
+
+grant select, insert, update, delete on public.p_pendientes, public.p_habitos, public.p_habito_marcas to authenticated;
+
+-- Avisos ya mandados (uno por recordatorio y día; sirve también para los que se repiten). Sólo el servidor.
+create table if not exists public.p_push_enviados (
+  evento_id uuid not null references public.p_eventos (id) on delete cascade,
+  dia       date not null,
+  primary key (evento_id, dia)
+);
+alter table public.p_push_enviados enable row level security;
+revoke all on public.p_push_enviados from anon, authenticated;
+
+-- =====================================================================
 -- Listo. Las cuentas nuevas se registran solas en /registro.
 -- En Supabase: Authentication → Sign In / Providers → Email:
 --   "Enable email signups" y "Confirm email" ENCENDIDOS.

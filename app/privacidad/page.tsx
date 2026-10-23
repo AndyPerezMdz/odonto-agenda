@@ -102,11 +102,11 @@ export default function PrivacidadPage() {
       <h2 id="mi-agenda">12. Mi agenda (agenda personal)</h2>
       <p>Si usas <b>Mi agenda</b>, aunque no seas de odonto, este aviso aplica igual. En concreto:</p>
       <ul>
-        <li><b>Qué guardamos:</b> tu nombre, tu correo, tu contraseña (cifrada) y lo que anotes (eventos, viajes, entregas, recordatorios, lugares, notas y categorías). Si pagas Pro: el monto, la fecha, el plan y la clave de rastreo que nos des; nunca datos de tarjetas ni contraseñas bancarias. También la fecha en que usaste tu prueba de Pro, para que sea una por persona.</li>
+        <li><b>Qué guardamos:</b> tu nombre, tu correo, tu contraseña (cifrada) y lo que anotes (eventos, viajes, entregas, recordatorios, pendientes, hábitos y los días que los palomeas, lugares, notas y categorías). Si pagas Pro: el monto, la fecha, el plan y la clave de rastreo que nos des; nunca datos de tarjetas ni contraseñas bancarias. También la fecha en que usaste tu prueba de Pro, para que sea una por persona.</li>
         <li><b>Para qué:</b> para mostrarte tu agenda, mandarte los avisos que tú actives (el correo de la mañana, notificaciones y el link de tu calendario), confirmar tus pagos y avisarte cuando tu Pro esté por terminar.</li>
         <li><b>Quién la ve:</b> sólo tú. Nadie más en la app, tampoco tu compañero/a de clínica si lo tienes. El panel de administración no muestra lo que anotas: sólo tu correo, tu nombre y cuántos registros tienes.</li>
         <li><b>Proveedores:</b> los mismos de la sección 6 (base de datos, página, correos y, si las activas, notificaciones).</li>
-        <li><b>Cuánto tiempo:</b> mientras tengas tu agenda. Si la das de baja, borramos tus eventos y categorías; si no usas la agenda de clínicas, también tu cuenta. Puedes pedir que borremos tu pedido o tus datos escribiéndonos como dice la sección 9.</li>
+        <li><b>Cuánto tiempo:</b> mientras tengas tu agenda. Si la das de baja, borramos tus eventos, pendientes, hábitos y categorías; si no usas la agenda de clínicas, también tu cuenta. Puedes pedir que borremos tu pedido o tus datos escribiéndonos como dice la sección 9.</li>
       </ul>
     </DocLegal>
   );

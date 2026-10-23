@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_URL, SUPABASE_KEY } from "@/lib/supabase/env";
 
 // Rutas que se pueden ver SIN sesión
-const PUBLICAS = ["/login", "/recuperar", "/registro", "/api/registro", "/auth", "/api/recordatorios", "/privacidad", "/terminos", "/novedades", "/confirmar", "/api/confirmar", "/api/mp", "/api/cal", "/api/push/citas", "/api/push/resumen", "/api/entrar", "/sw.js", "/mi-agenda"]; // la API valida su propio acceso
+const PUBLICAS = ["/login", "/recuperar", "/registro", "/api/registro", "/auth", "/api/recordatorios", "/privacidad", "/terminos", "/novedades", "/confirmar", "/api/confirmar", "/api/mp", "/api/cal", "/api/push/citas", "/api/push/resumen", "/api/push/recordatorios", "/api/entrar", "/sw.js", "/mi-agenda"]; // la API valida su propio acceso
 // Rutas que un usuario YA logueado no necesita ver
 const SOLO_INVITADOS = ["/login", "/recuperar"];
 

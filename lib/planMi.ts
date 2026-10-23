@@ -37,7 +37,7 @@ export const BENEFICIOS_MI_PRO = [
   "Resumen diario en tu cel",
   "Tu agenda en el calendario de tu cel",
 ];
-export const GRATIS_MI = ["Eventos, entregas y recordatorios", "Repetir: diario, cada semana, cada mes", "Hoy, Semana y Mes", "En tu cel y tu compu"];
+export const GRATIS_MI = ["Eventos, entregas y recordatorios", "Aviso en tu cel a la hora de cada recordatorio", "Pendientes con subtareas", "Hábitos con racha, todos los que quieras", "Repetir: diario, cada semana, cada mes, cada año", "Hoy, Semana y Mes", "En tu cel y tu compu"];
 
 /** Concepto de la transferencia de Mi agenda (distinto al AG- de clínicas). */
 export const codigoMi = (userId: string) => "MI-" + userId.replace(/-/g, "").slice(0, 6).toUpperCase();
