@@ -2,12 +2,21 @@
 // 1) sube APP_VERSION, 2) agrega su bloque ARRIBA de la lista. Cada quien la ve una vez.
 // 3) Si es sólo para una universidad, ponle solo: "upp" o solo: "uady". Sin "solo" le sale a las dos.
 
-export const APP_VERSION = "2.2";
+export const APP_VERSION = "2.3";
 
 export type Novedad = { titulo: string; texto: string; icono: keyof typeof ICONOS };
 export type Version = { version: string; fecha: string; items: Novedad[]; solo?: "upp" | "uady" }; // solo = sólo la ve esa universidad
 
 export const NOVEDADES: Version[] = [
+  {
+    version: "2.3",
+    fecha: "octubre 2026",
+    items: [
+      { icono: "pacientes", titulo: "Que no se pierda ningún hueco", texto: "Si cancelas o borras una cita que venía, te sugerimos a quién de tus pacientes en espera escribirle (primero los de esa materia), con el WhatsApp ya escrito. O la agendas ahí mismo." },
+      { icono: "estrella", titulo: "Tu cuatri en números", texto: "Al cerrar el periodo: cuántos pacientes atendiste, tus horas en clínica, tu materia top y tu semana más pesada. Con story para presumirlo. También en Mi avance → En números." },
+      { icono: "check", titulo: "Confirma que eres estudiante", texto: "La agenda de clínicas es para estudiantes: te mandamos un código a tu correo institucional. Es un minuto y sólo una vez." },
+    ],
+  },
   {
     version: "2.2",
     fecha: "octubre 2026",

@@ -4,6 +4,14 @@
 export type NovedadMi = { e: string; t: string; x: string; pro?: boolean };
 export const NOVEDADES_MI: { version: string; titulo: string; items: NovedadMi[] }[] = [
   {
+    version: "3.2",
+    titulo: "Rachas que no se rompen",
+    items: [
+      { e: "🧊", t: "Comodín de racha", x: "¿Se te pasó ayer? Usa tu comodín y tu racha sigue. Uno al mes (con Pro, uno por semana)." },
+      { e: "🔥", t: "Hábitos con amigos", x: "En un hábito: “Hazlo con alguien”. Cada quien palomea el suyo y ven la racha del otro. Te avisa cuando tu amigo ya lo hizo." },
+    ],
+  },
+  {
     version: "3.0",
     titulo: "Tu agenda, ahora en equipo",
     items: [

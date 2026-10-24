@@ -51,6 +51,6 @@ describe("novedades", () => {
   it("a quien nunca vio nada le sale sólo la última; a quien vio la 2.5, lo de después", () => {
     expect(novedadesSinVer(undefined)).toHaveLength(1);
     expect(novedadesSinVer("2.5").map((v) => v.version)).toEqual(NOVEDADES_MI.filter((v) => !["2.4", "2.5"].includes(v.version)).map((v) => v.version));
-    expect(novedadesSinVer("2.9").map((v) => v.version)).toEqual(["3.0"]);
+    expect(novedadesSinVer("2.9").map((v) => v.version)).toEqual(NOVEDADES_MI.filter((v) => Number(v.version) > 2.9).map((v) => v.version));
   });
 });

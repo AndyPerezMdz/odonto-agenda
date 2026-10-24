@@ -8,17 +8,22 @@ import { finBloque } from "@/lib/bloques";
 
 // 3.0 · Compartir eventos y pendientes con otra persona (por correo) y ver lo que te compartieron.
 
-export type Recibidos = { eventos: PEvento[]; pendientes: PPendiente[] };
+export type InvitacionHabito = { id: string; de: string; nombre: string; color: string; dias: number[] };
+export type Recibidos = { eventos: PEvento[]; pendientes: PPendiente[]; habitos: InvitacionHabito[] };
+export type Pareja = { habito_id: string; compartido_id: string; con: string; racha: number; hoy: boolean; dueno: boolean };
 
 /** Lo que te compartieron (se refresca al volver a la app). */
 export function useCompartidos(demo: boolean) {
-  const [recibidos, setRecibidos] = useState<Recibidos>({ eventos: [], pendientes: [] });
+  const [recibidos, setRecibidos] = useState<Recibidos>({ eventos: [], pendientes: [], habitos: [] });
+  const [parejas, setParejas] = useState<Pareja[]>([]); // 3.2 · hábitos con amigos
   const recargar = useCallback(async () => {
     if (demo) return;
     const r = await fetch("/api/personal/compartidos").catch(() => null);
     if (!r?.ok) return;
     const d = (await r.json().catch(() => null)) as Recibidos | null;
-    if (d?.eventos) setRecibidos({ eventos: d.eventos, pendientes: d.pendientes ?? [] });
+    if (d?.eventos) setRecibidos({ eventos: d.eventos, pendientes: d.pendientes ?? [], habitos: d.habitos ?? [] });
+    const p = await fetch("/api/personal/compartidos?parejas=1").then((x) => (x.ok ? x.json() : null)).catch(() => null);
+    if (p?.parejas) setParejas(p.parejas);
   }, [demo]);
   useEffect(() => {
     recargar();
@@ -27,18 +32,31 @@ export function useCompartidos(demo: boolean) {
     return () => document.removeEventListener("visibilitychange", alVolver);
   }, [recargar]);
   async function quitar(id: string) {
-    setRecibidos((r) => ({ eventos: r.eventos.filter((e) => e.compartido?.id !== id), pendientes: r.pendientes.filter((p) => p.compartido?.id !== id) }));
+    setRecibidos((r) => ({ eventos: r.eventos.filter((e) => e.compartido?.id !== id), pendientes: r.pendientes.filter((p) => p.compartido?.id !== id), habitos: r.habitos.filter((h) => h.id !== id) }));
+    setParejas((l) => l.filter((x) => x.compartido_id !== id));
     await fetch("/api/personal/compartidos", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => null);
+  }
+  /** 3.2 · Aceptar hacer un hábito juntos (se crea tu copia). */
+  async function aceptar(id: string) {
+    const r = await fetch("/api/personal/compartidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "aceptar", id }) }).catch(() => null);
+    setRecibidos((x) => ({ ...x, habitos: x.habitos.filter((h) => h.id !== id) }));
+    await recargar();
+    return !!r?.ok;
+  }
+  /** 3.2 · Ya lo hice: le llega un aviso a tu pareja de hábito (si no lo ha hecho). */
+  function palomee(habitoId: string) {
+    if (demo || !parejas.some((p) => p.habito_id === habitoId)) return;
+    fetch("/api/personal/compartidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "palomee", habito_id: habitoId }) }).catch(() => null);
   }
   function marcarLocal(id: string, hecho: boolean) {
     setRecibidos((r) => ({ ...r, pendientes: r.pendientes.map((p) => (p.compartido?.id === id ? { ...p, hecho, hecho_at: hecho ? new Date().toISOString() : null } : p)) }));
   }
-  return { recibidos, recargar, quitar, marcarLocal };
+  return { recibidos, parejas, recargar, quitar, marcarLocal, aceptar, palomee };
 }
 
 /** "👥 Compartir con…" dentro de un evento o pendiente tuyo (ya guardado). */
-export function Compartir({ tipo, id }: { tipo: "evento" | "pendiente"; id: string }) {
-  const [abierto, setAbierto] = useState(false);
+export function Compartir({ tipo, id, abierto: abierto0 = false }: { tipo: "evento" | "pendiente" | "habito"; id: string; abierto?: boolean }) {
+  const [abierto, setAbierto] = useState(abierto0);
   const [lista, setLista] = useState<{ id: string; correo: string; quito: boolean }[] | null>(null);
   const [correo, setCorreo] = useState("");
   const [msg, setMsg] = useState<{ t: string; error?: boolean } | null>(null);
@@ -60,7 +78,7 @@ export function Compartir({ tipo, id }: { tipo: "evento" | "pendiente"; id: stri
     setEnviando(false);
     if (!r.ok) return setMsg({ t: d.error ?? "No se pudo.", error: true });
     setLista(d.lista ?? []);
-    setMsg({ t: d.nuevo ? `Listo. Le avisamos a ${correo.trim()} por correo.` : "Ya lo tenía." });
+    setMsg({ t: d.nuevo ? (tipo === "habito" ? `Listo. Le mandamos la invitación a ${correo.trim()}.` : `Listo. Le avisamos a ${correo.trim()} por correo.`) : "Ya lo tenía." });
     setCorreo("");
   }
   async function quitar(x: { id: string; correo: string }) {
@@ -72,14 +90,16 @@ export function Compartir({ tipo, id }: { tipo: "evento" | "pendiente"; id: stri
   if (!abierto)
     return (
       <button type="button" onClick={() => setAbierto(true)} className="mb-4 flex w-full items-center gap-2 rounded-xl border border-dashed border-line px-3 py-2.5 text-left text-sm text-muted hover:border-accent hover:text-accent">
-        👥 <span className="font-medium">Compartir con alguien</span>
-        <span className="ml-auto text-xs">{tipo === "evento" ? "lo ve en su agenda" : "lo puede palomear"}</span>
+        👥 <span className="font-medium">{tipo === "habito" ? "Hazlo con alguien" : "Compartir con alguien"}</span>
+        <span className="ml-auto text-xs">{tipo === "evento" ? "lo ve en su agenda" : tipo === "habito" ? "ven la racha del otro" : "lo puede palomear"}</span>
       </button>
     );
   return (
     <div className="mb-4 rounded-xl border border-line p-3">
-      <p className="text-sm font-medium">👥 Compartir</p>
-      <p className="mb-2 text-xs text-muted">{tipo === "evento" ? "Le aparece en su Mi agenda (sólo para ver). Si cambias algo, lo ve cambiado." : "Le aparece en sus pendientes y lo puede palomear; tú lo ves palomeado."} Sólo ve esto, nada más de tu agenda.</p>
+      <p className="text-sm font-medium">{tipo === "habito" ? "🔥 Hazlo con alguien" : "👥 Compartir"}</p>
+      <p className="mb-2 text-xs text-muted">
+        {tipo === "evento" ? "Le aparece en su Mi agenda (sólo para ver). Si cambias algo, lo ve cambiado." : tipo === "habito" ? "Le llega la invitación; si acepta, tiene el suyo. Cada quien palomea el propio y ven la racha y el “hoy” del otro." : "Le aparece en sus pendientes y lo puede palomear; tú lo ves palomeado."} Sólo ve esto, nada más de tu agenda.
+      </p>
       <div className="flex gap-2">
         <input
           type="email"
@@ -97,7 +117,7 @@ export function Compartir({ tipo, id }: { tipo: "evento" | "pendiente"; id: stri
         <ul className="mt-2 flex flex-col gap-1">
           {lista.map((x) => (
             <li key={x.id} className="flex items-center gap-2 text-sm">
-              <span className="min-w-0 flex-1 truncate">{x.correo}{x.quito && <span className="text-xs text-muted"> · lo quitó de su agenda</span>}</span>
+              <span className="min-w-0 flex-1 truncate">{x.correo}{x.quito && <span className="text-xs text-muted"> · {tipo === "habito" ? "lo dejó" : "lo quitó de su agenda"}</span>}</span>
               <button type="button" onClick={() => quitar(x)} className="text-xs text-danger hover:underline">Quitar</button>
             </li>
           ))}
@@ -182,6 +202,45 @@ export function VerCompartido({ e, p, dia, onMarcar, onQuitar, onClose }: { e?: 
           <button className="btn btn-sec ml-auto rounded-full" onClick={onClose}>Cerrar</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** 3.2 · "Ema te invita a hacer “Gym” juntos": aceptar o no. */
+export function InvitacionesHabitos({ lista, onAceptar, onNo }: { lista: InvitacionHabito[]; onAceptar: (id: string) => Promise<boolean>; onNo: (id: string) => void }) {
+  const [trabajando, setTrabajando] = useState<string | null>(null);
+  if (!lista.length) return null;
+  return (
+    <ul className="mb-4 flex flex-col gap-2">
+      {lista.map((i) => (
+        <li key={i.id} className="flex flex-wrap items-center gap-3 rounded-2xl border-2 border-dashed p-3" style={{ borderColor: i.color }}>
+          <span className="text-2xl" aria-hidden>🔥</span>
+          <span className="min-w-0 flex-1 text-sm">
+            <b>{i.de}</b> te invita a hacer <b>“{i.nombre}”</b> juntos. Cada quien palomea el suyo y ven la racha del otro.
+          </span>
+          <span className="flex gap-2">
+            <button className="btn btn-primario rounded-full px-3 py-1.5 text-sm" disabled={trabajando === i.id} onClick={async () => { setTrabajando(i.id); await onAceptar(i.id); setTrabajando(null); }}>{trabajando === i.id ? "…" : "Aceptar"}</button>
+            <button className="btn btn-sec rounded-full px-3 py-1.5 text-sm" onClick={() => onNo(i.id)}>No, gracias</button>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** 3.2 · En tu copia de un hábito compartido: con quién lo haces y "dejar de hacerlo juntos". */
+export function ParejaCopia({ h, parejas, onDejar }: { h: { id: string }; parejas: Pareja[]; onDejar: (compartidoId: string) => void }) {
+  const p = parejas.find((x) => x.habito_id === h.id);
+  const [seguro, setSeguro] = useState(false);
+  if (!p) return null;
+  return (
+    <div className="mb-4 rounded-xl border border-line p-3 text-sm">
+      <p>👥 Lo haces con <b>{p.con}</b> · lleva {p.racha} {p.racha === 1 ? "día" : "días"}.</p>
+      {seguro ? (
+        <button type="button" className="mt-2 text-xs font-semibold text-danger hover:underline" onClick={() => onDejar(p.compartido_id)}>Sí, dejar de hacerlo juntos (tu hábito y tu racha se quedan)</button>
+      ) : (
+        <button type="button" className="mt-2 text-xs text-muted hover:text-ink" onClick={() => setSeguro(true)}>Dejar de hacerlo juntos</button>
+      )}
     </div>
   );
 }

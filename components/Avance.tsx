@@ -1,5 +1,7 @@
 "use client";
 
+import { VistaCuatri } from "@/components/TuCuatri";
+import { numerosCuatri } from "@/lib/cuatriNumeros";
 import Shell from "@/components/Shell";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -23,6 +25,7 @@ export default function Avance({ userId }: { userId: string }) {
   const [fechaRef, setFechaRef] = useState(hoyISO());
   const [persona, setPersona] = useState(userId);
   const [todo, setTodo] = useState(false);
+  const [numeros, setNumeros] = useState(false); // 3.2 · "Tu cuatri en números"
   const tipo = periodosDe(ajustes.universidad);
   const uady = esUady(ajustes.universidad); // ritmo y clínicas restantes: sólo UADY
   const rango = rangoDe(deISO(fechaRef), tipo);
@@ -154,9 +157,19 @@ export default function Avance({ userId }: { userId: string }) {
               <button className="btn btn-sec px-2.5" onClick={() => soloPro("Otros periodos", () => setFechaRef(sumarDias(rango.hasta, 1)))} aria-label={`${palabraPeriodo(tipo)} siguiente`}>›</button>
             </div>
             <h2 className="font-semibold first-letter:uppercase">{rango.nombre}</h2>
+            {esMio && <button className="rounded-full border border-accent/50 bg-accent-soft px-3 py-1 text-xs font-semibold text-accent hover:bg-accent-soft/70" onClick={() => setNumeros(true)}>📸 En números</button>}
           </>
         )}
         {todo && <h2 className="font-semibold">Desde el principio</h2>}
+        {numeros && (
+          <VistaCuatri
+            n={numerosCuatri(citas.filter((c) => c.owner_id === persona && c.fecha >= rango.desde && c.fecha <= rango.hasta), new Map(materias.map((m) => [m.id, m.nombre])))}
+            periodo={rango}
+            tipo={tipo}
+            nombre={yo?.nombre ?? ""}
+            onClose={() => setNumeros(false)}
+          />
+        )}
         <div className="ml-auto flex flex-wrap gap-1.5">
           {perfiles.map((p) => (
             <button

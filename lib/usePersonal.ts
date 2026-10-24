@@ -54,7 +54,7 @@ export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto")
       supabase.from("personales").select("prefs").maybeSingle(),
       supabase.from("p_pendientes").select("*").order("orden").order("created_at"),
       supabase.from("p_habitos").select("*").order("orden").order("created_at"),
-      supabase.from("p_habito_marcas").select("habito_id,fecha").gte("fecha", desde),
+      supabase.from("p_habito_marcas").select("*").gte("fecha", desde),
       supabase.from("p_viaje_cosas").select(CAMPOS_COSA).order("orden").order("created_at"),
       supabase.from("p_eventos").select("id,presupuesto").eq("tipo", "viaje"),
       supabase.from("p_pagos_fijos").select(CAMPOS_PAGO).order("dia"),

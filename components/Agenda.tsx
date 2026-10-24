@@ -1,5 +1,7 @@
 "use client";
 
+import RellenarHueco from "@/components/RellenarHueco";
+import { TarjetaTuCuatri } from "@/components/TuCuatri";
 import { AvisoVerificar } from "@/components/AvisoVerificar";
 import TuSemanaClinicas from "@/components/TuSemanaClinicas";
 import { useEffect, useMemo, useState } from "react";
@@ -51,7 +53,8 @@ export default function Agenda({ userId }: { userId: string }) {
   const [mes, setMes] = useState(hoy.getMonth());
   const [seleccionado, setSeleccionado] = useState(hoyISO());
   const [filtro, setFiltro] = useState<Filtro>("todos");
-  const [modal, setModal] = useState<{ cita: Cita | null; fecha: string; plantilla?: Cita } | null>(null);
+  const [modal, setModal] = useState<{ cita: Cita | null; fecha: string; plantilla?: Cita; pacienteOrigen?: string } | null>(null);
+  const [hueco, setHueco] = useState<Cita | null>(null); // 3.2 · se liberó un espacio: ¿a quién le escribes?
   const [menu, setMenu] = useState(false);
   const [novedades, setNovedades] = useState<null | "nuevas" | "todas">(null);
   const [verInstalar, setVerInstalar] = useState(false);
@@ -215,6 +218,7 @@ export default function Agenda({ userId }: { userId: string }) {
   const perfilPorId = useMemo(() => new Map(perfiles.map((x) => [x.id, x])), [perfiles]);
   const clinicaPorId = useMemo(() => new Map(clinicas.map((x) => [x.id, x])), [clinicas]);
   const materiaPorId = useMemo(() => new Map(materias.map((x) => [x.id, x])), [materias]);
+  const nombresMaterias = useMemo(() => new Map(materias.map((x) => [x.id, x.nombre])), [materias]);
   const nombreBloque = (b: Horario) =>
     [b.clinica_id && clinicaPorId.get(b.clinica_id)?.numero, b.materia_id && materiaPorId.get(b.materia_id)?.nombre].filter(Boolean).join(" · ") || b.etiqueta || "Clínica";
 
@@ -289,6 +293,7 @@ export default function Agenda({ userId }: { userId: string }) {
           antes={
             <>
               <AvisoVerificar />
+              {yo && <TarjetaTuCuatri userId={userId} supabase={supabase} materias={nombresMaterias} tipo={periodosDe(ajustes.universidad)} hoy={hoyStr} nombre={yo.nombre} />}
               <BannerPlan pro={pro} quedan={quedanPro} esDueno={yo?.rol === "owner"} cargando={cargando} />
               {uady && pro && <AvisosMaterial userId={userId} horarios={horarios} perfiles={perfiles} compacto />}
               <TuSemanaClinicas citas={citas} userId={userId} hoy={hoyStr} materiaPorId={materiaPorId} pro={pro} esDueno={yo?.rol === "owner"} uady={uady} supabase={supabase} onAbrir={(c) => setModal({ cita: c, fecha: c.fecha })} />
@@ -569,6 +574,7 @@ export default function Agenda({ userId }: { userId: string }) {
           cita={modal.cita}
           fechaInicial={modal.fecha}
           plantilla={modal.plantilla}
+          pacienteOrigen={modal.pacienteOrigen}
           pacientes={pacientes ?? []}
           onOtraSesion={(c) => setModal({ cita: null, fecha: sumarDias(c.fecha, 7), plantilla: c })}
           perfiles={perfiles}
@@ -578,12 +584,27 @@ export default function Agenda({ userId }: { userId: string }) {
           soloLectura={soloLectura}
           pro={pro}
           onClose={() => setModal(null)}
-          onGuardado={(fecha) => {
+          onGuardado={(fecha, liberado) => {
             setModal(null);
+            if (liberado) setHueco(liberado);
             setSeleccionado(fecha);
             const d = deISO(fecha);
             setAnio(d.getFullYear());
             setMes(d.getMonth());
+          }}
+        />
+      )}
+      {hueco && (
+        <RellenarHueco
+          hueco={hueco} pacientes={pacientes ?? []} userId={userId} yo={yo?.nombre?.split(" ")[0] ?? null} clinicas={clinicas} materias={materias} supabase={supabase}
+          onClose={() => setHueco(null)}
+          onAgendar={(p) => {
+            const h = hueco;
+            setHueco(null);
+            setModal({
+              cita: null, fecha: h.fecha, pacienteOrigen: p.id,
+              plantilla: { ...h, id: "", paciente: p.nombre, telefono: p.telefono, materia_id: p.materia_id ?? h.materia_id, notas: null, estado: null, confirmacion: null, token_confirmar: null, folio: null, historia: null, cobro: null, cobrado: false },
+            });
           }}
         />
       )}
@@ -727,7 +748,8 @@ function SeccionHoy({
       <p className="mb-4 text-sm text-muted first-letter:uppercase">
         Hola, <b className="text-ink">{nombre.split(" ")[0]}</b> · {fechaLarga(hoy)}
       </p>
-      {antes}
+      {/* Avisos y tarjetas de arriba: separados entre sí y del resto (cada uno trae su margen; aquí se unifica) */}
+      <div className="mb-5 flex flex-col gap-3 empty:hidden [&>*]:!mb-0">{antes}</div>
 
       {misHoy.length > 0 ? (
         panel

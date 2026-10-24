@@ -208,8 +208,28 @@ export const PRIORIDADES = [
   { id: 2, nombre: "Urgente", marca: "!!" },
 ] as const;
 
-export type PHabito = { id: string; user_id: string; nombre: string; color: string; dias: number[]; orden: number; archivado: boolean; created_at: string; hora?: string | null };
-export type PMarca = { habito_id: string; fecha: string };
+export type PHabito = { id: string; user_id: string; nombre: string; color: string; dias: number[]; orden: number; archivado: boolean; created_at: string; hora?: string | null; compartido_id?: string | null };
+export type PMarca = { habito_id: string; fecha: string; comodin?: boolean; comodin_at?: string | null };
+
+/** 3.2 · Comodín de racha: Gratis 1 al mes, Pro 1 por semana. Sólo salva el día de ayer. */
+export function comodinesDisponibles(marcas: PMarca[], hoy: string, pro: boolean) {
+  const [y, m, d] = hoy.split("-").map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  const desde = pro ? sumarDias(hoy, -((dow + 6) % 7)) : `${hoy.slice(0, 8)}01`;
+  const usados = marcas.filter((x) => x.comodin && (x.comodin_at ? fechaLocal(x.comodin_at) : x.fecha) >= desde).length;
+  return { quedan: Math.max(0, 1 - usados), periodo: pro ? "esta semana" : "este mes" };
+}
+const fechaLocal = (ts: string) => new Date(ts).toLocaleDateString("en-CA", { timeZone: "America/Merida" });
+
+/** ¿Vale la pena el comodín hoy? Ayer tocaba, no se hizo, y con ayer la racha seguiría (de N días). */
+export function rachaSalvable(h: PHabito, marcas: Set<string>, hoy: string): number {
+  const ayer = sumarDias(hoy, -1);
+  if (!tocaHabito(h, ayer) || marcas.has(ayer) || ayer < h.created_at.slice(0, 10)) return 0;
+  const con = new Set(marcas);
+  con.add(ayer);
+  const n = rachaActual(h, con, hoy);
+  return n >= 2 ? n : 0;
+}
 
 export const PALETA_HABITOS = ["#b4472e", "#2563eb", "#059669", "#9333ea", "#db2777", "#ca8a04", "#0891b2", "#64748b"];
 export const DIAS_LETRA = ["D", "L", "M", "M", "J", "V", "S"]; // 0 = domingo

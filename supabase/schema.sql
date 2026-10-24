@@ -1381,3 +1381,64 @@ alter table public.verificaciones_escolares enable row level security;
 revoke all on public.verificaciones_escolares from anon, authenticated;  -- sólo el servidor
 -- 3.1 · A quien ya tenía agenda de clínicas: aviso con plazo (14 días desde que lo ve por primera vez) para verificar
 alter table public.verificaciones_escolares add column if not exists plazo date;
+
+-- =====================================================================
+-- 3.2 · Hábitos: comodín de racha (salva el día de ayer) y hábitos con amigos
+-- =====================================================================
+-- Comodín: una marca especial que cuenta para la racha (no para el %). Gratis: 1 al mes. Pro: 1 por semana.
+alter table public.p_habito_marcas add column if not exists comodin boolean not null default false;
+alter table public.p_habito_marcas add column if not exists comodin_at timestamptz;
+
+create or replace function public.p_comodin_tope()
+returns trigger language plpgsql set search_path = '' as $$
+declare
+  hoy date := (now() at time zone 'America/Merida')::date;
+  desde date;
+  n int;
+begin
+  if not new.comodin then
+    new.comodin_at := null;
+    return new;
+  end if;
+  new.comodin_at := now();
+  if auth.role() = 'authenticated' then
+    if new.fecha <> hoy - 1 then
+      raise exception 'El comodín sólo salva el día de ayer' using errcode = 'P0001', hint = 'comodin';
+    end if;
+    if public.personal_pro() then
+      desde := hoy - (extract(isodow from hoy)::int - 1);       -- desde el lunes
+    else
+      desde := date_trunc('month', hoy)::date;                  -- desde el día 1
+    end if;
+    select count(*) into n from public.p_habito_marcas m
+      where m.user_id = new.user_id and m.comodin and (m.comodin_at at time zone 'America/Merida')::date >= desde;
+    if n >= 1 then
+      raise exception 'Ya usaste tu comodín' using errcode = 'P0001', hint = 'comodin';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists p_comodin_tope on public.p_habito_marcas;
+create trigger p_comodin_tope before insert on public.p_habito_marcas for each row execute function public.p_comodin_tope();
+
+-- Hábitos con amigos: se comparte un hábito; quien acepta tiene SU copia (cada quien palomea la suya) y ven la racha del otro.
+alter table public.p_compartidos add column if not exists habito_id uuid references public.p_habitos (id) on delete cascade;
+alter table public.p_compartidos add column if not exists aceptado_at timestamptz;
+alter table public.p_compartidos drop constraint if exists p_compartidos_uno;
+alter table public.p_compartidos add constraint p_compartidos_uno check (num_nonnulls(evento_id, pendiente_id, habito_id) = 1);
+create unique index if not exists p_compartidos_habito_correo on public.p_compartidos (habito_id, correo) where habito_id is not null;
+alter table public.p_habitos add column if not exists compartido_id uuid references public.p_compartidos (id) on delete set null;
+-- (quien lo recibe no puede cambiar a mano de quién es su copia: sólo el servidor)
+create or replace function public.p_habitos_proteger()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  if auth.role() = 'authenticated' then
+    if tg_op = 'INSERT' then new.compartido_id := null;
+    else new.compartido_id := old.compartido_id; end if;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists p_habitos_proteger on public.p_habitos;
+create trigger p_habitos_proteger before insert or update on public.p_habitos for each row execute function public.p_habitos_proteger();

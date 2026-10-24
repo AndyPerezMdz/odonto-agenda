@@ -30,8 +30,16 @@ type Props = {
   pacientes?: Paciente[]; // banco de pacientes (para autocompletar nombre y teléfono)
   pacienteOrigen?: string; // si se agenda desde el banco: se marca como "agendado"
   onClose: () => void;
-  onGuardado: (fecha: string) => void;
+  onGuardado: (fecha: string, liberado?: Cita) => void; // 3.2 · liberado: cancelaste o borraste una cita tuya que venía (para rellenar el hueco)
 };
+
+/** 3.2 · ¿Ese espacio todavía sirve? (mañana en adelante, u hoy si aún no empieza) */
+function aunNoPasa(c: { fecha: string; hora_inicio: string }) {
+  const hoy = hoyISO();
+  if (c.fecha !== hoy) return c.fecha > hoy;
+  const d = new Date();
+  return hhmm(c.hora_inicio) > `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
 
 export default function CitaModal({
   supabase, userId, cita, fechaInicial, perfiles, clinicas, materias, preferencias, soloLectura = false, pro = true, plantilla, onOtraSesion, pacientes = [], pacienteOrigen, onClose, onGuardado,
@@ -242,7 +250,9 @@ export default function CitaModal({
       return;
     }
     if (esNueva && pacienteOrigen) await supabase.from("pacientes").update({ estado: "agendado" }).eq("id", pacienteOrigen);
-    onGuardado(fecha);
+    // 3.2 · ¿Se liberó un espacio? (cancelaste una cita tuya que todavía no pasaba)
+    const libero = !esNueva && cita && cita.owner_id === userId && estado === "cancelo" && cita.estado !== "cancelo" && aunNoPasa(cita);
+    onGuardado(fecha, libero ? cita : undefined);
   }
 
   async function borrar() {
@@ -251,7 +261,7 @@ export default function CitaModal({
     const { error } = await supabase.from("citas").delete().eq("id", cita.id);
     setGuardando(false);
     if (error) return setError("No se pudo borrar: " + error.message);
-    onGuardado(cita.fecha);
+    onGuardado(cita.fecha, cita.owner_id === userId && cita.estado !== "cancelo" && aunNoPasa(cita) ? cita : undefined);
   }
 
   return (

@@ -10,8 +10,8 @@ import { deISO, MESES } from "@/lib/fechas";
 const DIAS = ["D", "L", "M", "M", "J", "V", "S"];
 const DIAS_LARGOS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 
-export default function StatsHabito({ h, marcas, hoy, onClose }: { h: PHabito; marcas: Set<string>; hoy: string; onClose: () => void }) {
-  const s = useMemo(() => statsHabito(h, marcas, hoy), [h, marcas, hoy]);
+export default function StatsHabito({ h, marcas, hoy, onClose, comodines }: { h: PHabito; marcas: Set<string>; hoy: string; onClose: () => void; comodines?: Set<string> }) {
+  const s = useMemo(() => statsHabito(h, marcas, hoy, 26, comodines), [h, marcas, hoy, comodines]);
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", k);
@@ -57,6 +57,7 @@ export default function StatsHabito({ h, marcas, hoy, onClose }: { h: PHabito; m
           <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: "var(--panel-2)" }} /> sin hacer
           <span className="ml-2 h-2.5 w-2.5 rounded-[3px]" style={{ background: h.color }} /> hecho
           <span className="ml-2 h-2.5 w-2.5 rounded-[3px] opacity-30" style={{ background: "var(--panel-2)" }} /> no tocaba
+          {s.semanas.some((col) => col.some((x) => x.comodin)) && <><span className="ml-2 h-2.5 w-2.5 rounded-[3px]" style={{ background: "#cfe9f7" }} /> comodín</>}
         </div>
 
         <p className="mb-2 mt-5 text-sm font-medium">Por día (últimos 3 meses)</p>
@@ -102,9 +103,9 @@ function Fila({ fila, s, color }: { fila: number; s: ReturnType<typeof statsHabi
         return (
           <span
             key={c.fecha}
-            title={`${c.fecha}${c.si ? " ✓" : ""}`}
+            title={`${c.fecha}${c.comodin ? " 🧊" : c.si ? " ✓" : ""}`}
             className={`aspect-square w-full rounded-[2px] ${!c.si && (!c.toca || c.antes) ? "opacity-30" : ""}`}
-            style={{ background: c.si ? color : "var(--panel-2)" }}
+            style={{ background: c.comodin ? "#cfe9f7" : c.si ? color : "var(--panel-2)" }}
           />
         );
       })}

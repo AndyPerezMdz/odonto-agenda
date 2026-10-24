@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sumarDias, diasEntre } from "@/lib/pagos";
 import { deISO, hoyISO, MESES } from "@/lib/fechas";
-import { DIAS_LETRA, PALETA_HABITOS, PRIORIDADES, mejorRacha, rachaActual, tocaHabito, type Ocurrencia, type PHabito, type PMarca, type PPendiente } from "@/lib/personal";
+import { DIAS_LETRA, PALETA_HABITOS, PRIORIDADES, comodinesDisponibles, mejorRacha, rachaActual, rachaSalvable, tocaHabito, type Ocurrencia, type PHabito, type PMarca, type PPendiente } from "@/lib/personal";
 import { DURACION_BLOQUE, DURACIONES, finBloque, textoDuracion } from "@/lib/bloques";
 import { sinAcentos } from "@/lib/buscarMi";
 import { anotarRapido } from "@/lib/anotarRapido";
@@ -112,6 +112,16 @@ export function useAccionesListas({
       setMarcas((l) => l.filter((m) => m.habito_id !== h.id));
       await servidor(supabase.from("p_habitos").delete().eq("id", h.id));
     },
+    /** 3.2 · Comodín: salva el día de ayer (cuenta para la racha). */
+    async usarComodin(h: PHabito, fecha: string) {
+      setMarcas((l) => [...l.filter((m) => !(m.habito_id === h.id && m.fecha === fecha)), { habito_id: h.id, fecha, comodin: true, comodin_at: new Date().toISOString() }]);
+      if (demo) return;
+      const r = await supabase.from("p_habito_marcas").insert({ habito_id: h.id, fecha, comodin: true });
+      if (r.error) {
+        setError(/comod/i.test(r.error.message) ? r.error.message : /does not exist|schema cache|column/i.test(r.error.message) ? "Falta actualizar la base de datos (corre supabase/schema.sql)." : r.error.message);
+        recargar();
+      } else setError(null);
+    },
     async marcarHabito(h: PHabito, fecha: string, si: boolean) {
       setMarcas((l) => (si ? [...l.filter((m) => !(m.habito_id === h.id && m.fecha === fecha)), { habito_id: h.id, fecha }] : l.filter((m) => !(m.habito_id === h.id && m.fecha === fecha))));
       if (si) await servidor(supabase.from("p_habito_marcas").upsert({ habito_id: h.id, fecha }, { onConflict: "habito_id,fecha", ignoreDuplicates: true }));
@@ -126,6 +136,19 @@ export function useMarcasPorHabito(marcas: PMarca[]) {
   return useMemo(() => {
     const m = new Map<string, Set<string>>();
     for (const x of marcas) {
+      if (!m.has(x.habito_id)) m.set(x.habito_id, new Set());
+      m.get(x.habito_id)!.add(x.fecha);
+    }
+    return m;
+  }, [marcas]);
+}
+
+/** 3.2 · Días salvados con comodín, por hábito. */
+export function useComodinesPorHabito(marcas: PMarca[]) {
+  return useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const x of marcas) {
+      if (!x.comodin) continue;
       if (!m.has(x.habito_id)) m.set(x.habito_id, new Set());
       m.get(x.habito_id)!.add(x.fecha);
     }
@@ -289,7 +312,7 @@ export function PendienteModal({
   );
 }
 
-export function HabitoModal({ habito, acciones, onClose }: { habito: PHabito | null; acciones: AccionesListas; onClose: () => void }) {
+export function HabitoModal({ habito, acciones, onClose, extra }: { habito: PHabito | null; acciones: AccionesListas; onClose: () => void; extra?: React.ReactNode }) {
   const [nombre, setNombre] = useState(habito?.nombre ?? "");
   const [color, setColor] = useState(habito?.color ?? PALETA_HABITOS[0]);
   const [dias, setDias] = useState<number[]>(habito?.dias ?? [0, 1, 2, 3, 4, 5, 6]);
@@ -340,6 +363,7 @@ export function HabitoModal({ habito, acciones, onClose }: { habito: PHabito | n
         <div className="mb-4 flex flex-wrap gap-2">
           {PALETA_HABITOS.map((c) => <button key={c} type="button" aria-label={`Color ${c}`} aria-pressed={color === c} onClick={() => setColor(c)} className={`h-8 w-8 rounded-full ${color === c ? "ring-2 ring-ink ring-offset-2 ring-offset-bg" : ""}`} style={{ background: c }} />)}
         </div>
+        {extra}
         {error && <p className="mb-3 text-sm text-danger">{error}</p>}
         <div className="flex flex-wrap items-center gap-2">
           {habito && (
@@ -554,9 +578,16 @@ export function Palomita({ checked, onChange, etiqueta, chica = false, color }: 
 const fuego = (n: number) => (n >= 30 ? "🔥🔥🔥" : n >= 7 ? "🔥🔥" : n > 0 ? "🔥" : "");
 
 export function SeccionHabitos({
-  habitos, marcas, hoy, acciones, onEditar, onNuevo,
-}: { habitos: PHabito[]; marcas: PMarca[]; hoy: string; acciones: AccionesListas; onEditar: (h: PHabito) => void; onNuevo: () => void }) {
+  habitos, marcas, hoy, acciones, onEditar, onNuevo, pro = false, amigos, onInvitar, parejas = [],
+}: {
+  habitos: PHabito[]; marcas: PMarca[]; hoy: string; acciones: AccionesListas; onEditar: (h: PHabito) => void; onNuevo: () => void; pro?: boolean;
+  amigos?: React.ReactNode; // 3.2 · invitaciones de hábitos con amigos
+  onInvitar?: (h: PHabito) => void; // 3.2 · "Hazlo con alguien"
+  parejas?: { habito_id: string; con: string; racha: number; hoy: boolean }[]; // 3.2 · con quién lo haces
+}) {
   const porHabito = useMarcasPorHabito(marcas);
+  const comodines = useComodinesPorHabito(marcas);
+  const disp = comodinesDisponibles(marcas, hoy, pro);
   const [verArchivados, setVerArchivados] = useState(false);
   const [stats, setStats] = useState<PHabito | null>(null); // 3.0
   const activos = habitos.filter((h) => !h.archivado);
@@ -574,6 +605,7 @@ export function SeccionHabitos({
         </div>
         <button onClick={onNuevo} className="btn btn-primario rounded-full"><Ico d="M12 5v14M5 12h14" w={2.4} /> Hábito</button>
       </header>
+      {amigos}
 
       {activos.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-line px-5 py-12 text-center">
@@ -583,7 +615,13 @@ export function SeccionHabitos({
         </div>
       ) : (
         <ul className="flex flex-col gap-3">
-          {activos.map((h) => <TarjetaHabito key={h.id} h={h} marcas={porHabito.get(h.id) ?? new Set()} hoy={hoy} dias={dias} acciones={acciones} onEditar={() => onEditar(h)} onStats={() => setStats(h)} />)}
+          {activos.map((h) => (
+            <TarjetaHabito
+              key={h.id} h={h} marcas={porHabito.get(h.id) ?? new Set()} comodines={comodines.get(h.id) ?? new Set()} disp={disp} pro={pro}
+              hoy={hoy} dias={dias} acciones={acciones} onEditar={() => onEditar(h)} onStats={() => setStats(h)} onInvitar={onInvitar ? () => onInvitar(h) : undefined}
+              parejas={parejas.filter((p) => p.habito_id === h.id)}
+            />
+          ))}
         </ul>
       )}
 
@@ -604,13 +642,20 @@ export function SeccionHabitos({
           )}
         </div>
       )}
-      {stats && <StatsHabito h={stats} marcas={porHabito.get(stats.id) ?? new Set()} hoy={hoy} onClose={() => setStats(null)} />}
+      {stats && <StatsHabito h={stats} marcas={porHabito.get(stats.id) ?? new Set()} comodines={comodines.get(stats.id) ?? new Set()} hoy={hoy} onClose={() => setStats(null)} />}
       <p className="mt-6 text-center text-xs text-muted">Toca un cuadrito para palomear (o despalomear) días pasados. Los días que no tocan no rompen tu racha.</p>
     </div>
   );
 }
 
-function TarjetaHabito({ h, marcas, hoy, dias, acciones, onEditar, onStats }: { h: PHabito; marcas: Set<string>; hoy: string; dias: string[]; acciones: AccionesListas; onEditar: () => void; onStats: () => void }) {
+function TarjetaHabito({
+  h, marcas, comodines, disp, pro, hoy, dias, acciones, onEditar, onStats, onInvitar, parejas = [],
+}: {
+  h: PHabito; marcas: Set<string>; comodines: Set<string>; disp: { quedan: number; periodo: string }; pro: boolean; hoy: string; dias: string[];
+  acciones: AccionesListas; onEditar: () => void; onStats: () => void; onInvitar?: () => void;
+  parejas?: { con: string; racha: number; hoy: boolean }[];
+}) {
+  const salvable = rachaSalvable(h, marcas, hoy);
   const racha = rachaActual(h, marcas, hoy);
   const mejor = mejorRacha(h, marcas, hoy);
   const toca = tocaHabito(h, hoy);
@@ -637,6 +682,28 @@ function TarjetaHabito({ h, marcas, hoy, dias, acciones, onEditar, onStats }: { 
           <span className="text-[11px] text-muted">{racha === 1 ? "día" : "días"} {fuego(racha)}</span>
         </div>
       </div>
+      {/* 3.2 · Con quién lo haces: su racha y si ya lo hizo hoy */}
+      {parejas.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-1">
+          {parejas.map((p, i) => (
+            <li key={i} className="flex items-center gap-2 rounded-xl bg-panel-2 px-3 py-1.5 text-sm">
+              <span aria-hidden>👥</span>
+              <span className="min-w-0 flex-1 truncate">con <b>{p.con}</b> · {p.racha} {p.racha === 1 ? "día" : "días"} {fuego(p.racha)}</span>
+              <span className={`shrink-0 text-xs font-semibold ${p.hoy ? "text-accent" : "text-muted"}`}>{p.hoy ? "✓ ya lo hizo hoy" : "aún no"}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {parejas.length === 0 && onInvitar && !h.compartido_id && (
+        <button onClick={onInvitar} className="mt-2 text-xs font-medium text-muted hover:text-accent">👥 Hazlo con alguien</button>
+      )}
+      {/* 3.2 · Ayer se te pasó: un comodín salva la racha */}
+      {salvable > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-[#9fd0ea] bg-[#eef7fc] px-3 py-2 text-sm text-[#1d4f6b] dark:border-[#2c5a73] dark:bg-[#132a36] dark:text-[#b9e1f5]">
+          <span className="min-w-0 flex-1">🧊 Ayer se te pasó. {disp.quedan > 0 ? <>Usa tu comodín y salva tu racha de <b>{salvable} días</b>.</> : <>Ya usaste tu comodín {disp.periodo}.{!pro && " Con Pro tienes uno cada semana."}</>}</span>
+          {disp.quedan > 0 && <button onClick={() => acciones.usarComodin(h, sumarDias(hoy, -1))} className="rounded-full bg-[#1d6f9a] px-3 py-1 text-xs font-semibold text-white hover:opacity-90">Usar comodín</button>}
+        </div>
+      )}
       <div className="mt-3 grid grid-cols-[repeat(14,minmax(0,1fr))] gap-1">
         {dias.map((d) => {
           const si = marcas.has(d);
@@ -647,11 +714,13 @@ function TarjetaHabito({ h, marcas, hoy, dias, acciones, onEditar, onStats }: { 
               key={d}
               disabled={futuro}
               onClick={() => acciones.marcarHabito(h, d, !si)}
-              title={`${DIAS_LARGOS[deISO(d).getDay()]} ${corta(d)}${si ? " ✓" : ""}`}
-              aria-label={`${DIAS_LARGOS[deISO(d).getDay()]} ${corta(d)}: ${si ? "hecho" : "sin hacer"}`}
-              className={`aspect-square rounded-[5px] ${d === hoy ? "ring-1 ring-ink/40 ring-offset-1 ring-offset-panel" : ""} ${!si && !tocaD ? "opacity-30" : ""}`}
-              style={{ background: si ? h.color : "var(--panel-2)" }}
-            />
+              title={`${DIAS_LARGOS[deISO(d).getDay()]} ${corta(d)}${comodines.has(d) ? " 🧊 comodín" : si ? " ✓" : ""}`}
+              aria-label={`${DIAS_LARGOS[deISO(d).getDay()]} ${corta(d)}: ${comodines.has(d) ? "salvado con comodín" : si ? "hecho" : "sin hacer"}`}
+              className={`aspect-square rounded-[5px] ${d === hoy ? "ring-1 ring-ink/40 ring-offset-1 ring-offset-panel" : ""} ${!si && !tocaD ? "opacity-30" : ""} ${comodines.has(d) ? "grid place-items-center text-[9px]" : ""}`}
+              style={{ background: comodines.has(d) ? "#cfe9f7" : si ? h.color : "var(--panel-2)" }}
+            >
+              {comodines.has(d) ? "🧊" : null}
+            </button>
           );
         })}
       </div>

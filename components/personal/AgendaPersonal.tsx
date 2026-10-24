@@ -23,7 +23,7 @@ import { SeccionViajes } from "@/components/personal/SeccionViajes";
 import { AvisoPlan, BannerDemo } from "@/components/personal/AvisosAgenda";
 import { aMin, deMin, huecosLibres, ocupadoDe } from "@/lib/bloques";
 import { expandir } from "@/lib/personal";
-import { Compartir, VerCompartido, useCompartidos } from "@/components/personal/Compartir";
+import { Compartir, InvitacionesHabitos, ParejaCopia, VerCompartido, useCompartidos } from "@/components/personal/Compartir";
 import Buscador from "@/components/personal/Buscador";
 
 // 2.3 · Mi agenda con cara de agenda de papel: Hoy (línea del tiempo), Semana (o mes) y Viajes (pases de abordar).
@@ -62,13 +62,21 @@ export default function AgendaPersonal({
     return acciones0.marcarPendiente(p, v);
   }
   const quitarCompartido = (id: string) => comp.quitar(id);
-  const acciones = { ...acciones0, marcarPendiente: marcarCompartido };
+  const acciones = {
+    ...acciones0,
+    marcarPendiente: marcarCompartido,
+    // 3.2 · al palomear un hábito que haces con alguien, le avisa (si no lo ha hecho hoy)
+    async marcarHabito(h: PHabito, fecha: string, si: boolean) {
+      await acciones0.marcarHabito(h, fecha, si);
+      if (si && fecha === hoyISO()) comp.palomee(h.id);
+    },
+  };
   const todosEventos = useMemo(() => (eventos ? [...eventos, ...comp.recibidos.eventos] : null), [eventos, comp.recibidos.eventos]);
   const todosPend = useMemo(() => [...pendientes, ...comp.recibidos.pendientes], [pendientes, comp.recibidos.pendientes]);
   const [verEv, setVerEv] = useState<{ e: PEvento; dia: string } | null>(null);
   const [buscando, setBuscando] = useState(false); // 3.0 · buscador
   const [modalPend, setModalPend] = useState<{ p: PPendiente | null; fecha?: string | null; lista?: PPendiente["lista"]; titulo?: string; bloque?: boolean; extra?: Parameters<typeof PendienteModal>[0]["extra"] } | null>(null);
-  const [modalHab, setModalHab] = useState<{ h: PHabito | null } | null>(null);
+  const [modalHab, setModalHab] = useState<{ h: PHabito | null; invitar?: boolean } | null>(null);
   const [hoja, setHoja] = useState<"nuevo" | "mas" | "pro" | "personalizar" | null>(null);
   // 2.9 · Bienvenida (primera vez) y "¿Qué hay de nuevo?"
   const [aviso, setAviso] = useState<"bienvenida" | "novedades" | null>(null);
@@ -264,7 +272,11 @@ export default function AgendaPersonal({
         ) : seccion === "pagos" ? (
           <SeccionPagos pagos={pagosFijos} hechos={pagosHechos} hoy={hoy} pro={pro} acciones={accionesVP} onEditar={(p) => setModalPago({ p })} onNuevo={() => setModalPago({ p: null })} onPro={() => setHoja("pro")} />
         ) : seccion === "habitos" ? (
-          <SeccionHabitos habitos={habitos} marcas={marcas} hoy={hoy} acciones={acciones} onEditar={(h) => setModalHab({ h })} onNuevo={() => setModalHab({ h: null })} />
+          <SeccionHabitos
+            pro={pro} parejas={comp.parejas}
+            amigos={<InvitacionesHabitos lista={comp.recibidos.habitos} onAceptar={async (id) => { const ok = await comp.aceptar(id); recargar(); return ok; }} onNo={(id) => comp.quitar(id)} />}
+            onInvitar={demo ? undefined : (h) => setModalHab({ h, invitar: true })}
+            habitos={habitos} marcas={marcas} hoy={hoy} acciones={acciones} onEditar={(h) => setModalHab({ h })} onNuevo={() => setModalHab({ h: null })} />
         ) : (
           <SeccionViajes eventos={todosEventos ?? []} hoy={hoy} catPorId={catPorId} cosas={cosas} onAbrir={(e) => abrir({ ...e, dia: e.fecha, serie: false })} onNuevo={() => (pro ? setModal({ evento: null, fecha: hoy, tipo: "viaje" }) : setHoja("pro"))} />
         )}
@@ -423,7 +435,20 @@ export default function AgendaPersonal({
           compartir={modalPend.p && !modalPend.p.padre_id && !demo ? <Compartir tipo="pendiente" id={modalPend.p.id} /> : null}
         />
       ))}
-      {modalHab && <HabitoModal key={modalHab.h?.id ?? "nuevo"} habito={modalHab.h} acciones={acciones} onClose={() => setModalHab(null)} />}
+      {modalHab && (
+        <HabitoModal
+          key={modalHab.h?.id ?? "nuevo"} habito={modalHab.h} acciones={acciones} onClose={() => setModalHab(null)}
+          extra={
+            modalHab.h && !demo ? (
+              modalHab.h.compartido_id ? (
+                <ParejaCopia h={modalHab.h} parejas={comp.parejas} onDejar={(cid) => { comp.quitar(cid); setModalHab(null); }} />
+              ) : (
+                <Compartir tipo="habito" id={modalHab.h.id} abierto={modalHab.invitar} />
+              )
+            ) : null
+          }
+        />
+      )}
 
       {modal && (
         <EventoModal
