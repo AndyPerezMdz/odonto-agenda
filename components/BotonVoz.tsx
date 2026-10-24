@@ -25,6 +25,11 @@ export default function BotonVoz({ valor, onCambio, onListo, className = "" }: {
   const ultimo = useRef("");
   useEffect(() => setPuede(!!ctor()), []);
   useEffect(() => () => rec.current?.abort(), []);
+  useEffect(() => {
+    if (!error) return;
+    const t = setTimeout(() => setError(null), 7000);
+    return () => clearTimeout(t);
+  }, [error]);
   if (!puede) return null;
 
   function empezar() {
@@ -44,7 +49,24 @@ export default function BotonVoz({ valor, onCambio, onListo, className = "" }: {
       ultimo.current = (base + t.trim()).replace(/\s+/g, " ");
       onCambio(ultimo.current);
     };
-    r.onerror = (e) => setError(e.error === "not-allowed" || e.error === "service-not-allowed" ? "Dale permiso al micrófono." : e.error === "no-speech" ? "No te oí. Otra vez." : null);
+    r.onerror = (e) => {
+      if (e.error === "aborted") return;
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        // Pide el permiso del micro de forma explícita (sale el aviso del navegador) y que lo vuelva a tocar
+        navigator.mediaDevices
+          ?.getUserMedia({ audio: true })
+          .then((m) => { m.getTracks().forEach((t) => t.stop()); setError("Listo, ya hay permiso. Toca el micro otra vez."); })
+          .catch(() => setError("El micro está bloqueado para esta página: toca el candadito junto a la dirección → Micrófono → Permitir."));
+        return;
+      }
+      setError(
+        e.error === "no-speech" ? "No te oí. Toca y habla otra vez."
+        : e.error === "audio-capture" ? "No encuentro tu micrófono. Revisa que esté conectado."
+        : e.error === "network" ? "Este navegador no tiene dictado (en Brave u Opera no funciona). Usa Chrome, Edge o Safari."
+        : e.error === "language-not-supported" ? "Tu navegador no dicta en español."
+        : `No se pudo dictar (${e.error}).`
+      );
+    };
     r.onend = () => {
       setOyendo(false);
       if (ultimo.current) onListo?.(ultimo.current);
@@ -56,6 +78,7 @@ export default function BotonVoz({ valor, onCambio, onListo, className = "" }: {
       setOyendo(true);
     } catch {
       setOyendo(false);
+      setError("No se pudo prender el micro. Intenta otra vez.");
     }
   }
 
@@ -73,7 +96,7 @@ export default function BotonVoz({ valor, onCambio, onListo, className = "" }: {
           <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM19 11a7 7 0 0 1-14 0M12 18v3" />
         </svg>
       </button>
-      {error && <span role="status" className="absolute right-0 top-full z-10 mt-1 whitespace-nowrap rounded-lg bg-ink px-2 py-1 text-[11px] text-panel">{error}</span>}
+      {error && <span role="status" onClick={() => setError(null)} className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] leading-snug text-panel shadow-lg">{error}</span>}
     </span>
   );
 }

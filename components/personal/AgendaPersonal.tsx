@@ -201,9 +201,9 @@ export default function AgendaPersonal({
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[236px_minmax(0,1fr)]">
       {/* ---------- Barra lateral (compu) ---------- */}
-      <aside className="sticky top-0 hidden h-dvh flex-col border-r border-line bg-panel/80 px-4 py-6 backdrop-blur lg:flex">
+      <aside className="sticky top-0 hidden h-dvh flex-col overflow-y-auto overscroll-contain border-r border-line bg-panel/80 px-4 py-5 backdrop-blur lg:flex">
         <p className="serif px-2 text-3xl leading-none">Mi agenda</p>
-        <p className="mb-5 mt-1 px-2 text-xs text-muted">{demo ? "Demo · no se guarda nada" : "Sólo tú la ves"}</p>
+        <p className="mb-4 mt-1 px-2 text-xs text-muted">{demo ? "Demo · no se guarda nada" : "Sólo tú la ves"}</p>
         <button onClick={() => nuevo()} className="btn btn-primario mb-2 w-full rounded-full">
           <Ico d={I.mas1} w={2.4} /> Anotar algo
         </button>
@@ -222,7 +222,7 @@ export default function AgendaPersonal({
             </button>
           ))}
         </nav>
-        <div className="mt-auto border-t border-line pt-3">{extras}</div>
+        <div className="mt-auto border-t border-line pt-2 [&_a]:py-2 [&_button]:py-2">{extras}</div>
       </aside>
 
       {/* ---------- Contenido ---------- */}

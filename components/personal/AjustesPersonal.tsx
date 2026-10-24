@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePersonal } from "@/lib/usePersonal";
 import { PALETA_P, type PCategoria } from "@/lib/personal";
@@ -16,55 +16,122 @@ export default function AjustesPersonal({ userId, email, pro = true, perfil = "g
     recargar();
   }
 
+  // 3.0 · Ajustes por secciones (antes era un scroll infinito). El #hash elige la sección (#plan, #avisos…)
+  const [seccion, setSeccion] = useState<SeccionAjustes>("plan");
+  useEffect(() => {
+    const leer = () => setSeccion(deHash(window.location.hash));
+    leer();
+    window.addEventListener("hashchange", leer);
+    return () => window.removeEventListener("hashchange", leer);
+  }, []);
+  const ir = (x: SeccionAjustes) => {
+    setSeccion(x);
+    history.replaceState(null, "", `#${x}`);
+    window.scrollTo({ top: 0 });
+  };
+  const actual = SECCIONES.find((x) => x.id === seccion)!;
+
   return (
-    <div className="mx-auto max-w-2xl px-3 py-4 sm:px-6 sm:py-6">
-      <header className="mb-6 flex items-center gap-3">
+    <div className="mx-auto max-w-4xl px-3 py-4 sm:px-6 sm:py-6">
+      <header className="mb-4 flex items-center gap-3 sm:mb-6">
         <Link href="/personal" className="btn btn-sec px-2.5" aria-label="Volver">‹</Link>
-        <div>
+        <div className="min-w-0">
           <h1 className="serif text-4xl leading-none">Ajustes</h1>
-          <p className="text-sm text-muted">{email}</p>
+          <p className="truncate text-sm text-muted">{email}</p>
         </div>
       </header>
 
-      <div className="flex flex-col gap-5">
-        <TarjetaPlanMi />
-        <InvitaAmigo />
-
-        {pro ? (
-          <Categorias supabase={supabase} userId={userId} categorias={categorias} onCambio={recargar} />
-        ) : (
-          <SoloPro titulo="Tus categorías y colores" texto="Crea las tuyas (Trabajo, Gym, Viajes…) con el color que quieras. Las que ya tienes se siguen viendo." />
-        )}
-
-        {/* 2.8 · Todos los avisos en un solo lugar */}
-        <section id="avisos" className="scroll-mt-4 rounded-2xl border border-line bg-panel p-4 sm:p-5">
-          <h2 className="serif text-xl">Avisos</h2>
-          <p className="mb-4 mt-0.5 text-sm text-muted">Qué te llega y cuándo. Lo del cel se activa en cada celular o compu por separado.</p>
-          <div className="rounded-xl border border-line p-3">
-            <Notificaciones descripcion={<>A la hora de tus <b>recordatorios</b> (o los minutos antes que elijas), de los <b>eventos con aviso</b> y de tus <b>hábitos con hora</b>. Gratis.</>} />
-          </div>
-          <ul className="mt-3 divide-y divide-line rounded-xl border border-line">
-            <Interruptor titulo="“Tu día” en el cel" detalle="Cada mañana: lo que tienes hoy, entregas y pagos." on={prefs.dia !== false} pro={pro} onCambio={(v) => guardarPref("dia", v)} />
-            <Interruptor titulo="Correo de la mañana" detalle="Lo mismo, por correo. Si no hay nada, no llega." on={prefs.correo !== false} pro={pro} onCambio={(v) => guardarPref("correo", v)} />
-            <Interruptor titulo="“Tu semana” cada domingo" detalle="Correo y aviso en el cel con lo que viene de lunes a domingo." on={prefs.semana !== false} pro={pro} onCambio={(v) => guardarPref("semana", v)} />
+      <div className="md:grid md:grid-cols-[13rem_minmax(0,1fr)] md:gap-8">
+        {/* Secciones: arriba en el cel (se desliza), a la izquierda en la compu */}
+        <nav aria-label="Secciones de ajustes" className="sticky top-0 z-10 -mx-3 mb-4 bg-bg/95 px-3 py-2 backdrop-blur md:static md:mx-0 md:mb-0 md:bg-transparent md:p-0">
+          <ul className="flex gap-1.5 overflow-x-auto md:sticky md:top-6 md:flex-col md:gap-0.5 md:overflow-visible">
+            {SECCIONES.map((x) => (
+              <li key={x.id} className="shrink-0">
+                <button
+                  onClick={() => ir(x.id)}
+                  aria-current={seccion === x.id ? "page" : undefined}
+                  className={`flex w-full items-center gap-2 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm font-medium md:rounded-lg md:border-0 md:px-3 md:py-2 md:text-left ${seccion === x.id ? "border-accent bg-accent-soft text-accent" : "border-line text-muted hover:text-ink md:hover:bg-panel-2"}`}
+                >
+                  <span aria-hidden>{x.e}</span> {x.t}
+                </button>
+              </li>
+            ))}
           </ul>
-          {!pro && <p className="mt-2 text-xs text-muted">Los de la mañana y del domingo son de Pro. <a href="#plan" className="font-medium text-accent hover:underline">Ver planes</a></p>}
-        </section>
+        </nav>
 
-        {pro ? (
-          <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
-            <Calendario descripcion="Todo lo de tu agenda (también pendientes con fecha, pagos fijos y planes de viaje) aparece solo en Google Calendar o en el calendario del iPhone, con alarma 1 hora antes (y un día antes para las entregas). Se actualiza cada pocas horas (lo decide tu calendario)." />
-          </section>
-        ) : (
-          <SoloPro titulo="Tu agenda en el calendario del cel" texto="Todo lo de tu agenda en Google Calendar o en el del iPhone, con alarmas." />
-        )}
+        <div className="min-w-0">
+          <div className="mb-4 hidden md:block">
+            <h2 className="serif text-3xl leading-none">{actual.t}</h2>
+            <p className="mt-1 text-sm text-muted">{actual.x}</p>
+          </div>
+          <div className="flex flex-col gap-5">
+            {seccion === "plan" && (
+              <>
+                <TarjetaPlanMi />
+                <InvitaAmigo />
+              </>
+            )}
 
-        <ParaQuien perfil={perfil} />
-        <CambiarPassword />
-        <TusDatos tieneClinica={tieneClinica} />
+            {seccion === "avisos" && (
+              <>
+                <section id="avisos" className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
+                  <h2 className="serif text-xl">Avisos</h2>
+                  <p className="mb-4 mt-0.5 text-sm text-muted">Qué te llega y cuándo. Lo del cel se activa en cada celular o compu por separado.</p>
+                  <div className="rounded-xl border border-line p-3">
+                    <Notificaciones descripcion={<>A la hora de tus <b>recordatorios</b> (o los minutos antes que elijas), de los <b>eventos con aviso</b>, de tus <b>hábitos con hora</b> y de tus <b>bloques de tiempo</b>. Gratis.</>} />
+                  </div>
+                  <ul className="mt-3 divide-y divide-line rounded-xl border border-line">
+                    <Interruptor titulo="“Tu día” en el cel" detalle="Cada mañana: lo que tienes hoy, entregas y pagos." on={prefs.dia !== false} pro={pro} onCambio={(v) => guardarPref("dia", v)} />
+                    <Interruptor titulo="Correo de la mañana" detalle="Lo mismo, por correo. Si no hay nada, no llega." on={prefs.correo !== false} pro={pro} onCambio={(v) => guardarPref("correo", v)} />
+                    <Interruptor titulo="“Tu semana” cada domingo" detalle="Correo y aviso en el cel con lo que viene de lunes a domingo." on={prefs.semana !== false} pro={pro} onCambio={(v) => guardarPref("semana", v)} />
+                  </ul>
+                  {!pro && <p className="mt-2 text-xs text-muted">Los de la mañana y del domingo son de Pro. <a href="#plan" className="font-medium text-accent hover:underline">Ver planes</a></p>}
+                </section>
+                {pro ? (
+                  <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
+                    <Calendario descripcion="Todo lo de tu agenda (también pendientes con fecha, pagos fijos, planes de viaje y lo que te compartieron) aparece solo en Google Calendar o en el calendario del iPhone, con alarma 1 hora antes (y un día antes para las entregas). Se actualiza cada pocas horas (lo decide tu calendario)." />
+                  </section>
+                ) : (
+                  <SoloPro titulo="Tu agenda en el calendario del cel" texto="Todo lo de tu agenda en Google Calendar o en el del iPhone, con alarmas." />
+                )}
+              </>
+            )}
+
+            {seccion === "categorias" &&
+              (pro ? (
+                <Categorias supabase={supabase} userId={userId} categorias={categorias} onCambio={recargar} />
+              ) : (
+                <SoloPro titulo="Tus categorías y colores" texto="Crea las tuyas (Trabajo, Gym, Viajes…) con el color que quieras. Las que ya tienes se siguen viendo." />
+              ))}
+
+            {seccion === "cuenta" && (
+              <>
+                <ParaQuien perfil={perfil} />
+                <CambiarPassword />
+                <TusDatos tieneClinica={tieneClinica} />
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
+}
+
+type SeccionAjustes = "plan" | "avisos" | "categorias" | "cuenta";
+const SECCIONES: { id: SeccionAjustes; e: string; t: string; x: string }[] = [
+  { id: "plan", e: "⭐", t: "Tu plan", x: "Gratis o Pro, pagos e invitar a un amigo." },
+  { id: "avisos", e: "🔔", t: "Avisos y calendario", x: "Notificaciones, correos y tu agenda en el calendario del cel." },
+  { id: "categorias", e: "🎨", t: "Categorías", x: "Los colores de tu agenda." },
+  { id: "cuenta", e: "👤", t: "Tu cuenta", x: "Para quién es, contraseña y tus datos." },
+];
+/** El #hash de los links viejos (#plan, #avisos, #datos…) a su sección. */
+function deHash(h: string): SeccionAjustes {
+  const x = h.replace(/^#/, "");
+  if (x === "avisos" || x === "calendario" || x === "notificaciones") return "avisos";
+  if (x === "categorias") return "categorias";
+  if (x === "cuenta" || x === "datos" || x === "password" || x === "perfil") return "cuenta";
+  return "plan";
 }
 
 function Interruptor({ titulo, detalle, on, pro, onCambio }: { titulo: string; detalle: string; on: boolean; pro: boolean; onCambio: (v: boolean) => void }) {
