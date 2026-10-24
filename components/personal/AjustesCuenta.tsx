@@ -86,10 +86,26 @@ export function TusDatos({ tieneClinica }: { tieneClinica: boolean }) {
     <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
       <h2 className="serif text-xl">Tus datos</h2>
       <p className="mb-3 mt-0.5 text-sm text-muted">Son tuyos: llévatelos cuando quieras, o bórralos.</p>
-      <div className="flex flex-wrap gap-2">
-        <a href="/api/personal/datos" className="btn btn-sec rounded-full text-sm" download>Descargar mis datos</a>
-        {!borrar && <button className="btn btn-sec rounded-full text-sm text-danger" onClick={() => setBorrar(true)}>Borrar mi agenda…</button>}
-      </div>
+      {/* 3.0 · Tres formas de llevártelos */}
+      <ul className="mb-3 divide-y divide-line rounded-xl border border-line">
+        {[
+          { href: "/api/personal/datos?formato=xlsx", e: "📊", t: "Excel", x: "Una hoja por cosa: eventos, pendientes, hábitos, viajes y pagos.", descargar: true },
+          { href: "/api/personal/datos?formato=html", e: "📄", t: "Para leer o guardar en PDF", x: "Una página con todo, lista para imprimir.", descargar: false },
+          { href: "/api/personal/datos?formato=json", e: "🧩", t: "Respaldo técnico (JSON)", x: "Completo, para guardarlo o pasarlo a otra app.", descargar: true },
+        ].map((o) => (
+          <li key={o.href}>
+            <a href={o.href} {...(o.descargar ? { download: true } : { target: "_blank", rel: "noopener" })} className="flex items-center gap-3 px-3 py-2.5 hover:bg-panel-2">
+              <span className="text-xl" aria-hidden>{o.e}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">{o.t}</span>
+                <span className="block text-xs text-muted">{o.x}</span>
+              </span>
+              <span className="shrink-0 text-xs font-medium text-accent">{o.descargar ? "Descargar" : "Abrir"}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+      {!borrar && <button className="btn btn-sec rounded-full text-sm text-danger" onClick={() => setBorrar(true)}>Borrar mi agenda…</button>}
       {borrar && (
         <div className="mt-3 rounded-xl border border-danger/40 bg-danger/5 p-3 text-sm">
           <p className="mb-2">

@@ -30,6 +30,10 @@ export default function AjustesPersonal({ userId, email, pro = true, perfil = "g
     window.scrollTo({ top: 0 });
   };
   const actual = SECCIONES.find((x) => x.id === seccion)!;
+  // En el cel, que la pestaña elegida quede a la vista
+  useEffect(() => {
+    document.querySelector<HTMLElement>('nav[aria-label="Secciones de ajustes"] [aria-current="page"]')?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [seccion]);
 
   return (
     <div className="mx-auto max-w-4xl px-3 py-4 sm:px-6 sm:py-6">
