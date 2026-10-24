@@ -5,6 +5,7 @@ import { anotarRapido, type Borrador } from "@/lib/anotarRapido";
 import { REPETIR, TIPOS } from "@/lib/personal";
 import { deISO, MESES } from "@/lib/fechas";
 import { diasEntre } from "@/lib/pagos";
+import BotonVoz from "@/components/BotonVoz";
 
 // 2.6 · "Escríbelo como lo dirías": arma el evento con fecha, hora y lugar, y te deja revisarlo antes de guardar.
 
@@ -48,6 +49,7 @@ export default function AnotarRapido({ hoy, fechaDefault, odonto, onRevisar }: {
           autoComplete="off"
           enterKeyHint="done"
         />
+        <BotonVoz valor={t} onCambio={setT} />
         <button className="btn btn-primario shrink-0 rounded-full px-4" disabled={!b?.titulo}>Revisar</button>
       </div>
       {b && b.titulo && (
@@ -69,7 +71,7 @@ export default function AnotarRapido({ hoy, fechaDefault, odonto, onRevisar }: {
           </p>
         </div>
       )}
-      {!t && <p className="mt-1.5 text-xs text-muted">Con fecha, hora y lugar si quieres. Antes de guardar te dejo revisarlo.</p>}
+      {!t && <p className="mt-1.5 text-xs text-muted">Con fecha, hora y lugar si quieres (o díctalo con el 🎤). Antes de guardar te dejo revisarlo.</p>}
     </form>
   );
 }

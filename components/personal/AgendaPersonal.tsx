@@ -21,6 +21,10 @@ import { SeccionHoy } from "@/components/personal/SeccionHoy";
 import { SeccionSemana } from "@/components/personal/SeccionSemana";
 import { SeccionViajes } from "@/components/personal/SeccionViajes";
 import { AvisoPlan, BannerDemo } from "@/components/personal/AvisosAgenda";
+import { aMin, deMin, huecosLibres, ocupadoDe } from "@/lib/bloques";
+import { expandir } from "@/lib/personal";
+import { Compartir, VerCompartido, useCompartidos } from "@/components/personal/Compartir";
+import Buscador from "@/components/personal/Buscador";
 
 // 2.3 · Mi agenda con cara de agenda de papel: Hoy (línea del tiempo), Semana (o mes) y Viajes (pases de abordar).
 // 2.5 · + Viajes completos (itinerario, maleta, reservas, gastos) y Pagos fijos (Pro).
@@ -50,8 +54,20 @@ export default function AgendaPersonal({
     supabase, eventos, categorias, pendientes, habitos, marcas, error, recargar, setEventos, setPendientes, setHabitos, setMarcas, prefs, prefsCargadas, guardarPrefs,
     cosas, setCosas, presupuestos, setPresupuestos, pagosFijos, setPagosFijos, pagosHechos, setPagosHechos,
   } = usePersonal(demo, odonto ? "odonto" : "general");
-  const acciones = useAccionesListas({ supabase, demo, setPendientes, setHabitos, setMarcas, recargar });
-  const [modalPend, setModalPend] = useState<{ p: PPendiente | null; fecha?: string | null; lista?: PPendiente["lista"]; titulo?: string } | null>(null);
+  const acciones0 = useAccionesListas({ supabase, demo, setPendientes, setHabitos, setMarcas, recargar });
+  // 3.0 · Lo que te compartieron: se junta con lo tuyo (eventos para ver, pendientes para palomear)
+  const comp = useCompartidos(demo);
+  function marcarCompartido(p: PPendiente, v: boolean) {
+    if (p.compartido) comp.marcarLocal(p.compartido.id, v);
+    return acciones0.marcarPendiente(p, v);
+  }
+  const quitarCompartido = (id: string) => comp.quitar(id);
+  const acciones = { ...acciones0, marcarPendiente: marcarCompartido };
+  const todosEventos = useMemo(() => (eventos ? [...eventos, ...comp.recibidos.eventos] : null), [eventos, comp.recibidos.eventos]);
+  const todosPend = useMemo(() => [...pendientes, ...comp.recibidos.pendientes], [pendientes, comp.recibidos.pendientes]);
+  const [verEv, setVerEv] = useState<{ e: PEvento; dia: string } | null>(null);
+  const [buscando, setBuscando] = useState(false); // 3.0 · buscador
+  const [modalPend, setModalPend] = useState<{ p: PPendiente | null; fecha?: string | null; lista?: PPendiente["lista"]; titulo?: string; bloque?: boolean; extra?: Parameters<typeof PendienteModal>[0]["extra"] } | null>(null);
   const [modalHab, setModalHab] = useState<{ h: PHabito | null } | null>(null);
   const [hoja, setHoja] = useState<"nuevo" | "mas" | "pro" | "personalizar" | null>(null);
   // 2.9 · Bienvenida (primera vez) y "¿Qué hay de nuevo?"
@@ -91,15 +107,29 @@ export default function AgendaPersonal({
     if (q.has("ver") || q.has("nuevo")) history.replaceState(null, "", window.location.pathname);
   }, []);
 
-  // Escape cierra las hojas
+  // Escape cierra las hojas; "/" o Ctrl+K abre el buscador
   useEffect(() => {
-    const k = (e: KeyboardEvent) => e.key === "Escape" && setHoja(null);
+    const k = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setHoja(null);
+      const enCampo = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target as HTMLElement)?.tagName ?? "") || (e.target as HTMLElement)?.isContentEditable;
+      if ((e.key === "/" && !enCampo) || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k")) {
+        e.preventDefault();
+        setBuscando(true);
+      }
+    };
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, []);
 
   const catPorId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias]);
-  const visibles = useMemo(() => (eventos ?? []).filter((e) => !e.categoria_id || !ocultas.has(e.categoria_id)), [eventos, ocultas]);
+  // 3.0 · Listas de pendientes que ya usas y huecos libres para los bloques
+  const etiquetas = useMemo(() => [...new Set(pendientes.filter((p) => p.etiqueta && !p.compartido).map((p) => p.etiqueta!))].sort((a, b) => a.localeCompare(b)), [pendientes]);
+  const sugerir = (fecha: string, dur: number, sinId?: string) => {
+    const ahora = new Date();
+    const desde = fecha === hoy ? ahora.getHours() * 60 + ahora.getMinutes() + 5 : 8 * 60;
+    return huecosLibres(ocupadoDe(expandir(todosEventos ?? [], fecha, fecha), todosPend, fecha, sinId), dur, desde).map(deMin);
+  };
+  const visibles = useMemo(() => (todosEventos ?? []).filter((e) => !e.categoria_id || !ocultas.has(e.categoria_id)), [todosEventos, ocultas]);
 
   function nuevo(fecha = hoy) {
     setFechaNuevo(fecha < hoy ? hoy : fecha);
@@ -108,7 +138,10 @@ export default function AgendaPersonal({
   /** 2.6 · De "Anotar rápido" a revisar: pendiente, viaje (Pro) o evento/entrega/recordatorio */
   function revisarBorrador(b: Borrador) {
     setHoja(null);
-    if (b.clase === "pendiente") return setModalPend({ p: null, fecha: b.fecha, titulo: b.titulo });
+    if (b.clase === "pendiente") {
+      const dur = b.hora_inicio && b.hora_fin ? Math.max(15, aMin(b.hora_fin) - aMin(b.hora_inicio)) : null;
+      return setModalPend({ p: null, fecha: b.fecha, titulo: b.titulo, extra: { prioridad: b.prioridad, etiqueta: b.etiqueta, hora: b.hora_inicio, duracion: dur } });
+    }
     if (b.clase === "pago") {
       if (!pro) return setHoja("pro");
       const f = b.fecha ? deISO(b.fecha) : deISO(hoy);
@@ -131,7 +164,7 @@ export default function AgendaPersonal({
     recargar();
   }
   // Los viajes se abren en su detalle (itinerario, maleta, reservas, gastos)
-  const abrir = (o: Ocurrencia) => (o.tipo === "viaje" ? setViajeAbierto(o.id) : setModal({ evento: o, fecha: o.dia }));
+  const abrir = (o: Ocurrencia) => (o.compartido ? setVerEv({ e: o, dia: o.dia }) : o.tipo === "viaje" ? setViajeAbierto(o.id) : setModal({ evento: o, fecha: o.dia }));
   const viaje = viajeAbierto ? eventos?.find((e) => e.id === viajeAbierto && e.tipo === "viaje") : undefined;
 
   const nav: { id: Seccion; t: string; d: string }[] = [
@@ -171,8 +204,11 @@ export default function AgendaPersonal({
       <aside className="sticky top-0 hidden h-dvh flex-col border-r border-line bg-panel/80 px-4 py-6 backdrop-blur lg:flex">
         <p className="serif px-2 text-3xl leading-none">Mi agenda</p>
         <p className="mb-5 mt-1 px-2 text-xs text-muted">{demo ? "Demo · no se guarda nada" : "Sólo tú la ves"}</p>
-        <button onClick={() => nuevo()} className="btn btn-primario mb-4 w-full rounded-full">
+        <button onClick={() => nuevo()} className="btn btn-primario mb-2 w-full rounded-full">
           <Ico d={I.mas1} w={2.4} /> Anotar algo
+        </button>
+        <button onClick={() => setBuscando(true)} className="mb-4 flex w-full items-center gap-2 rounded-full border border-line bg-panel px-3 py-1.5 text-sm text-muted hover:text-ink">
+          🔍 Buscar <kbd className="ml-auto rounded border border-line px-1.5 text-[10px]">/</kbd>
         </button>
         <nav className="flex flex-col gap-0.5">
           {nav.map((n) => (
@@ -194,9 +230,14 @@ export default function AgendaPersonal({
         {/* Cel: marca y menú arriba (abajo van las secciones) */}
         <div className="mb-3 flex items-center justify-between lg:hidden">
           <span className="serif text-lg leading-none text-muted">Mi agenda</span>
-          <button onClick={() => setHoja("mas")} aria-label="Más opciones" className="grid h-9 w-9 place-items-center rounded-full border border-line bg-panel text-muted hover:text-ink">
-            <Ico d={I.mas} size={20} w={3} />
-          </button>
+          <span className="flex gap-2">
+            <button onClick={() => setBuscando(true)} aria-label="Buscar" className="grid h-9 w-9 place-items-center rounded-full border border-line bg-panel text-muted hover:text-ink">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+            </button>
+            <button onClick={() => setHoja("mas")} aria-label="Más opciones" className="grid h-9 w-9 place-items-center rounded-full border border-line bg-panel text-muted hover:text-ink">
+              <Ico d={I.mas} size={20} w={3} />
+            </button>
+          </span>
         </div>
         {demo && <BannerDemo publico={publico} />}
         {!demo && estado && <AvisoPlan e={estado} prueba={pruebaDisponible} />}
@@ -206,24 +247,24 @@ export default function AgendaPersonal({
           <p className="serif py-24 text-center text-2xl text-muted">Abriendo tu agenda…</p>
         ) : seccion === "hoy" ? (
           <SeccionHoy
-            odonto={odonto} eventos={visibles} todos={eventos} hoy={hoy} nombre={nombre} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo}
+            odonto={odonto} eventos={visibles} todos={todosEventos ?? []} hoy={hoy} nombre={nombre} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo}
             onSemana={() => ir("semana")} onViajes={() => ir("viajes")} onPendientes={() => ir("pendientes")} onHabitos={() => ir("habitos")}
-            pendientes={pendientes} habitos={habitos} marcas={marcas} acciones={acciones}
+            pendientes={todosPend} habitos={habitos} marcas={marcas} acciones={acciones}
             cosas={cosas} pagosFijos={pagosFijos} pagosHechos={pagosHechos} accionesVP={accionesVP} pro={pro}
             onTuSemana={() => { setLunesSemana(sumarDias(hoy, 1)); ir("semana"); }} onPagos={() => ir("pagos")}
-            ocultos={ocultos} onPersonalizar={() => setHoja("personalizar")}
+            ocultos={ocultos} onPersonalizar={() => setHoja("personalizar")} onAgendar={(p) => setModalPend({ p, bloque: true })}
             onEditarPendiente={(p) => setModalPend({ p })} onNuevoHabito={() => setModalHab({ h: null })}
           />
         ) : seccion === "semana" ? (
-          <SeccionSemana key={lunesSemana ?? "hoy"} lunesInicial={lunesSemana} pro={pro} onPro={() => setHoja("pro")} eventos={visibles} hoy={hoy} categorias={categorias} ocultas={ocultas} setOcultas={setOcultas} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo} pendientes={pendientes} acciones={acciones} onEditarPendiente={(p) => setModalPend({ p })} pagosFijos={pagosFijos} pagosHechos={pagosHechos} accionesVP={accionesVP} cosas={cosas} />
+          <SeccionSemana key={lunesSemana ?? "hoy"} lunesInicial={lunesSemana} pro={pro} onPro={() => setHoja("pro")} eventos={visibles} hoy={hoy} categorias={categorias} ocultas={ocultas} setOcultas={setOcultas} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo} pendientes={todosPend} acciones={acciones} onEditarPendiente={(p) => setModalPend({ p })} pagosFijos={pagosFijos} pagosHechos={pagosHechos} accionesVP={accionesVP} cosas={cosas} />
         ) : seccion === "pendientes" ? (
-          <SeccionPendientes pendientes={pendientes} hoy={hoy} acciones={acciones} onEditar={(p) => setModalPend({ p })} onNuevo={(lista) => setModalPend({ p: null, lista })} />
+          <SeccionPendientes pendientes={todosPend} hoy={hoy} acciones={acciones} onEditar={(p) => setModalPend({ p })} onNuevo={(lista, etiqueta) => setModalPend({ p: null, lista, extra: etiqueta ? { etiqueta } : undefined })} onAgendar={(p) => setModalPend({ p, bloque: true })} onCompartido={marcarCompartido} />
         ) : seccion === "pagos" ? (
           <SeccionPagos pagos={pagosFijos} hechos={pagosHechos} hoy={hoy} pro={pro} acciones={accionesVP} onEditar={(p) => setModalPago({ p })} onNuevo={() => setModalPago({ p: null })} onPro={() => setHoja("pro")} />
         ) : seccion === "habitos" ? (
           <SeccionHabitos habitos={habitos} marcas={marcas} hoy={hoy} acciones={acciones} onEditar={(h) => setModalHab({ h })} onNuevo={() => setModalHab({ h: null })} />
         ) : (
-          <SeccionViajes eventos={eventos} hoy={hoy} catPorId={catPorId} cosas={cosas} onAbrir={(e) => abrir({ ...e, dia: e.fecha, serie: false })} onNuevo={() => (pro ? setModal({ evento: null, fecha: hoy, tipo: "viaje" }) : setHoja("pro"))} />
+          <SeccionViajes eventos={todosEventos ?? []} hoy={hoy} catPorId={catPorId} cosas={cosas} onAbrir={(e) => abrir({ ...e, dia: e.fecha, serie: false })} onNuevo={() => (pro ? setModal({ evento: null, fecha: hoy, tipo: "viaje" }) : setHoja("pro"))} />
         )}
         <p className="serif mt-12 text-center text-sm italic text-muted">{demo ? "Demo con datos de ejemplo" : "Mi agenda · sólo tú la ves"}</p>
       </main>
@@ -322,6 +363,22 @@ export default function AgendaPersonal({
           onEditar={() => setModal({ evento: { ...viaje, dia: viaje.fecha, serie: false }, fecha: viaje.fecha })} onClose={() => setViajeAbierto(null)} onPro={() => setHoja("pro")}
         />
       )}
+      {buscando && (
+        <Buscador
+          hoy={hoy}
+          datos={{ eventos: todosEventos ?? [], pendientes: todosPend, habitos, cosas, pagos: pagosFijos }}
+          onClose={() => setBuscando(false)}
+          onElegir={(r) => {
+            setBuscando(false);
+            if (r.clase === "evento") abrir({ ...r.e, dia: r.fecha ?? r.e.fecha, serie: r.e.repetir !== "nunca" });
+            else if (r.clase === "pendiente") setModalPend({ p: r.p });
+            else if (r.clase === "habito") { ir("habitos"); setModalHab({ h: r.h }); }
+            else if (r.clase === "cosa" && r.viaje) setViajeAbierto(r.viaje.id);
+            else if (r.clase === "pago") { ir("pagos"); setModalPago({ p: r.pago }); }
+          }}
+        />
+      )}
+      {verEv && <VerCompartido e={verEv.e} dia={verEv.dia} onQuitar={() => quitarCompartido(verEv.e.compartido!.id)} onClose={() => setVerEv(null)} />}
       {aviso === "bienvenida" && (
         <Bienvenida nombre={nombre} odonto={odonto} onListo={() => { setAviso(null); guardarPrefs({ bienvenida: true, novedades: ULTIMA_MI }); }} />
       )}
@@ -355,7 +412,15 @@ export default function AgendaPersonal({
         </Hoja>
       )}
       {modalPago && <PagoModal key={modalPago.p?.id ?? "nuevo"} pago={modalPago.p} borrador={modalPago.borrador} acciones={accionesVP} onClose={() => setModalPago(null)} />}
-      {modalPend && <PendienteModal key={modalPend.p?.id ?? "nuevo"} pendiente={modalPend.p} fechaInicial={modalPend.fecha} listaInicial={modalPend.lista} tituloInicial={modalPend.titulo} acciones={acciones} onClose={() => setModalPend(null)} />}
+      {modalPend && (modalPend.p?.compartido ? (
+        <VerCompartido p={modalPend.p} onMarcar={(v) => marcarCompartido(modalPend.p!, v)} onQuitar={() => quitarCompartido(modalPend.p!.compartido!.id)} onClose={() => setModalPend(null)} />
+      ) : (
+        <PendienteModal
+          key={modalPend.p?.id ?? "nuevo"} pendiente={modalPend.p} fechaInicial={modalPend.fecha} listaInicial={modalPend.lista} tituloInicial={modalPend.titulo} acciones={acciones} onClose={() => setModalPend(null)}
+          etiquetas={etiquetas} sugerir={sugerir} bloqueInicial={modalPend.bloque} extra={modalPend.extra}
+          compartir={modalPend.p && !modalPend.p.padre_id && !demo ? <Compartir tipo="pendiente" id={modalPend.p.id} /> : null}
+        />
+      ))}
       {modalHab && <HabitoModal key={modalHab.h?.id ?? "nuevo"} habito={modalHab.h} acciones={acciones} onClose={() => setModalHab(null)} />}
 
       {modal && (
@@ -374,6 +439,7 @@ export default function AgendaPersonal({
           odonto={odonto}
           pro={pro}
           onPro={() => { setModal(null); setHoja("pro"); }}
+          compartir={modal.evento && !demo ? <Compartir tipo="evento" id={modal.evento.id} /> : null}
         />
       )}
     </div>

@@ -33,6 +33,7 @@ export function SeccionSemana({
   for (const o of os) porDia.set(o.dia, [...(porDia.get(o.dia) ?? []), o]);
   const pendPorDia = new Map<string, PPendiente[]>();
   for (const p of pendientes) if (!p.padre_id && p.lista === "hacer" && p.fecha && p.fecha >= lunes && p.fecha <= domingo) pendPorDia.set(p.fecha, [...(pendPorDia.get(p.fecha) ?? []), p]);
+  for (const l of pendPorDia.values()) l.sort((a, b) => (a.hora ?? "99").localeCompare(b.hora ?? "99") || (b.prioridad ?? 0) - (a.prioridad ?? 0));
 
   const pagosSemana = vencimientosEntre(pagosFijos, pagosHechos, lunes, domingo);
 
@@ -109,7 +110,7 @@ export function SeccionSemana({
                       <li key={p.id} className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm hover:bg-panel-2">
                         <Palomita chica checked={p.hecho} onChange={(v) => acciones.marcarPendiente(p, v)} etiqueta={`Hecho: ${p.titulo}`} />
                         <button onClick={() => onEditarPendiente(p)} className={`min-w-0 flex-1 truncate text-left ${p.hecho ? "text-muted line-through" : ""}`}>{p.titulo}</button>
-                        <span className="versalitas shrink-0 text-muted">pendiente</span>
+                        <span className={`versalitas shrink-0 ${p.hora ? "tabular-nums text-accent" : "text-muted"}`}>{p.hora ? `⏱ ${p.hora.slice(0, 5)}` : "pendiente"}</span>
                       </li>
                     ))}
                     {pagos.map((v) => (

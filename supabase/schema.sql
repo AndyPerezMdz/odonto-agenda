@@ -1304,3 +1304,49 @@ revoke all on public.p_invitaciones from anon, authenticated;  -- sólo el servi
 --   "Enable email signups" y "Confirm email" ENCENDIDOS.
 -- Y pega supabase/email-confirmar.html en la plantilla "Confirm signup".
 -- =====================================================================
+
+-- =====================================================================
+-- 3.0 · Mi agenda: pendientes con prioridad, lista y bloque de tiempo; compartir; avisos de bloques
+-- =====================================================================
+-- Prioridad (0 normal, 1 importante, 2 urgente) y lista/etiqueta libre ("Casa", "Escuela"…)
+alter table public.p_pendientes add column if not exists prioridad smallint not null default 0;
+alter table public.p_pendientes drop constraint if exists p_pendientes_prioridad;
+alter table public.p_pendientes add constraint p_pendientes_prioridad check (prioridad between 0 and 2);
+alter table public.p_pendientes add column if not exists etiqueta text;
+alter table public.p_pendientes drop constraint if exists p_pendientes_etiqueta;
+alter table public.p_pendientes add constraint p_pendientes_etiqueta check (etiqueta is null or char_length(etiqueta) between 1 and 30);
+-- Bloque de tiempo: con fecha + hora sale en la línea del tiempo de Hoy (duración en minutos)
+alter table public.p_pendientes add column if not exists hora time;
+alter table public.p_pendientes add column if not exists duracion int;
+alter table public.p_pendientes drop constraint if exists p_pendientes_duracion;
+alter table public.p_pendientes add constraint p_pendientes_duracion check (duracion is null or duracion between 5 and 720);
+
+-- Avisos de bloques ya mandados (uno por pendiente y día). Sólo el servidor.
+create table if not exists public.p_pendientes_avisados (
+  pendiente_id uuid not null references public.p_pendientes (id) on delete cascade,
+  dia          date not null,
+  primary key (pendiente_id, dia)
+);
+alter table public.p_pendientes_avisados enable row level security;
+revoke all on public.p_pendientes_avisados from anon, authenticated;
+
+-- Compartir un evento (o viaje) o un pendiente con otra persona, por correo.
+-- Quien lo recibe lo ve en su agenda (los eventos sólo para ver; los pendientes los puede palomear).
+-- Todo pasa por el servidor: nadie ve la agenda de otro, sólo lo que le compartieron.
+create table if not exists public.p_compartidos (
+  id           uuid primary key default gen_random_uuid(),
+  dueno        uuid not null references public.perfiles (id) on delete cascade,
+  evento_id    uuid references public.p_eventos (id) on delete cascade,
+  pendiente_id uuid references public.p_pendientes (id) on delete cascade,
+  correo       text not null check (char_length(correo) between 3 and 200),
+  invitado     uuid references public.perfiles (id) on delete cascade,
+  oculto       boolean not null default false,   -- quien lo recibe lo quitó de su agenda
+  created_at   timestamptz not null default now(),
+  constraint p_compartidos_uno check ((evento_id is null) <> (pendiente_id is null))
+);
+create unique index if not exists p_compartidos_evento_correo on public.p_compartidos (evento_id, correo) where evento_id is not null;
+create unique index if not exists p_compartidos_pendiente_correo on public.p_compartidos (pendiente_id, correo) where pendiente_id is not null;
+create index if not exists p_compartidos_dueno_idx on public.p_compartidos (dueno, created_at);
+create index if not exists p_compartidos_correo_idx on public.p_compartidos (correo);
+alter table public.p_compartidos enable row level security;
+revoke all on public.p_compartidos from anon, authenticated;  -- sólo el servidor

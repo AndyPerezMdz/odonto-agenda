@@ -15,6 +15,8 @@ export type Borrador = {
   hora_fin: string | null;
   lugar: string | null;
   repetir: Repetir;
+  prioridad: 0 | 1 | 2; // 3.0 · "!" importante, "!!" o "urgente" urgente (pendientes)
+  etiqueta: string | null; // 3.0 · "#casa" → lista Casa (pendientes)
 };
 
 const MESES: Record<string, number> = {
@@ -88,8 +90,17 @@ export function anotarRapido(texto: string, hoy: string): Borrador {
     return false;
   }
 
-  const b: Borrador = { clase: "evento", tipo: "evento", titulo: "", fecha: null, fecha_fin: null, hora_inicio: null, hora_fin: null, lugar: null, repetir: "nunca", monto: null };
+  const b: Borrador = { clase: "evento", tipo: "evento", titulo: "", fecha: null, fecha_fin: null, hora_inicio: null, hora_fin: null, lugar: null, repetir: "nunca", monto: null, prioridad: 0, etiqueta: null };
   let quitarPrefijo = false;
+
+  // 0. Prioridad y lista: "#casa", "!!", "urgente: …" (sobre todo para pendientes)
+  buscar(/(?:^|\s)#([a-z0-9n_-]{1,30})(?=\s|$)/, (m) => {
+    const i = m.index + m[0].indexOf("#") + 1;
+    const t = o.slice(i, i + m[1].length);
+    b.etiqueta = t[0].toUpperCase() + t.slice(1);
+  });
+  buscar(/(?:^|\s)(!{1,3})(?=\s|$)/, (m) => { b.prioridad = m[1].length > 1 ? 2 : 1; });
+  if (!b.prioridad) buscar(/^(urgente|importante)\s*:?\s+|\s(urgente|importante)$/, (m) => { b.prioridad = (m[1] ?? m[2]) === "urgente" ? 2 : 1; });
 
   // 1. ¿Qué es? (por cómo empieza)
   buscar(/^(?:pendiente|por hacer|tarea|to ?do)\s*:?\s+/, () => { b.clase = "pendiente"; });
@@ -250,8 +261,11 @@ export function anotarRapido(texto: string, hoy: string): Borrador {
   if (/\b(?:cumple|cumpleanos|aniversario)\b/.test(normalizar(b.titulo)) && b.repetir === "nunca" && b.tipo === "evento") b.repetir = "anual";
   if (b.tipo === "entrega" || b.tipo === "viaje") { b.hora_inicio = null; b.hora_fin = null; }
   if (b.tipo !== "viaje") b.fecha_fin = null;
-  if (b.tipo === "evento" && b.hora_inicio && !b.hora_fin) b.hora_fin = masUnaHora(b.hora_inicio);
-  if (b.clase === "pendiente") { b.hora_inicio = null; b.hora_fin = null; b.repetir = "nunca"; b.lugar = null; }
+  // Con lista o prioridad y sin hora ni "cada…": es un pendiente
+  if ((b.etiqueta || b.prioridad) && b.clase === "evento" && b.tipo === "evento" && !b.hora_inicio && b.repetir === "nunca") b.clase = "pendiente";
+  // 3.0 · Pendiente con hora = bloque de tiempo (sin hora de fin se queda en 1 hora al revisar)
+  if (b.clase === "pendiente") { b.repetir = "nunca"; b.lugar = null; if (!b.fecha) { b.hora_inicio = null; b.hora_fin = null; } }
+  else if (b.tipo === "evento" && b.hora_inicio && !b.hora_fin) b.hora_fin = masUnaHora(b.hora_inicio);
   if (b.clase === "pago") {
     b.titulo = b.titulo.replace(/^(?:pagar|pago(?:\s+de(?:l)?)?)\s+(?:(?:el|la|los|las)\s+)?/i, "");
     b.titulo = b.titulo ? b.titulo[0].toUpperCase() + b.titulo.slice(1) : "";

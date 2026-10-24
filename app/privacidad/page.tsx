@@ -23,7 +23,7 @@ export default function PrivacidadPage() {
         <li>Tus preferencias dentro de la agenda (colores, recordatorios, etc.).</li>
         <li>Tu universidad (la eliges al registrarte) y lo que nos escribas en “¿Qué le falta a tu agenda?”.</li>
         <li>Si eres dueño/a de una agenda: los registros de tus pagos (monto, fecha y clave de rastreo).{PAGO_EN_LINEA ? " Si pagas en línea, el pago lo procesa Mercado Pago: nosotros sólo recibimos el número de operación, el monto y si se aprobó; nunca los datos de tu tarjeta." : " No recibimos ni guardamos datos de tarjetas ni contraseñas bancarias."}</li>
-        <li>Si tienes <b>agenda personal</b> (sólo por invitación): lo que captures en ella (eventos, viajes, entregas, recordatorios, categorías y notas). Sólo tú la ves; ni tu compañero/a de clínica ni nadie más.</li>
+        <li>Si tienes <b>agenda personal</b> (sólo por invitación): lo que captures en ella (eventos, viajes, entregas, recordatorios, categorías y notas). Sólo tú la ves; ni tu compañero/a de clínica ni nadie más (salvo lo que tú decidas compartir).</li>
         <li>Si activas las notificaciones: un identificador técnico de tu navegador para poder mandártelas. Si usas “Tu agenda en tu calendario”: un link privado con un código aleatorio.</li>
       </ul>
       <p><b>De tus pacientes, que tú capturas:</b> nombre, fecha y hora de la cita, clínica, materia y las notas que tú escribas. Si le mandas a tu paciente su link para confirmar, guardamos sólo su respuesta (“sí voy” o “no puedo”) y la hora en que respondió.</p>
@@ -107,6 +107,7 @@ export default function PrivacidadPage() {
         <li><b>Quién la ve:</b> sólo tú. Nadie más en la app, tampoco tu compañero/a de clínica si lo tienes. El panel de administración no muestra lo que anotas: sólo tu correo, tu nombre y cuántos registros tienes.</li>
         <li><b>Proveedores:</b> los mismos de la sección 6 (base de datos, página, correos y, si las activas, notificaciones).</li>
         <li><b>Cuánto tiempo:</b> mientras tengas tu agenda. Si la das de baja, borramos tus eventos, viajes, pagos fijos, pendientes, hábitos y categorías; si no usas la agenda de clínicas, también tu cuenta. En <b>Ajustes → Tus datos</b> puedes <b>descargar</b> todo lo que tienes (un archivo) o <b>borrar</b> tu Mi agenda tú mismo/a, en cualquier momento; también puedes escribirnos como dice la sección 9.</li>
+        <li><b>Compartir:</b> si compartes un evento o un pendiente, guardamos el correo de con quién lo compartiste y le mandamos un correo (y un aviso en su cel, si tiene Mi agenda). Esa persona ve sólo eso (título, fecha, hora, lugar y notas), nada más de tu agenda; si es un pendiente, lo puede palomear. Puedes dejar de compartirlo cuando quieras, y quien lo recibe puede quitarlo de su agenda.</li>
         <li><b>Invita a un amigo:</b> si alguien crea su Mi agenda con tu link, guardamos quién invitó a quién (y el correo de quien llegó) sólo para darles el mes de Pro a los dos, y para que cada correo cuente una sola vez. Tu link no muestra tu nombre ni tu correo.</li>
       </ul>
     </DocLegal>

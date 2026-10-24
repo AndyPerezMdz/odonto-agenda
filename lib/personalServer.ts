@@ -39,7 +39,7 @@ export const correoPersonal = (titulo: string, cuerpo: string, boton?: { texto: 
     </div>
   </div></body></html>`;
 
-async function usuarioPorCorreo(db: Db, email: string) {
+export async function usuarioPorCorreo(db: Db, email: string) {
   const { data } = await db.auth.admin.listUsers({ perPage: 1000 });
   return (data?.users ?? []).find((u) => normal(u.email ?? "") === normal(email)) ?? null;
 }
@@ -449,6 +449,25 @@ export async function recordatoriosPorAvisar(db: Db, hoy: string, minutoAhora: n
   const { data: ya } = await db.from("p_push_enviados").select("evento_id").eq("dia", hoy).in("evento_id", filas.map((e) => e.id));
   const enviados = new Set((ya ?? []).map((x) => x.evento_id as string));
   return filas.filter((e) => ok.has(e.user_id) && !enviados.has(e.id));
+}
+
+/** 3.0 · Bloques de tiempo (pendientes con fecha de hoy y hora) que empiezan "ahora" y no están hechos. */
+export async function bloquesPorAvisar(db: Db, hoy: string, minutoAhora: number) {
+  const aMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  const { data, error } = await db.from("p_pendientes").select("*").eq("fecha", hoy).eq("hecho", false).not("hora", "is", null);
+  if (error || !data?.length) return [];
+  const filas = (data as { id: string; user_id: string; titulo: string; hora: string; duracion: number | null; padre_id: string | null }[]).filter((p) => {
+    const m = aMin(p.hora);
+    return !p.padre_id && m >= minutoAhora - 20 && m <= minutoAhora + 2;
+  });
+  if (!filas.length) return [];
+  const [{ data: activos }, { data: ya }] = await Promise.all([
+    db.from("personales").select("user_id").eq("activo", true).in("user_id", [...new Set(filas.map((p) => p.user_id))]),
+    db.from("p_pendientes_avisados").select("pendiente_id").eq("dia", hoy).in("pendiente_id", filas.map((p) => p.id)),
+  ]);
+  const ok = new Set((activos ?? []).map((a) => a.user_id as string));
+  const enviados = new Set((ya ?? []).map((x) => x.pendiente_id as string));
+  return filas.filter((p) => ok.has(p.user_id) && !enviados.has(p.id));
 }
 
 /** 2.7 · Hábitos con hora que hoy tocan, cuya hora es "ahora" y todavía no se palomean. Con su racha. */

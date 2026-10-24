@@ -11,7 +11,6 @@ import { CAMPOS_COSA, CAMPOS_PAGO, ejemploViajesPagos, type PCosa, type PPagoFij
 export type PrefsMi = { correo?: boolean; semana?: boolean; dia?: boolean; bienvenida?: boolean; novedades?: string; hoy_ocultos?: string[] };
 
 export const CAMPOS_P = "id,user_id,tipo,titulo,fecha,fecha_fin,hora_inicio,hora_fin,lugar,notas,categoria_id,hecho,hecho_at,repetir,repetir_hasta,excepciones";
-const CAMPOS_PEND = "id,user_id,padre_id,titulo,notas,lista,fecha,hecho,hecho_at,orden,created_at";
 
 /** Todo lo de la agenda personal de quien está viendo (es poco: se carga completo). */
 export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto") {
@@ -53,7 +52,7 @@ export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto")
       supabase.from("p_eventos").select("*").order("fecha"),
       supabase.from("p_categorias").select("id,nombre,color,orden").order("orden").order("created_at"),
       supabase.from("personales").select("prefs").maybeSingle(),
-      supabase.from("p_pendientes").select(CAMPOS_PEND).order("orden").order("created_at"),
+      supabase.from("p_pendientes").select("*").order("orden").order("created_at"),
       supabase.from("p_habitos").select("*").order("orden").order("created_at"),
       supabase.from("p_habito_marcas").select("habito_id,fecha").gte("fecha", desde),
       supabase.from("p_viaje_cosas").select(CAMPOS_COSA).order("orden").order("created_at"),

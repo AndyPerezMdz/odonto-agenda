@@ -2,12 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enviarPush, pushActivo } from "@/lib/push";
 import { fechaEnZona } from "@/lib/recordatorios";
-import { habitosPorAvisar, recordatoriosPorAvisar } from "@/lib/personalServer";
+import { bloquesPorAvisar, habitosPorAvisar, recordatoriosPorAvisar } from "@/lib/personalServer";
 
 export const dynamic = "force-dynamic";
 
 // 2.4 · Cada 5 minutos (desde Supabase con pg_cron, ver supabase/cron-recordatorios.sql; Vercel Hobby no deja crons tan seguidos):
-// avisa en el cel a la hora de cada recordatorio de Mi agenda (o X min antes), de los eventos con aviso y de los hábitos con hora. Gratis.
+// avisa en el cel a la hora de cada recordatorio de Mi agenda (o X min antes), de los eventos con aviso de los hábitos con hora y (3.0) de los bloques de tiempo. Gratis.
 export async function GET(request: NextRequest) {
   const secreto = process.env.CRON_SECRET;
   if (!secreto || request.headers.get("authorization") !== `Bearer ${secreto}`) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -47,5 +47,18 @@ export async function GET(request: NextRequest) {
       etiqueta: `hab-${h.id}-${hoy}`,
     });
   }
-  return NextResponse.json({ ok: true, recordatorios: lista.length, enviadas, habitos });
+  // 3.0 · Bloques de tiempo: "Ya toca: estudiar (1 h)"
+  let bloques = 0;
+  for (const p of await bloquesPorAvisar(db, hoy, min).catch(() => [])) {
+    const { data: nuevo } = await db.from("p_pendientes_avisados").upsert({ pendiente_id: p.id, dia: hoy }, { onConflict: "pendiente_id,dia", ignoreDuplicates: true }).select("pendiente_id");
+    if (!nuevo?.length) continue;
+    const dur = p.duracion ?? 60;
+    bloques += await enviarPush(db, [p.user_id], {
+      titulo: `⏱ Ya toca: ${p.titulo}`,
+      cuerpo: `${String(p.hora).slice(0, 5)} · ${dur < 60 ? `${dur} min` : dur % 60 ? `${Math.floor(dur / 60)} h ${dur % 60} min` : `${dur / 60} h`}. Paloméalo cuando acabes.`,
+      url: "/personal",
+      etiqueta: `blq-${p.id}-${hoy}`,
+    });
+  }
+  return NextResponse.json({ ok: true, recordatorios: lista.length, enviadas, habitos, bloques });
 }

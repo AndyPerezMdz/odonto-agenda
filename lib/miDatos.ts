@@ -11,7 +11,7 @@ export async function exportarMiAgenda(db: Db, userId: string, email: string | n
     const { data, error } = await db.from(tabla).select("*").eq(campo, userId);
     return error ? [] : data ?? [];
   };
-  const [cuenta, eventos, categorias, pendientes, habitos, marcas, viajes, pagosFijos, pagosHechos, pagosPro] = await Promise.all([
+  const [cuenta, eventos, categorias, pendientes, habitos, marcas, viajes, pagosFijos, pagosHechos, pagosPro, compartidos] = await Promise.all([
     db.from("personales").select("nombre,perfil,prefs,created_at,pagado_hasta,prueba_hasta").eq("user_id", userId).maybeSingle().then((r) => r.data),
     de("p_eventos"),
     de("p_categorias"),
@@ -22,6 +22,7 @@ export async function exportarMiAgenda(db: Db, userId: string, email: string | n
     de("p_pagos_fijos"),
     de("p_pagos_fijos_hechos"),
     de("p_pagos"),
+    de("p_compartidos", "dueno"), // 3.0 · con quién compartiste qué (sólo correos)
   ]);
   const limpiar = (xs: Record<string, unknown>[]) => xs.map(({ user_id: _u, ...r }) => r);
   return {
@@ -37,6 +38,7 @@ export async function exportarMiAgenda(db: Db, userId: string, email: string | n
     pagos_fijos: limpiar(pagosFijos),
     pagos_fijos_hechos: limpiar(pagosHechos),
     pagos_de_tu_plan: limpiar(pagosPro),
+    compartiste_con: (compartidos as Record<string, unknown>[]).map((r) => ({ correo: r.correo, evento_id: r.evento_id, pendiente_id: r.pendiente_id, created_at: r.created_at })),
   };
 }
 
@@ -50,6 +52,8 @@ export async function borrarMiAgenda(db: Db, userId: string): Promise<{ ok: true
   await db.from("p_pendientes").delete().eq("user_id", userId);
   await db.from("p_habitos").delete().eq("user_id", userId); // (las marcas se van con sus hábitos)
   await db.from("p_pagos_fijos").delete().eq("user_id", userId);
+  // 3.0 · lo que compartiste se va con tus eventos y pendientes; lo que te compartieron, también se suelta
+  await db.from("p_compartidos").delete().eq("invitado", userId);
   // (la invitación se queda: así nadie gana meses borrando y volviendo a crear su agenda)
   await db.from("push_subs").delete().eq("user_id", userId);
   const { error } = await db.from("personales").delete().eq("user_id", userId);

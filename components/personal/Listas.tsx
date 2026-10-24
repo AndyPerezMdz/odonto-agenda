@@ -3,8 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sumarDias, diasEntre } from "@/lib/pagos";
-import { deISO, MESES } from "@/lib/fechas";
-import { DIAS_LETRA, PALETA_HABITOS, mejorRacha, rachaActual, tocaHabito, type Ocurrencia, type PHabito, type PMarca, type PPendiente } from "@/lib/personal";
+import { deISO, hoyISO, MESES } from "@/lib/fechas";
+import { DIAS_LETRA, PALETA_HABITOS, PRIORIDADES, mejorRacha, rachaActual, tocaHabito, type Ocurrencia, type PHabito, type PMarca, type PPendiente } from "@/lib/personal";
+import { DURACION_BLOQUE, DURACIONES, finBloque, textoDuracion } from "@/lib/bloques";
+import { sinAcentos } from "@/lib/buscarMi";
+import { anotarRapido } from "@/lib/anotarRapido";
+import StatsHabito from "@/components/personal/StatsHabito";
+import BotonVoz from "@/components/BotonVoz";
 
 // 2.4 · Pendientes (por hacer / algún día, con subtareas) y hábitos con racha. Todo Gratis, sin tope.
 
@@ -43,7 +48,7 @@ export function useAccionesListas({
     if (demo) return;
     const r = await p;
     if (r.error) {
-      setError(/does not exist|schema cache/i.test(r.error.message) ? "Falta actualizar la base de datos (SQL 2.4)." : r.error.message);
+      setError(/does not exist|schema cache/i.test(r.error.message) ? "Falta actualizar la base de datos (corre supabase/schema.sql)." : r.error.message);
       recargar();
     } else setError(null);
   }
@@ -51,11 +56,14 @@ export function useAccionesListas({
     error,
     async guardarPendiente(p: Partial<PPendiente> & { titulo: string }) {
       const id = p.id ?? uid();
-      const datos = { titulo: p.titulo.trim().slice(0, 200), notas: p.notas?.trim() || null, lista: p.lista ?? "hacer", fecha: p.fecha || null, padre_id: p.padre_id ?? null };
+      const datos: Record<string, unknown> = { titulo: p.titulo.trim().slice(0, 200), notas: p.notas?.trim() || null, lista: p.lista ?? "hacer", fecha: p.fecha || null, padre_id: p.padre_id ?? null };
+      // 3.0 · prioridad, lista y bloque: sólo si vienen (y en uno nuevo, sólo si no son lo de siempre)
+      for (const k of ["prioridad", "etiqueta", "hora", "duracion"] as const) if (p[k] !== undefined && (p.id || p[k])) datos[k] = p[k] ?? null;
+      if (!datos.fecha && datos.hora) { datos.hora = null; datos.duracion = null; }
       const nuevo = !p.id;
       setPendientes((l) => {
         if (!nuevo) return l.map((x) => (x.id === id ? { ...x, ...datos } : x));
-        return [...l, { id, user_id: "", hecho: false, hecho_at: null, orden: Date.now() / 1000, created_at: new Date().toISOString(), ...datos }];
+        return [...l, { id, user_id: "", hecho: false, hecho_at: null, orden: Date.now() / 1000, created_at: new Date().toISOString(), ...(datos as Omit<PPendiente, "id" | "user_id" | "hecho" | "hecho_at" | "orden" | "created_at">) }];
       });
       if (nuevo) await servidor(supabase.from("p_pendientes").insert({ id, ...datos, orden: Date.now() / 1000 }));
       else await servidor(supabase.from("p_pendientes").update(datos).eq("id", id));
@@ -63,6 +71,16 @@ export function useAccionesListas({
     async marcarPendiente(p: PPendiente, hecho: boolean) {
       const hecho_at = hecho ? new Date().toISOString() : null;
       setPendientes((l) => l.map((x) => (x.id === p.id ? { ...x, hecho, hecho_at } : x)));
+      // 3.0 · uno que te compartieron: se palomea en la agenda de quien lo compartió (por el servidor)
+      if (p.compartido) {
+        if (demo) return;
+        const r = await fetch("/api/personal/compartidos", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.compartido.id, hecho }) });
+        if (!r.ok) {
+          setError((await r.json().catch(() => ({}))).error ?? "No se pudo palomear.");
+          recargar();
+        } else setError(null);
+        return;
+      }
       await servidor(supabase.from("p_pendientes").update({ hecho, hecho_at }).eq("id", p.id));
     },
     async moverPendiente(p: PPendiente, lista: PPendiente["lista"]) {
@@ -135,27 +153,58 @@ function Ventana({ titulo, onClose, children }: { titulo: string; onClose: () =>
 }
 
 export function PendienteModal({
-  pendiente, fechaInicial, listaInicial = "hacer", tituloInicial = "", acciones, onClose,
-}: { pendiente: PPendiente | null; fechaInicial?: string | null; listaInicial?: PPendiente["lista"]; tituloInicial?: string; acciones: AccionesListas; onClose: () => void }) {
+  pendiente, fechaInicial, listaInicial = "hacer", tituloInicial = "", acciones, onClose, etiquetas = [], sugerir, bloqueInicial = false, extra, compartir,
+}: {
+  pendiente: PPendiente | null; fechaInicial?: string | null; listaInicial?: PPendiente["lista"]; tituloInicial?: string; acciones: AccionesListas; onClose: () => void;
+  etiquetas?: string[]; // 3.0 · las listas que ya usas
+  sugerir?: (fecha: string, duracion: number, sinId?: string) => string[]; // 3.0 · huecos libres "HH:MM"
+  bloqueInicial?: boolean; // 3.0 · abre con "a una hora" prendido
+  extra?: Partial<Pick<PPendiente, "prioridad" | "etiqueta" | "hora" | "duracion">>; // 3.0 · de "Anotar rápido"
+  compartir?: React.ReactNode; // 3.0 · "Compartir con…" (sólo los tuyos, ya guardados)
+}) {
   const [titulo, setTitulo] = useState(pendiente?.titulo ?? tituloInicial);
   const [lista, setLista] = useState<PPendiente["lista"]>(pendiente?.lista ?? listaInicial);
-  const [conFecha, setConFecha] = useState(!!(pendiente?.fecha ?? fechaInicial));
-  const [fecha, setFecha] = useState(pendiente?.fecha ?? fechaInicial ?? sumarDias(new Date().toISOString().slice(0, 10), 0));
+  const [conFecha, setConFecha] = useState(!!(pendiente?.fecha ?? fechaInicial) || bloqueInicial || !!extra?.hora);
+  const [fecha, setFecha] = useState(pendiente?.fecha ?? fechaInicial ?? hoyISO());
   const [notas, setNotas] = useState(pendiente?.notas ?? "");
+  const [prioridad, setPrioridad] = useState<number>(pendiente?.prioridad ?? extra?.prioridad ?? 0);
+  const [etiqueta, setEtiqueta] = useState(pendiente?.etiqueta ?? extra?.etiqueta ?? "");
+  const h0 = pendiente?.hora ?? extra?.hora ?? null;
+  const [conHora, setConHora] = useState(!!h0 || bloqueInicial);
+  const [hora, setHora] = useState(h0 ? h0.slice(0, 5) : "");
+  const [duracion, setDuracion] = useState<number>(pendiente?.duracion ?? extra?.duracion ?? DURACION_BLOQUE);
   const [error, setError] = useState<string | null>(null);
   const [borrar, setBorrar] = useState(false);
   const sub = !!pendiente?.padre_id;
+  const huecos = conHora && conFecha && sugerir ? sugerir(fecha, duracion, pendiente?.id) : [];
+  // Si abre en "a una hora" sin hora, propone el primer hueco libre
+  useEffect(() => {
+    if (conHora && !hora && huecos[0]) setHora(huecos[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conHora, fecha]);
 
   function guardar(e: React.FormEvent) {
     e.preventDefault();
     if (!titulo.trim()) return setError("¿Qué hay que hacer?");
-    acciones.guardarPendiente({ id: pendiente?.id, padre_id: pendiente?.padre_id ?? null, titulo, notas, lista: sub ? "hacer" : lista, fecha: conFecha && lista === "hacer" ? fecha : null });
+    if (conFecha && conHora && !hora) return setError("¿A qué hora?");
+    const datos: Partial<PPendiente> & { titulo: string } = { id: pendiente?.id, padre_id: pendiente?.padre_id ?? null, titulo, notas, lista: sub ? "hacer" : lista, fecha: conFecha && lista === "hacer" ? fecha : null };
+    // 3.0 · sólo lo que cambió (así no truena si aún no corre el SQL 3.0)
+    const nuevos = {
+      prioridad: sub ? 0 : prioridad,
+      etiqueta: sub ? null : etiqueta.trim().slice(0, 30) || null,
+      hora: datos.fecha && conHora && hora ? `${hora}:00` : null,
+      duracion: datos.fecha && conHora && hora ? duracion : null,
+    };
+    const antes = { prioridad: pendiente?.prioridad ?? 0, etiqueta: pendiente?.etiqueta ?? null, hora: pendiente?.hora ? `${pendiente.hora.slice(0, 5)}:00` : null, duracion: pendiente?.duracion ?? null };
+    for (const k of ["prioridad", "etiqueta", "hora", "duracion"] as const) if (nuevos[k] !== antes[k]) (datos as Record<string, unknown>)[k] = nuevos[k];
+    acciones.guardarPendiente(datos);
     onClose();
   }
+  const sugeridas = etiquetas.filter((x) => x !== etiqueta && (!etiqueta || sinAcentos(x).startsWith(sinAcentos(etiqueta)))).slice(0, 6);
   return (
     <Ventana titulo={pendiente ? (sub ? "Subtarea" : "Pendiente") : "Nuevo pendiente"} onClose={onClose}>
       <form onSubmit={guardar}>
-        <input autoFocus className="campo mb-3 text-lg" placeholder="Ej. Pagar la luz" value={titulo} maxLength={200} onChange={(e) => setTitulo(e.target.value)} />
+        <input autoFocus={!pendiente} className="campo mb-3 text-lg" placeholder="Ej. Pagar la luz" value={titulo} maxLength={200} onChange={(e) => setTitulo(e.target.value)} />
         {!sub && (
           <div className="mb-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Lista">
             {([["hacer", "Por hacer", "Lo de estos días"], ["algun_dia", "Algún día", "Sin prisa, para no olvidarlo"]] as const).map(([id, t, d]) => (
@@ -166,16 +215,63 @@ export function PendienteModal({
             ))}
           </div>
         )}
+        {!sub && (
+          <>
+            <div className="mb-3 flex rounded-full border border-line bg-panel p-0.5 text-xs font-medium" role="radiogroup" aria-label="Prioridad">
+              {PRIORIDADES.map((x) => (
+                <button key={x.id} type="button" role="radio" aria-checked={prioridad === x.id} onClick={() => setPrioridad(x.id)} className={`flex-1 rounded-full px-2 py-1.5 ${prioridad === x.id ? (x.id === 2 ? "bg-danger text-white" : x.id === 1 ? "bg-accent text-panel" : "bg-ink text-panel") : "text-muted hover:text-ink"}`}>
+                  {x.marca && <b className="mr-1">{x.marca}</b>}{x.nombre}
+                </button>
+              ))}
+            </div>
+            <div className="mb-3">
+              <input className="campo py-1.5 text-sm" list="etiquetas-pend" placeholder="Lista (opcional): Casa, Escuela, Chamba…" value={etiqueta} maxLength={30} onChange={(e) => setEtiqueta(e.target.value.replace(/^#/, ""))} aria-label="Lista" />
+              {sugeridas.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {sugeridas.map((x) => <button key={x} type="button" onClick={() => setEtiqueta(x)} className="rounded-full border border-line bg-panel px-2.5 py-0.5 text-xs text-muted hover:text-ink">#{x}</button>)}
+                </div>
+              )}
+            </div>
+          </>
+        )}
         {lista === "hacer" && (
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={conFecha} onChange={(e) => setConFecha(e.target.checked)} /> Para el…
-            </label>
-            {conFecha && <input type="date" style={{ width: "auto" }} className="campo py-1.5" value={fecha} onChange={(e) => setFecha(e.target.value)} />}
-            {conFecha && <span className="text-xs text-muted">sale en Hoy ese día</span>}
+          <div className="mb-3 rounded-xl border border-line p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={conFecha} onChange={(e) => setConFecha(e.target.checked)} /> Para el…
+              </label>
+              {conFecha && <input type="date" style={{ width: "auto" }} className="campo py-1.5" value={fecha} onChange={(e) => setFecha(e.target.value)} />}
+              {conFecha && !conHora && <span className="text-xs text-muted">sale en Hoy ese día</span>}
+            </div>
+            {conFecha && !sub && (
+              <>
+                <label className="mt-2.5 flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={conHora} onChange={(e) => setConHora(e.target.checked)} /> ⏱ A una hora <span className="text-xs text-muted">(bloque en tu día)</span>
+                </label>
+                {conHora && (
+                  <div className="mt-2 pl-6">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input type="time" className="campo py-1.5" style={{ width: "7rem" }} value={hora} onChange={(e) => setHora(e.target.value)} aria-label="Hora del bloque" />
+                      <select className="campo py-1.5" style={{ width: "auto" }} value={duracion} onChange={(e) => setDuracion(Number(e.target.value))} aria-label="Duración">
+                        {DURACIONES.map((m) => <option key={m} value={m}>{textoDuracion(m)}</option>)}
+                      </select>
+                    </div>
+                    {huecos.length > 0 && (
+                      <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                        <span className="text-muted">Libre:</span>
+                        {huecos.map((x) => (
+                          <button key={x} type="button" onClick={() => setHora(x)} className={`rounded-full border px-2.5 py-0.5 tabular-nums ${hora === x ? "border-accent bg-accent-soft text-accent" : "border-line bg-panel text-muted hover:text-ink"}`}>{x}</button>
+                        ))}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
         <textarea className="campo mb-4 min-h-[70px]" placeholder="Notas (opcional)" value={notas} maxLength={1000} onChange={(e) => setNotas(e.target.value)} />
+        {compartir}
         {error && <p className="mb-3 text-sm text-danger">{error}</p>}
         <div className="flex items-center gap-2">
           {pendiente && (
@@ -267,24 +363,41 @@ export function HabitoModal({ habito, acciones, onClose }: { habito: PHabito | n
 /* =============================== Pendientes =============================== */
 
 export function SeccionPendientes({
-  pendientes, hoy, acciones, onEditar, onNuevo,
-}: { pendientes: PPendiente[]; hoy: string; acciones: AccionesListas; onEditar: (p: PPendiente) => void; onNuevo: (lista: PPendiente["lista"]) => void }) {
+  pendientes, hoy, acciones, onEditar, onNuevo, onAgendar, onCompartido,
+}: {
+  pendientes: PPendiente[]; hoy: string; acciones: AccionesListas; onEditar: (p: PPendiente) => void; onNuevo: (lista: PPendiente["lista"], etiqueta?: string) => void;
+  onAgendar?: (p: PPendiente) => void; // 3.0 · "⏱ Ponle hora"
+  onCompartido?: (p: PPendiente, hecho: boolean) => void; // 3.0 · palomear uno que te compartieron
+}) {
   const [lista, setLista] = useState<PPendiente["lista"]>("hacer");
   const [rapido, setRapido] = useState("");
   const [abierto, setAbierto] = useState<string | null>(null);
   const [verHechos, setVerHechos] = useState(false);
+  const [filtro, setFiltro] = useState<string | null>(null); // 3.0 · por lista ("Casa", "Escuela"…)
   const raiz = pendientes.filter((p) => !p.padre_id);
   const hijos = (id: string) => pendientes.filter((p) => p.padre_id === id).sort((a, b) => a.created_at.localeCompare(b.created_at));
-  const deLista = raiz.filter((p) => p.lista === lista);
-  // Primero los que tienen fecha (los más cercanos arriba), luego en el orden en que los anotaste
-  const abiertos = deLista.filter((p) => !p.hecho).sort((a, b) => (a.fecha && b.fecha ? a.fecha.localeCompare(b.fecha) : a.fecha ? -1 : b.fecha ? 1 : a.orden - b.orden));
+  const etiquetas = [...new Set(raiz.filter((p) => p.lista === lista && !p.hecho && p.etiqueta).map((p) => p.etiqueta!))].sort((a, b) => a.localeCompare(b));
+  const deLista = raiz.filter((p) => p.lista === lista && (!filtro || p.etiqueta === filtro));
+  // Lo urgente arriba; luego lo que tiene fecha (lo más cercano primero) y luego en el orden en que lo anotaste
+  const abiertos = deLista
+    .filter((p) => !p.hecho)
+    .sort((a, b) => (b.prioridad ?? 0) - (a.prioridad ?? 0) || (a.fecha && b.fecha ? a.fecha.localeCompare(b.fecha) || (a.hora ?? "99").localeCompare(b.hora ?? "99") : a.fecha ? -1 : b.fecha ? 1 : a.orden - b.orden));
   const hechos = deLista.filter((p) => p.hecho).sort((a, b) => (b.hecho_at ?? "").localeCompare(a.hecho_at ?? ""));
   const cuantos = (l: PPendiente["lista"]) => raiz.filter((p) => p.lista === l && !p.hecho).length;
+  const marcar = (p: PPendiente, v: boolean) => (p.compartido ? onCompartido?.(p, v) : acciones.marcarPendiente(p, v));
 
   function anotar(e: React.FormEvent) {
     e.preventDefault();
     if (!rapido.trim()) return;
-    acciones.guardarPendiente({ titulo: rapido, lista });
+    // 3.0 · también entiende "#casa", "!!" y "el viernes" / "mañana 5pm"
+    const b = anotarRapido(rapido, hoy);
+    const titulo = b.titulo || rapido.trim();
+    const etiqueta = b.etiqueta ?? filtro ?? undefined;
+    acciones.guardarPendiente({
+      titulo, lista, ...(lista === "hacer" && b.fecha ? { fecha: b.fecha } : {}),
+      ...(b.prioridad ? { prioridad: b.prioridad } : {}), ...(etiqueta ? { etiqueta } : {}),
+      ...(lista === "hacer" && b.fecha && b.hora_inicio ? { hora: `${b.hora_inicio}:00`, duracion: b.hora_fin ? Math.max(15, minutos(b.hora_fin) - minutos(b.hora_inicio)) : null } : {}),
+    });
     setRapido("");
   }
 
@@ -295,21 +408,34 @@ export function SeccionPendientes({
           <p className="versalitas text-muted">Tu lista</p>
           <h1 className="serif mt-1 text-5xl leading-none">Pendientes</h1>
         </div>
-        <button onClick={() => onNuevo(lista)} className="btn btn-sec rounded-full text-sm">Con detalles</button>
+        <button onClick={() => onNuevo(lista, filtro ?? undefined)} className="btn btn-sec rounded-full text-sm">Con detalles</button>
       </header>
 
-      <div className="mb-4 flex rounded-full border border-line bg-panel p-0.5 text-sm font-medium">
+      <div className="mb-3 flex rounded-full border border-line bg-panel p-0.5 text-sm font-medium">
         {([["hacer", "Por hacer"], ["algun_dia", "Algún día"]] as const).map(([id, t]) => (
-          <button key={id} onClick={() => setLista(id)} className={`flex-1 rounded-full px-3 py-1.5 ${lista === id ? "bg-ink text-panel" : "text-muted hover:text-ink"}`}>
+          <button key={id} onClick={() => { setLista(id); setFiltro(null); }} className={`flex-1 rounded-full px-3 py-1.5 ${lista === id ? "bg-ink text-panel" : "text-muted hover:text-ink"}`}>
             {t} {cuantos(id) > 0 && <span className="opacity-70">· {cuantos(id)}</span>}
           </button>
         ))}
       </div>
 
-      <form onSubmit={anotar} className="mb-4 flex gap-2">
-        <input className="campo flex-1" value={rapido} maxLength={200} onChange={(e) => setRapido(e.target.value)} placeholder={lista === "hacer" ? "Anota y Enter: “comprar café”" : "Algo para algún día: “aprender a surfear”"} aria-label="Nuevo pendiente" />
+      {(etiquetas.length > 0 || filtro) && (
+        <div className="-mx-4 mb-3 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Filtrar por lista">
+          <button onClick={() => setFiltro(null)} aria-pressed={!filtro} className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${!filtro ? "border-ink bg-ink text-panel" : "border-line text-muted hover:text-ink"}`}>Todas</button>
+          {[...new Set([...etiquetas, ...(filtro ? [filtro] : [])])].map((x) => (
+            <button key={x} onClick={() => setFiltro(filtro === x ? null : x)} aria-pressed={filtro === x} className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${filtro === x ? "border-accent bg-accent-soft text-accent" : "border-line text-muted hover:text-ink"}`}>
+              #{x} <span className="opacity-60">{raiz.filter((p) => p.lista === lista && !p.hecho && p.etiqueta === x).length}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <form onSubmit={anotar} className="mb-1 flex gap-2">
+        <input className="campo flex-1" value={rapido} maxLength={200} onChange={(e) => setRapido(e.target.value)} placeholder={lista === "hacer" ? (filtro ? `Anota en #${filtro} y Enter` : "Anota y Enter: “comprar café #casa”") : "Algo para algún día: “aprender a surfear”"} aria-label="Nuevo pendiente" />
+        <BotonVoz valor={rapido} onCambio={setRapido} />
         <button className="btn btn-primario rounded-full px-4" disabled={!rapido.trim()} aria-label="Agregar">+</button>
       </form>
+      <p className="mb-4 text-[11px] text-muted">Tip: <b>#lista</b> para ordenarlos, <b>!</b> importante, <b>!!</b> urgente, y “mañana 5pm” lo vuelve bloque.</p>
 
       {abiertos.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-line px-5 py-10 text-center">
@@ -322,21 +448,27 @@ export function SeccionPendientes({
             const subs = hijos(p.id);
             const listas = subs.filter((s) => s.hecho).length;
             const abiertoAqui = abierto === p.id;
+            const pr = p.prioridad ?? 0;
             return (
-              <li key={p.id} className="rounded-2xl border border-line bg-panel">
+              <li key={p.id} className={`rounded-2xl border bg-panel ${pr === 2 ? "border-danger/50" : "border-line"}`}>
                 <div className="flex items-start gap-3 px-3.5 py-3">
-                  <Palomita checked={false} onChange={() => acciones.marcarPendiente(p, true)} etiqueta={`Hecho: ${p.titulo}`} />
-                  <button onClick={() => setAbierto(abiertoAqui ? null : p.id)} className="min-w-0 flex-1 text-left">
-                    <span className="block leading-snug">{p.titulo}</span>
+                  <Palomita checked={false} onChange={() => marcar(p, true)} etiqueta={`Hecho: ${p.titulo}`} color={pr === 2 ? "var(--danger)" : undefined} />
+                  <button onClick={() => (p.compartido ? onEditar(p) : setAbierto(abiertoAqui ? null : p.id))} className="min-w-0 flex-1 text-left">
+                    <span className="flex items-baseline gap-1.5 leading-snug">
+                      {pr > 0 && <b className={`shrink-0 text-sm ${pr === 2 ? "text-danger" : "text-accent"}`} title={pr === 2 ? "Urgente" : "Importante"}>{pr === 2 ? "!!" : "!"}</b>}
+                      <span className="min-w-0">{p.titulo}</span>
+                    </span>
                     <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-muted">
-                      {p.fecha && <span className={p.fecha < hoy ? "font-semibold text-danger" : p.fecha === hoy ? "font-semibold text-accent" : ""}>{p.fecha < hoy ? `atrasado (${corta(p.fecha)})` : p.fecha === hoy ? "hoy" : `para el ${corta(p.fecha)}`}</span>}
+                      {p.fecha && <span className={p.fecha < hoy ? "font-semibold text-danger" : p.fecha === hoy ? "font-semibold text-accent" : ""}>{p.fecha < hoy ? `atrasado (${corta(p.fecha)})` : p.fecha === hoy ? "hoy" : `para el ${corta(p.fecha)}`}{p.hora ? ` · ${p.hora.slice(0, 5)}–${finBloque(p)}` : ""}</span>}
+                      {p.etiqueta && !filtro && <span>#{p.etiqueta}</span>}
+                      {p.compartido && <span className="font-medium text-accent">👥 de {p.compartido.de}{p.compartido.nuevo ? " · nuevo" : ""}</span>}
                       {subs.length > 0 && <span>{listas}/{subs.length} subtareas</span>}
                       {p.notas && <span className="truncate">· {p.notas}</span>}
                     </span>
                   </button>
                   <button onClick={() => onEditar(p)} className="shrink-0 p-1 text-muted hover:text-ink" aria-label={`Editar ${p.titulo}`}><Ico d={ICONO_LISTAS.lapiz} size={16} /></button>
                 </div>
-                {abiertoAqui && <Subtareas padre={p} subs={subs} acciones={acciones} onEditar={onEditar} />}
+                {abiertoAqui && <Subtareas padre={p} subs={subs} acciones={acciones} onEditar={onEditar} onAgendar={lista === "hacer" ? onAgendar : undefined} />}
               </li>
             );
           })}
@@ -347,13 +479,13 @@ export function SeccionPendientes({
         <div className="mt-5">
           <div className="flex items-center gap-3">
             <button onClick={() => setVerHechos(!verHechos)} className="text-sm font-medium text-muted hover:text-ink">{verHechos ? "Ocultar" : "Ver"} hechos ({hechos.length})</button>
-            {verHechos && <button onClick={() => acciones.borrarPendientes(hechos.map((h) => h.id))} className="ml-auto text-xs text-danger hover:underline">Borrar los hechos</button>}
+            {verHechos && <button onClick={() => acciones.borrarPendientes(hechos.filter((h) => !h.compartido).map((h) => h.id))} className="ml-auto text-xs text-danger hover:underline">Borrar los hechos</button>}
           </div>
           {verHechos && (
             <ul className="mt-2 flex flex-col gap-1">
               {hechos.map((p) => (
                 <li key={p.id} className="flex items-center gap-3 px-3.5 py-1.5">
-                  <Palomita checked onChange={() => acciones.marcarPendiente(p, false)} etiqueta={`Deshacer: ${p.titulo}`} />
+                  <Palomita checked onChange={() => marcar(p, false)} etiqueta={`Deshacer: ${p.titulo}`} />
                   <span className="min-w-0 flex-1 truncate text-muted line-through">{p.titulo}</span>
                 </li>
               ))}
@@ -365,7 +497,9 @@ export function SeccionPendientes({
   );
 }
 
-function Subtareas({ padre, subs, acciones, onEditar }: { padre: PPendiente; subs: PPendiente[]; acciones: AccionesListas; onEditar: (p: PPendiente) => void }) {
+const minutos = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+
+function Subtareas({ padre, subs, acciones, onEditar, onAgendar }: { padre: PPendiente; subs: PPendiente[]; acciones: AccionesListas; onEditar: (p: PPendiente) => void; onAgendar?: (p: PPendiente) => void }) {
   const [t, setT] = useState("");
   const ref = useRef<HTMLInputElement>(null);
   return (
@@ -392,6 +526,7 @@ function Subtareas({ padre, subs, acciones, onEditar }: { padre: PPendiente; sub
       </form>
       <div className="mt-2 flex gap-3 text-xs">
         <button onClick={() => acciones.moverPendiente(padre, padre.lista === "hacer" ? "algun_dia" : "hacer")} className="text-muted hover:text-ink">Mover a {padre.lista === "hacer" ? "Algún día" : "Por hacer"}</button>
+        {onAgendar && <button onClick={() => onAgendar(padre)} className="font-medium text-accent hover:underline">⏱ {padre.hora ? "Cambiar hora" : "Ponle hora"}</button>}
       </div>
     </div>
   );
@@ -423,6 +558,7 @@ export function SeccionHabitos({
 }: { habitos: PHabito[]; marcas: PMarca[]; hoy: string; acciones: AccionesListas; onEditar: (h: PHabito) => void; onNuevo: () => void }) {
   const porHabito = useMarcasPorHabito(marcas);
   const [verArchivados, setVerArchivados] = useState(false);
+  const [stats, setStats] = useState<PHabito | null>(null); // 3.0
   const activos = habitos.filter((h) => !h.archivado);
   const archivados = habitos.filter((h) => h.archivado);
   const dias = Array.from({ length: 14 }, (_, i) => sumarDias(hoy, i - 13));
@@ -447,7 +583,7 @@ export function SeccionHabitos({
         </div>
       ) : (
         <ul className="flex flex-col gap-3">
-          {activos.map((h) => <TarjetaHabito key={h.id} h={h} marcas={porHabito.get(h.id) ?? new Set()} hoy={hoy} dias={dias} acciones={acciones} onEditar={() => onEditar(h)} />)}
+          {activos.map((h) => <TarjetaHabito key={h.id} h={h} marcas={porHabito.get(h.id) ?? new Set()} hoy={hoy} dias={dias} acciones={acciones} onEditar={() => onEditar(h)} onStats={() => setStats(h)} />)}
         </ul>
       )}
 
@@ -468,12 +604,13 @@ export function SeccionHabitos({
           )}
         </div>
       )}
+      {stats && <StatsHabito h={stats} marcas={porHabito.get(stats.id) ?? new Set()} hoy={hoy} onClose={() => setStats(null)} />}
       <p className="mt-6 text-center text-xs text-muted">Toca un cuadrito para palomear (o despalomear) días pasados. Los días que no tocan no rompen tu racha.</p>
     </div>
   );
 }
 
-function TarjetaHabito({ h, marcas, hoy, dias, acciones, onEditar }: { h: PHabito; marcas: Set<string>; hoy: string; dias: string[]; acciones: AccionesListas; onEditar: () => void }) {
+function TarjetaHabito({ h, marcas, hoy, dias, acciones, onEditar, onStats }: { h: PHabito; marcas: Set<string>; hoy: string; dias: string[]; acciones: AccionesListas; onEditar: () => void; onStats: () => void }) {
   const racha = rachaActual(h, marcas, hoy);
   const mejor = mejorRacha(h, marcas, hoy);
   const toca = tocaHabito(h, hoy);
@@ -520,7 +657,7 @@ function TarjetaHabito({ h, marcas, hoy, dias, acciones, onEditar }: { h: PHabit
       </div>
       <div className="mt-1.5 flex justify-between text-[10px] text-muted">
         <span>hace 2 semanas</span>
-        <span>{mejor > 0 && `mejor racha: ${mejor}`}</span>
+        <button onClick={onStats} className="font-semibold text-accent hover:underline">📊 {mejor > 0 ? `mejor racha: ${mejor} · ` : ""}estadísticas</button>
         <span>hoy</span>
       </div>
       {racha >= 3 && (

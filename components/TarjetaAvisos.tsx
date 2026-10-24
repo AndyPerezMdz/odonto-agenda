@@ -157,10 +157,12 @@ export function Calendario({ descripcion }: { descripcion?: React.ReactNode } = 
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap gap-2">
             <a className="btn btn-primario" href={link.webcal}>Agregar a mi calendario</a>
+            {/* 3.0 · Google Calendar de un toque (abre "¿Agregar este calendario?") */}
+            <a className="btn btn-sec" href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(link.webcal)}`} target="_blank" rel="noopener noreferrer">Abrir en Google Calendar</a>
             <button type="button" className="btn btn-sec" onClick={copiar}>Copiar link</button>
           </div>
           <p className="text-xs text-muted">
-            <b>Google Calendar:</b> en la compu, “Otros calendarios” → “+” → “Desde URL” y pega el link. <b>iPhone:</b> toca “Agregar a mi calendario”.
+            <b>Google Calendar:</b> toca “Abrir en Google Calendar” y confirma (si no te deja, en la compu: “Otros calendarios” → “+” → “Desde URL” y pega el link). <b>iPhone:</b> toca “Agregar a mi calendario”.
           </p>
           <p className="text-xs text-muted">
             Es privado: quien tenga el link ve todo lo que agendaste (nombres incluidos).{" "}

@@ -7,7 +7,9 @@ import { entregasPendientes, expandir, fechasQueVienen, hm, ICONO_TIPO, type Ocu
 import { RenglonPago, type AccionesVP } from "@/components/personal/ViajesPagos";
 import { pagosPorAtender, totalMes, type PCosa, type PPagoFijo, type PPagoHecho } from "@/lib/viajesPagos";
 import { pesos } from "@/lib/pagos";
-import { FechasQueVienen, HabitosHoy, type AccionesListas } from "@/components/personal/Listas";
+import { FechasQueVienen, HabitosHoy, Palomita, type AccionesListas } from "@/components/personal/Listas";
+import { finBloque } from "@/lib/bloques";
+import { reunionDe } from "@/lib/links";
 import { AvisoDomingo } from "@/components/personal/TuSemana";
 import { colorDe, cuando, ahoraHM, DIAS_LARGOS, Ico, I } from "@/components/personal/comun";
 import { Boleto, extraViaje } from "@/components/personal/Boleto";
@@ -18,7 +20,7 @@ import { Boleto, extraViaje } from "@/components/personal/Boleto";
 
 export function SeccionHoy({
   odonto, eventos, todos, hoy, nombre, catPorId, onAbrir, onMarcar, onNuevo, onSemana, onViajes, onPendientes, onHabitos,
-  pendientes, habitos, marcas, acciones, onEditarPendiente, onNuevoHabito, cosas, pagosFijos, pagosHechos, accionesVP, pro, onTuSemana, onPagos, ocultos, onPersonalizar,
+  pendientes, habitos, marcas, acciones, onEditarPendiente, onNuevoHabito, cosas, pagosFijos, pagosHechos, accionesVP, pro, onTuSemana, onPagos, ocultos, onPersonalizar, onAgendar,
 }: {
   odonto: boolean; eventos: PEvento[]; todos: PEvento[]; hoy: string; nombre: string; catPorId: Map<string, PCategoria>;
   onAbrir: (o: Ocurrencia) => void; onMarcar: (e: PEvento, h: boolean) => void; onNuevo: (f?: string) => void; onSemana: () => void; onViajes: () => void;
@@ -26,6 +28,7 @@ export function SeccionHoy({
   pendientes: PPendiente[]; habitos: PHabito[]; marcas: PMarca[]; acciones: AccionesListas; onEditarPendiente: (p: PPendiente) => void; onNuevoHabito: () => void;
   cosas: PCosa[]; pagosFijos: PPagoFijo[]; pagosHechos: PPagoHecho[]; accionesVP: AccionesVP; pro: boolean; onTuSemana: () => void; onPagos: () => void;
   ocultos: Set<string>; onPersonalizar: () => void;
+  onAgendar?: (p: PPendiente) => void; // 3.0 · "⏱ Ponle hora"
 }) {
   const [ahora, setAhora] = useState(ahoraHM);
   useEffect(() => {
@@ -38,10 +41,19 @@ export function SeccionHoy({
   const linea = deHoy.filter((o) => o.tipo === "evento" || o.tipo === "recordatorio");
   const todoElDia = linea.filter((o) => !o.hora_inicio);
   const conHora = linea.filter((o) => o.hora_inicio);
-  const iAhora = conHora.findIndex((o) => hm(o.hora_inicio) > ahora);
+  // 3.0 · Bloques de tiempo (pendientes de hoy con hora) en la misma línea del tiempo
+  const bloques = pendientes.filter((p) => !p.padre_id && p.lista === "hacer" && p.fecha === hoy && p.hora);
+  const items: ({ k: "o"; o: Ocurrencia; ini: string; fin: string } | { k: "p"; p: PPendiente; ini: string; fin: string })[] = [
+    ...conHora.map((o) => ({ k: "o" as const, o, ini: hm(o.hora_inicio), fin: hm(o.hora_fin) || hm(o.hora_inicio) })),
+    ...bloques.map((p) => ({ k: "p" as const, p, ini: p.hora!.slice(0, 5), fin: finBloque(p) })),
+  ].sort((a, b) => a.ini.localeCompare(b.ini));
+  const iAhora = items.findIndex((x) => x.ini > ahora);
+  const marcarP = (p: PPendiente, v: boolean) => acciones.marcarPendiente(p, v);
   const { vencidas, proximas } = entregasPendientes(todos, hoy, 7);
   // Pendientes con fecha de hoy o atrasados (los de "algún día" no estorban aquí)
-  const pendHoy = pendientes.filter((p) => !p.padre_id && p.lista === "hacer" && p.fecha && p.fecha <= hoy && (!p.hecho || (p.hecho_at ?? "").slice(0, 10) === hoy)).sort((a, b) => (a.fecha ?? "").localeCompare(b.fecha ?? ""));
+  const pendHoy = pendientes
+    .filter((p) => !p.padre_id && p.lista === "hacer" && p.fecha && p.fecha <= hoy && !(p.fecha === hoy && p.hora) && (!p.hecho || (p.hecho_at ?? "").slice(0, 10) === hoy))
+    .sort((a, b) => (b.prioridad ?? 0) - (a.prioridad ?? 0) || (a.fecha ?? "").localeCompare(b.fecha ?? ""));
   const sinFecha = pendientes.filter((p) => !p.padre_id && p.lista === "hacer" && !p.hecho && !p.fecha).length;
   const fechas = fechasQueVienen(eventos, hoy, 14);
   const pagosHoy = pagosPorAtender(pagosFijos, pagosHechos, hoy);
@@ -64,7 +76,7 @@ export function SeccionHoy({
         </div>
         <div className="grid h-[72px] w-[72px] shrink-0 -rotate-6 place-items-center rounded-full border-2 border-dashed border-accent/60 text-center text-accent">
           <span className="leading-none">
-            <span className="serif block text-3xl">{linea.length}</span>
+            <span className="serif block text-3xl">{linea.length + bloques.length}</span>
             <span className="versalitas text-[0.55rem]">hoy</span>
           </span>
         </div>
@@ -100,7 +112,7 @@ export function SeccionHoy({
           </ul>
         )}
 
-        {conHora.length === 0 && todoElDia.length === 0 ? (
+        {items.length === 0 && todoElDia.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-line px-5 py-10 text-center">
             <p className="serif text-2xl">Día libre.</p>
             <p className="mt-1 text-sm text-muted">{odonto ? "Disfrútalo… o adelanta ese caso clínico." : "Disfrútalo… o adelanta pendientes. Tú sabes."}</p>
@@ -108,9 +120,33 @@ export function SeccionHoy({
           </div>
         ) : (
           <ol className="relative">
-            {conHora.map((o, i) => {
-              const paso = (hm(o.hora_fin) || hm(o.hora_inicio)) <= ahora;
+            {items.map((x, i) => {
+              const paso = x.fin <= ahora;
+              if (x.k === "p") {
+                const p = x.p;
+                return (
+                  <li key={`p-${p.id}`}>
+                    {i === iAhora && <MarcaAhora ahora={ahora} />}
+                    <div className={`grid grid-cols-[3.5rem_1.25rem_minmax(0,1fr)] items-stretch ${paso || p.hecho ? "opacity-55" : ""}`}>
+                      <span className="serif pt-2.5 text-lg leading-none tabular-nums">{x.ini}</span>
+                      <span className="relative flex justify-center">
+                        <span className="absolute inset-y-0 w-px bg-line" />
+                        <span className="relative mt-3 h-3 w-3 rounded-[3px] border-2 border-accent bg-bg ring-4 ring-bg" />
+                      </span>
+                      <div className="mb-2.5 flex min-w-0 items-start gap-2.5 rounded-xl border border-dashed border-accent/60 bg-accent-soft/25 px-3 py-2.5">
+                        <Palomita chica checked={p.hecho} onChange={(v) => marcarP(p, v)} etiqueta={`Hecho: ${p.titulo}`} />
+                        <button onClick={() => onEditarPendiente(p)} className="min-w-0 flex-1 text-left">
+                          <span className={`block truncate font-medium ${p.hecho ? "line-through" : ""}`}>{(p.prioridad ?? 0) > 0 && <b className={p.prioridad === 2 ? "text-danger" : "text-accent"}>{p.prioridad === 2 ? "!! " : "! "}</b>}{p.titulo}</span>
+                          <span className="mt-0.5 block text-xs text-muted">⏱ bloque · hasta las {x.fin}{p.etiqueta ? ` · #${p.etiqueta}` : ""}{p.compartido ? ` · de ${p.compartido.de}` : ""}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                );
+              }
+              const o = x.o;
               const color = colorDe(o, catPorId);
+              const reunion = reunionDe(o.lugar, o.notas);
               return (
                 <li key={`${o.id}-${o.dia}`}>
                   {i === iAhora && <MarcaAhora ahora={ahora} />}
@@ -120,23 +156,32 @@ export function SeccionHoy({
                       <span className="absolute inset-y-0 w-px bg-line" />
                       <span className="relative mt-3 h-3 w-3 rounded-full ring-4 ring-bg" style={{ background: color }} />
                     </span>
-                    <button onClick={() => onAbrir(o)} className="mb-2.5 min-w-0 rounded-xl border border-line bg-panel px-3.5 py-2.5 text-left shadow-[0_1px_0_var(--line)] transition hover:-translate-y-px hover:bg-panel-2">
-                      <span className="flex items-center gap-2">
-                        <span className="min-w-0 flex-1 truncate font-medium">{o.titulo}</span>
-                        {o.tipo === "recordatorio" && <span className="text-muted"><Ico d={ICONO_TIPO.recordatorio} size={15} /></span>}
-                        {o.serie && <span className="text-muted" title="Se repite"><Ico d={I.repite} size={14} /></span>}
-                      </span>
-                      <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted">
-                        {o.hora_fin && <span>hasta las {hm(o.hora_fin)}</span>}
-                        {o.lugar && <span className="inline-flex min-w-0 items-center gap-1 truncate"><Ico d={I.lugar} size={12} />{o.lugar}</span>}
-                        {o.categoria_id && catPorId.get(o.categoria_id) && <span style={{ color }}>{catPorId.get(o.categoria_id)!.nombre}</span>}
-                      </span>
-                    </button>
+                    <div className="relative mb-2.5 min-w-0">
+                      <button onClick={() => onAbrir(o)} className="w-full min-w-0 rounded-xl border border-line bg-panel px-3.5 py-2.5 text-left shadow-[0_1px_0_var(--line)] transition hover:-translate-y-px hover:bg-panel-2">
+                        <span className="flex items-center gap-2">
+                          <span className="min-w-0 flex-1 truncate font-medium">{o.titulo}</span>
+                          {o.compartido && <span className="text-xs text-accent" title={`De ${o.compartido.de}`}>👥</span>}
+                          {o.tipo === "recordatorio" && <span className="text-muted"><Ico d={ICONO_TIPO.recordatorio} size={15} /></span>}
+                          {o.serie && <span className="text-muted" title="Se repite"><Ico d={I.repite} size={14} /></span>}
+                        </span>
+                        <span className={`mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted ${reunion && !paso ? "pr-20" : ""}`}>
+                          {o.hora_fin && <span>hasta las {hm(o.hora_fin)}</span>}
+                          {o.lugar && !reunionDe(o.lugar) && <span className="inline-flex min-w-0 items-center gap-1 truncate"><Ico d={I.lugar} size={12} />{o.lugar}</span>}
+                          {o.compartido && <span>de {o.compartido.de}</span>}
+                          {o.categoria_id && catPorId.get(o.categoria_id) && <span style={{ color }}>{catPorId.get(o.categoria_id)!.nombre}</span>}
+                        </span>
+                      </button>
+                      {reunion && !paso && (
+                        <a href={reunion.url} target="_blank" rel="noopener noreferrer" className="absolute bottom-2 right-2 rounded-full bg-accent px-2.5 py-1 text-[11px] font-semibold text-panel hover:opacity-90">
+                          {reunion.etiqueta.replace("Unirse a ", "Unirse · ")}
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </li>
               );
             })}
-            {iAhora === -1 && conHora.length > 0 && <MarcaAhora ahora={ahora} fin />}
+            {iAhora === -1 && items.length > 0 && <MarcaAhora ahora={ahora} fin />}
           </ol>
         )}
       </section>
@@ -160,8 +205,11 @@ export function SeccionHoy({
             {pagosHoy.map((v) => <RenglonPago key={`${v.pago.id}-${v.fecha}`} v={v} hoy={hoy} acciones={accionesVP} />)}
             {pendHoy.map((p) => (
               <li key={p.id} className="flex items-start gap-3">
-                <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-[var(--nota-ink)]" checked={p.hecho} onChange={(x) => acciones.marcarPendiente(p, x.target.checked)} aria-label={`Hecho: ${p.titulo}`} />
-                <button onClick={() => onEditarPendiente(p)} className={`min-w-0 flex-1 text-left leading-snug ${p.hecho ? "line-through opacity-60" : ""}`}>{p.titulo}</button>
+                <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-[var(--nota-ink)]" checked={p.hecho} onChange={(x) => marcarP(p, x.target.checked)} aria-label={`Hecho: ${p.titulo}`} />
+                <button onClick={() => onEditarPendiente(p)} className={`min-w-0 flex-1 text-left leading-snug ${p.hecho ? "line-through opacity-60" : ""}`}>
+                  {(p.prioridad ?? 0) > 0 && <b className={p.prioridad === 2 ? "text-danger" : ""}>{p.prioridad === 2 ? "!! " : "! "}</b>}{p.titulo}{p.compartido && <span className="text-xs opacity-75"> · de {p.compartido.de}</span>}
+                </button>
+                {!p.hecho && !p.compartido && onAgendar && p.fecha === hoy && <button onClick={() => onAgendar(p)} className="shrink-0 text-xs opacity-75 hover:opacity-100" aria-label={`Ponle hora: ${p.titulo}`} title="Ponle hora (bloque)">⏱</button>}
                 <span className={`shrink-0 text-xs ${p.fecha! < hoy ? "font-bold text-danger" : "opacity-75"}`}>{p.fecha! < hoy ? `atrasado ${diasEntre(p.fecha!, hoy)} d` : "hoy"}</span>
               </li>
             ))}

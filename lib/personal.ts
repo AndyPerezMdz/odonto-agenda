@@ -22,6 +22,7 @@ export type PEvento = {
   repetir_hasta: string | null;
   excepciones: string[];
   aviso_min?: number | null; // 2.7 · avisar N minutos antes (recordatorios: null = a la hora; eventos: null = sin aviso)
+  compartido?: Compartido; // 3.0 · te lo compartió alguien: sólo para ver
 };
 
 export type PCategoria = { id: string; nombre: string; color: string; orden: number };
@@ -190,7 +191,22 @@ export type PPendiente = {
   hecho_at: string | null;
   orden: number;
   created_at: string;
+  // 3.0 · (opcionales: así funciona aunque falte el SQL 3.0)
+  prioridad?: number; // 0 normal, 1 importante, 2 urgente
+  etiqueta?: string | null; // su lista: "Casa", "Escuela"…
+  hora?: string | null; // con fecha + hora es un bloque de tiempo
+  duracion?: number | null; // minutos (null = 1 hora)
+  compartido?: Compartido; // 3.0 · te lo compartió alguien (no es tuyo)
 };
+
+/** 3.0 · Algo que te compartió otra persona. */
+export type Compartido = { id: string; de: string; nuevo: boolean };
+
+export const PRIORIDADES = [
+  { id: 0, nombre: "Normal", marca: "" },
+  { id: 1, nombre: "Importante", marca: "!" },
+  { id: 2, nombre: "Urgente", marca: "!!" },
+] as const;
 
 export type PHabito = { id: string; user_id: string; nombre: string; color: string; dias: number[]; orden: number; archivado: boolean; created_at: string; hora?: string | null };
 export type PMarca = { habito_id: string; fecha: string };

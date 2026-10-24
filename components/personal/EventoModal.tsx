@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { REPETIR, TIPOS, hm, ICONO_TIPO, type Ocurrencia, type PCategoria, type PEvento, type Repetir, type TipoEvento } from "@/lib/personal";
 import { fechaLarga } from "@/lib/fechas";
+import { BotonesLinks } from "@/components/personal/Compartir";
 
 type Props = {
   supabase: SupabaseClient;
@@ -18,10 +19,11 @@ type Props = {
   odonto?: boolean; // ejemplos de odonto o de cualquier persona
   pro?: boolean; // 2.3 · en Gratis: sin viajes nuevos
   onPro?: () => void; // abre "Eso es de Pro"
+  compartir?: React.ReactNode; // 3.0 · "Compartir con…" (sólo eventos ya guardados)
   borrador?: { tipo?: TipoEvento; titulo?: string; fecha?: string | null; fecha_fin?: string | null; hora_inicio?: string | null; hora_fin?: string | null; lugar?: string | null; repetir?: Repetir }; // 2.6 · de "Anotar rápido"
 };
 
-export default function EventoModal({ supabase, userId, evento, fechaInicial, tipoInicial, categorias, onClose, onGuardado, demo = false, odonto = true, pro = true, onPro, borrador: b }: Props) {
+export default function EventoModal({ supabase, userId, evento, fechaInicial, tipoInicial, categorias, onClose, onGuardado, demo = false, odonto = true, pro = true, onPro, borrador: b, compartir }: Props) {
   const nuevo = !evento;
   const dia = evento && "dia" in evento ? evento.dia : null; // la aparición que se abrió (series)
   const tipo0 = evento?.tipo ?? b?.tipo ?? tipoInicial ?? "evento";
@@ -246,10 +248,13 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
             </label>
           )}
 
-          <label className="col-span-2 text-sm"><span className="mb-1 block font-medium">Notas (opcional)</span>
-            <textarea className="campo min-h-[64px] resize-y" value={notas} maxLength={1000} onChange={(e) => setNotas(e.target.value)} />
+          <label className="col-span-2 text-sm"><span className="mb-1 block font-medium">Notas o link (opcional)</span>
+            <textarea className="campo min-h-[64px] resize-y" value={notas} maxLength={1000} onChange={(e) => setNotas(e.target.value)} placeholder="Llevar USB · https://zoom.us/j/…" />
           </label>
+          {/* 3.0 · Unirse a la videollamada, abrir el link o cómo llegar */}
+          {(tipo === "evento" || tipo === "viaje" || notas) && <div className="col-span-2"><BotonesLinks lugar={tipo === "evento" || tipo === "viaje" ? lugar : null} notas={notas} /></div>}
         </div>
+        {compartir && <div className="mt-4">{compartir}</div>}
 
         {error && <p className="mt-3 text-sm text-danger">{error}</p>}
 

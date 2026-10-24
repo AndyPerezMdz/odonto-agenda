@@ -1,5 +1,6 @@
 "use client";
 
+import BotonVoz from "@/components/BotonVoz";
 import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Cita, Clinica, EstadoCita, Materia, Paciente, Perfil, Preferencias } from "@/lib/types";
@@ -316,6 +317,7 @@ export default function CitaModal({
                 autoComplete="off"
                 enterKeyHint="done"
               />
+              <BotonVoz valor={rapido} onCambio={(v) => { setRapido(v); setLleno(null); }} />
               <button type="button" className="btn btn-sec shrink-0" onClick={() => llenarRapido()} disabled={rapido.trim().length < 3}>Llenar</button>
             </div>
             {lleno && <p className="mt-1.5 text-xs text-accent">✓ {lleno}. Revisa abajo y guarda.</p>}

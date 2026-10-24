@@ -4,6 +4,19 @@
 export type NovedadMi = { e: string; t: string; x: string; pro?: boolean };
 export const NOVEDADES_MI: { version: string; titulo: string; items: NovedadMi[] }[] = [
   {
+    version: "3.0",
+    titulo: "Tu agenda, ahora en equipo",
+    items: [
+      { e: "👥", t: "Compartir", x: "Abre un evento o pendiente → “Compartir con alguien”. Lo ve en su agenda; los pendientes los puede palomear." },
+      { e: "⏱", t: "Bloques de tiempo", x: "Ponle hora a un pendiente y aparece en tu día. Te sugiere los huecos libres y te avisa cuando toca." },
+      { e: "🏷️", t: "Pendientes con prioridad y lista", x: "“Comprar focos #casa !!”: va a la lista Casa y como urgente. Filtra por lista." },
+      { e: "🎤", t: "Díctalo", x: "Toca el micrófono en “Anotar algo” y dilo como lo dirías." },
+      { e: "🔍", t: "Buscador", x: "Arriba (o tecla /): encuentra cualquier evento, pendiente, plan o pago." },
+      { e: "📊", t: "Estadísticas de hábitos", x: "Mapa de 6 meses, % del mes y tu mejor día. En cada hábito." },
+      { e: "🎥", t: "Links en tus eventos", x: "Pega el link de Zoom o Meet en las notas: sale “Unirse” en Hoy. Y “Cómo llegar” con el lugar." },
+    ],
+  },
+  {
     version: "2.9",
     titulo: "Tu agenda, a tu modo",
     items: [

@@ -103,7 +103,12 @@ const fechaIcs = (iso: string) => iso.replace(/-/g, "");
 
 /** Agenda personal: cada aparición como su propio evento (las series ya vienen desdobladas). */
 async function eventosPersonales(db: ReturnType<typeof createAdminClient>, userId: string, hoy: string, ahora: string) {
-  const filas = await eventosPersonalesDe(db, [userId]);
+  const propias = await eventosPersonalesDe(db, [userId]);
+  // 3.0 · también lo que te compartieron (con "de quién" en el título)
+  const { data: u } = await db.auth.admin.getUserById(userId);
+  const { eventosCompartidosConmigo } = await import("@/lib/compartirMi");
+  const recibidas = u?.user?.email ? await eventosCompartidosConmigo(db, userId, u.user.email).catch(() => []) : [];
+  const filas = [...propias, ...recibidas.map((e) => ({ ...e, titulo: `${e.titulo} (de ${e.compartido?.de ?? "alguien"})` }))];
   const desde = sumarDias(hoy, -30);
   const hasta = sumarDias(hoy, 180);
   // Los viajes van en un solo bloque de varios días, no día por día
