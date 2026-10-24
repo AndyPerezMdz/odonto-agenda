@@ -184,6 +184,8 @@ export default function AgendaPersonal({
   const extras = !demo && (
     <>
       {tieneClinica && <ItemMenu href="/" onClick={aClinicas} d={I.clinicas} t="Agenda de clínicas" />}
+      {/* 3.1 · De odonto sin agenda de clínicas: abrirla con la misma cuenta */}
+      {!tieneClinica && odonto && <ItemMenu href="/clinicas/nueva" d={I.clinicas} t="Abrir agenda de clínicas" />}
       <ItemMenu href="/personal/ajustes#plan" d={I.estrella} t={estado?.tipo === "gratis" ? "Pásate a Pro" : "Tu plan"} />
       <ItemMenu href="/personal/ajustes" d={I.ajustes} t="Ajustes y categorías" />
       <button onClick={() => { setHoja(null); setVerNovedades([]); setAviso("novedades"); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-muted hover:bg-panel-2 hover:text-ink">

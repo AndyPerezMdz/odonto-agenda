@@ -49,6 +49,9 @@ export async function saludSistema(db: Db): Promise<Salud> {
     { id: "2.4", nombre: "Pendientes y hábitos (2.4)", ok: await existe("p_pendientes") },
     { id: "2.5", nombre: "Viajes y pagos fijos (2.5)", ok: await existe("p_viaje_cosas") },
     { id: "2.7", nombre: "Avisos antes y hábitos con hora (2.7)", ok: await existe("p_habitos_avisados") },
+    { id: "2.9", nombre: "Invita a un amigo (2.9)", ok: await existe("p_invitaciones") },
+    { id: "3.0", nombre: "Compartir y bloques de tiempo (3.0)", ok: await existe("p_compartidos") },
+    { id: "3.1", nombre: "Correo institucional (3.1)", ok: await existe("verificaciones_escolares") },
   ];
   const problemas = llaves.filter((x) => !x.ok).length + crones.filter((x) => !x.ok).length + sql.filter((x) => !x.ok).length;
   return { llaves, crones, sql, problemas };

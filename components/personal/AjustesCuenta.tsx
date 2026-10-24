@@ -5,7 +5,7 @@ import type { PerfilPersonal } from "@/lib/personal";
 
 // 2.9 · Ajustes de Mi agenda: para quién es, invita a un amigo, y tus datos (descargar o borrar).
 
-export function ParaQuien({ perfil: inicial }: { perfil: PerfilPersonal }) {
+export function ParaQuien({ perfil: inicial, tieneClinica = true }: { perfil: PerfilPersonal; tieneClinica?: boolean }) {
   const [perfil, setPerfil] = useState(inicial);
   const [guardando, setGuardando] = useState(false);
   async function cambiar(p: PerfilPersonal) {
@@ -27,6 +27,17 @@ export function ParaQuien({ perfil: inicial }: { perfil: PerfilPersonal }) {
           </button>
         ))}
       </div>
+      {/* 3.1 · De odonto y sin agenda de clínicas: que la pueda abrir con su misma cuenta */}
+      {perfil === "odonto" && !tieneClinica && (
+        <a href="/clinicas/nueva" className="mt-3 flex items-center gap-3 rounded-xl border border-dashed border-accent/60 bg-accent-soft/30 px-3 py-2.5 hover:bg-accent-soft/60">
+          <span className="text-xl" aria-hidden>🦷</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">¿Estudias odonto? Abre tu agenda de clínicas</span>
+            <span className="block text-xs text-muted">Citas, pacientes y tu compañero/a. Con tu misma cuenta; sólo confirmas tu correo de la escuela.</span>
+          </span>
+          <span className="text-accent">→</span>
+        </a>
+      )}
     </section>
   );
 }

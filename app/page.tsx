@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { pendienteEscolar } from "@/lib/verificacionServer";
+import { BloqueoVerificar } from "@/components/AvisoVerificar";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -30,6 +32,10 @@ export default async function Home() {
 
   // Tiene las dos agendas: entra a la última que usó (la cookie la pone cada agenda al abrirse)
   if ((await cookies()).get("ultima_agenda")?.value === "personal" && (await personalDe(createAdminClient(), user.id))) redirect("/personal");
+
+  // 3.1 · Se le venció el plazo para confirmar que es estudiante: primero eso (no se borra nada)
+  const pend = await pendienteEscolar(createAdminClient(), user);
+  if (pend.necesita && pend.vencido) return <BloqueoVerificar uni={pend.universidad} plazo={pend.plazo} correoSugerido={pend.correoSugerido} />;
 
   return (
     <SoloNavegador>

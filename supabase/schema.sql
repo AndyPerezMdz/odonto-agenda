@@ -1350,3 +1350,34 @@ create index if not exists p_compartidos_dueno_idx on public.p_compartidos (duen
 create index if not exists p_compartidos_correo_idx on public.p_compartidos (correo);
 alter table public.p_compartidos enable row level security;
 revoke all on public.p_compartidos from anon, authenticated;  -- sólo el servidor
+
+-- =====================================================================
+-- 3.1 · Agenda de clínicas: comprobar que es estudiante con su correo institucional
+--   Para crear una agenda de clínicas nueva (no para unirse con el link de un compañero/a).
+--   Del correo institucional sólo se guarda una huella (hash), para que sirva para una sola cuenta.
+--   Plan B: si no tiene acceso a su correo, lo pide y tú lo apruebas a mano en tu panel.
+-- =====================================================================
+create table if not exists public.verificaciones_escolares (
+  user_id        uuid primary key references public.perfiles (id) on delete cascade,
+  universidad    text not null,
+  estado         text not null default 'pendiente' check (estado in ('pendiente', 'verificado', 'manual', 'aprobado', 'rechazado')),
+  metodo         text check (metodo is null or metodo in ('codigo', 'cuenta', 'staff')),
+  correo_hash    text,                 -- huella del correo institucional (no el correo)
+  dominio        text,
+  codigo_hash    text,
+  codigo_expira  timestamptz,
+  intentos       int not null default 0,
+  enviado_at     timestamptz,
+  envios_dia     date,
+  envios         int not null default 0,
+  nota           text check (nota is null or char_length(nota) <= 500),   -- plan B: lo que escribió para el staff
+  verificado_at  timestamptz,
+  created_at     timestamptz not null default now()
+);
+-- Un correo institucional verifica una sola cuenta
+create unique index if not exists verificaciones_correo_unico on public.verificaciones_escolares (correo_hash) where estado = 'verificado';
+create index if not exists verificaciones_estado_idx on public.verificaciones_escolares (estado, created_at);
+alter table public.verificaciones_escolares enable row level security;
+revoke all on public.verificaciones_escolares from anon, authenticated;  -- sólo el servidor
+-- 3.1 · A quien ya tenía agenda de clínicas: aviso con plazo (14 días desde que lo ve por primera vez) para verificar
+alter table public.verificaciones_escolares add column if not exists plazo date;

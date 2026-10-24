@@ -7,7 +7,9 @@ import { createClient } from "@/lib/supabase/client";
 import AuthCard from "@/components/AuthCard";
 import RegistroMiAgenda from "@/components/RegistroMiAgenda";
 import { fuentePapel } from "@/lib/fuentePapel";
-import { UNIVERSIDADES } from "@/lib/universidades";
+import { UNIVERSIDADES, esUniversidad, universidad } from "@/lib/universidades";
+import { DOMINIOS, requiereVerificacion } from "@/lib/verificacionEscolar";
+import VerificarEscolar from "@/components/VerificarEscolar";
 import { completarRegistro, guardarPendiente, leerPendiente, type ResultadoRegistro } from "@/lib/registroCliente";
 
 type Enlace = { agenda: string; dueno: string | null; ocupada: boolean };
@@ -26,7 +28,7 @@ function Registro() {
   const router = useRouter();
   const q = useSearchParams();
   const unir = q.get("unir") ?? "";
-  const [paso, setPaso] = useState<"datos" | "codigo" | "listo">(q.get("confirmar") ? "codigo" : "datos");
+  const [paso, setPaso] = useState<"datos" | "codigo" | "institucional" | "listo">(q.get("confirmar") ? "codigo" : "datos");
   // 2.8 · ¿Para qué es la agenda? Personal (Mi agenda) o Escolar (clínicas). Con link de compa o código, ya se sabe.
   const [para, setPara] = useState<"personal" | "escolar" | null>(unir || q.get("confirmar") || q.get("codigo") || q.get("para") === "escolar" ? "escolar" : q.get("para") === "personal" || q.get("inv") ? "personal" : null);
   const [enlace, setEnlace] = useState<Enlace | null>(null);
@@ -77,6 +79,11 @@ function Registro() {
   }, [espera]);
 
   function terminar(r: ResultadoRegistro) {
+    // 3.1 · Falta confirmar que es estudiante (correo institucional)
+    if (!r.ok && r.motivo === "verificar") {
+      setPaso("institucional");
+      return;
+    }
     if (r.ok && !r.aviso) {
       router.replace("/");
       router.refresh();
@@ -158,11 +165,11 @@ function Registro() {
           <button
             className="btn btn-primario mb-2 w-full"
             disabled={cargando}
-            onClick={async () => {
-              setCargando(true);
-              const r = await completarRegistro({ nombre: leerPendiente().nombre });
-              setCargando(false);
-              terminar(r);
+            onClick={() => {
+              // Sin el link: que elija su universidad (y confirme que es estudiante) en la pantalla de inicio
+              guardarPendiente({ ...leerPendiente(), unir: undefined, universidad: undefined });
+              router.replace("/");
+              router.refresh();
             }}
           >
             {cargando ? "Creando…" : "Mejor crear mi propia agenda"}
@@ -173,6 +180,24 @@ function Registro() {
         </button>
       </AuthCard>
     );
+  }
+
+  if (paso === "institucional") {
+    const u = leerPendiente().universidad ?? uni;
+    if (esUniversidad(u))
+      return (
+        <AuthCard titulo="Confirma que eres estudiante" subtitulo={`Tu cuenta ya quedó. Último paso para tu agenda de la ${universidad(u).nombre}.`}>
+          <VerificarEscolar
+            uni={u}
+            correoInicial={email.trim().toLowerCase().endsWith(`@${DOMINIOS[u][0] ?? "-"}`) ? email.trim().toLowerCase() : ""}
+            onListo={async () => {
+              setCargando(true);
+              terminar(await completarRegistro(leerPendiente()));
+              setCargando(false);
+            }}
+          />
+        </AuthCard>
+      );
   }
 
   if (paso === "codigo") {
@@ -284,7 +309,10 @@ function Registro() {
                 </button>
               ))}
             </div>
-            <p className="mb-4 text-xs text-muted">Tu agenda se arma para tu universidad. <b>No se puede cambiar después.</b></p>
+            <p className="mb-4 text-xs text-muted">
+              Tu agenda se arma para tu universidad. <b>No se puede cambiar después.</b>
+              {esUniversidad(uni) && requiereVerificacion(uni) && <> La {universidad(uni).nombre} te pide confirmar tu correo de alumno (@{DOMINIOS[uni][0]}) con un código.</>}
+            </p>
 
             <label className="mb-1 block text-sm font-medium" htmlFor="codigo">
               Código de creador <span className="font-normal text-muted">(opcional)</span>

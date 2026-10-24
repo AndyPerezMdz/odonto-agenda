@@ -60,7 +60,9 @@ export default function LoginForm({ mi = false }: { mi?: boolean }) {
       setError("Correo o contraseña incorrectos.");
       return;
     }
-    router.replace(mi ? "/personal" : "/");
+    // 3.1 · ?next=/algo (sólo rutas de aquí mismo) para volver a donde iba, p. ej. /clinicas/nueva
+    const next = new URLSearchParams(window.location.search).get("next");
+    router.replace(next && /^\/[a-z]/i.test(next) && !next.startsWith("//") ? next : mi ? "/personal" : "/");
     router.refresh();
   }
 

@@ -110,7 +110,7 @@ export default function AjustesPersonal({ userId, email, pro = true, perfil = "g
 
             {seccion === "cuenta" && (
               <>
-                <ParaQuien perfil={perfil} />
+                <ParaQuien perfil={perfil} tieneClinica={tieneClinica} />
                 <CambiarPassword />
                 <TusDatos tieneClinica={tieneClinica} />
               </>

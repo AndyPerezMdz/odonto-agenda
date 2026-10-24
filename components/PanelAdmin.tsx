@@ -7,6 +7,7 @@ import type { AgendaAdmin, AvisoAdmin, Miembro, ResumenAdmin } from "@/lib/admin
 import { FiltroUniversidad, InsigniaUni, UsoUady, type FiltroUni, Saludo, Numeros, Totales, HoyTeToca, Ingresos, PorCodigo, hace, diasSinEntrar, enPruebaViva, pagando, DIAS_FANTASMA } from "@/components/TableroAdmin";
 import type { CodigoAdmin } from "@/app/api/admin/codigos/route";
 import type { CuentaAdmin, SugerenciaAdmin } from "@/lib/staff";
+import RevisionesEscolares from "@/components/RevisionesEscolares";
 import { AnunciosAdmin, Buzon, CobrosQueVienen, CuentasAMedias, cuentasAMedias, Embudo, PreciosUni } from "@/components/StaffPiezas";
 import { estadoPago, pesos, codigoAgenda, sumarDias } from "@/lib/pagos";
 import PersonasMi, { PreciosMi } from "@/components/personal/PersonalesAdmin";
@@ -326,6 +327,7 @@ export default function PanelAdmin({ email }: { email: string }) {
               )}
             </div>
           )}
+          <RevisionesEscolares onAviso={setAviso} />
           <AvisosPago
             avisos={avisosUni}
             agendas={agendas}

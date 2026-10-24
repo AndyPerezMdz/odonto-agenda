@@ -9,6 +9,7 @@ import { sumarDias } from "@/lib/pagos";
 import { fechaEnZona } from "@/lib/recordatorios";
 import { esSuperadmin } from "@/lib/admin";
 import { crearInvitacion } from "@/lib/invitaciones";
+import { verificadoPara } from "@/lib/verificacionServer";
 import { agendaEnPrueba, gastadaEnOtra, gastarPrueba, pruebaDe, MENSAJE_PRUEBA_USADA } from "@/lib/pruebas";
 
 type Db = ReturnType<typeof createAdminClient>;
@@ -51,7 +52,7 @@ type Resultado = { ok: true; agenda: "creada" | "unido" | "invitacion" | "ya"; a
  */
 export async function completarRegistro(
   db: Db,
-  user: { id: string; email?: string | null },
+  user: { id: string; email?: string | null; email_confirmed_at?: string | null },
   datos: { nombre?: string; codigo?: string; unir?: string; universidad?: string; sitio: string }
 ): Promise<Resultado> {
   const email = user.email ?? "";
@@ -91,6 +92,10 @@ export async function completarRegistro(
   // --- Su propia agenda: la universidad es obligatoria y queda fija para siempre
   if (!esUniversidad(datos.universidad)) return { ok: false, error: "Elige tu universidad.", motivo: "universidad" };
   const uni = universidad(datos.universidad);
+  // 3.1 · Para abrir una agenda de clínicas nueva hay que comprobar que es estudiante (correo institucional)
+  if (!(await verificadoPara(db, user, uni.id))) {
+    return { ok: false, error: `Para abrir tu agenda de la ${uni.nombre}, confirma que eres estudiante con tu correo institucional.`, motivo: "verificar" };
+  }
   const precio = mensualDe(await planesConfig(db), uni.id); // el mensual de su universidad
   // 2.3 · La agenda nace en Gratis: la prueba de Pro la activa el dueño cuando quiera (y el código de creador se guarda para entonces)
   const p = await pruebaDe(db, email);

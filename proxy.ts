@@ -73,7 +73,7 @@ async function sesion(request: NextRequest) {
   if (!user && !empiezaCon(path, PUBLICAS)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.search = path === "/personal" || path.startsWith("/personal/") ? "?a=mi" : ""; // Mi agenda: su propio login
+    url.search = path === "/personal" || path.startsWith("/personal/") ? "?a=mi" : path === "/clinicas/nueva" ? "?next=/clinicas/nueva" : ""; // Mi agenda: su propio login · 3.1: volver a abrir su agenda de clínicas
     return NextResponse.redirect(url);
   }
 

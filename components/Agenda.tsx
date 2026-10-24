@@ -1,5 +1,6 @@
 "use client";
 
+import { AvisoVerificar } from "@/components/AvisoVerificar";
 import TuSemanaClinicas from "@/components/TuSemanaClinicas";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -287,6 +288,7 @@ export default function Agenda({ userId }: { userId: string }) {
           ganchoPersonal={!tienePersonal}
           antes={
             <>
+              <AvisoVerificar />
               <BannerPlan pro={pro} quedan={quedanPro} esDueno={yo?.rol === "owner"} cargando={cargando} />
               {uady && pro && <AvisosMaterial userId={userId} horarios={horarios} perfiles={perfiles} compacto />}
               <TuSemanaClinicas citas={citas} userId={userId} hoy={hoyStr} materiaPorId={materiaPorId} pro={pro} esDueno={yo?.rol === "owner"} uady={uady} supabase={supabase} onAbrir={(c) => setModal({ cita: c, fecha: c.fecha })} />
