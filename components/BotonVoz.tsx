@@ -17,12 +17,28 @@ const ctor = (): Ctor | null => {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 };
 
+/** Brave y Opera traen el botón de dictado del navegador, pero no funciona (Google no les presta el reconocimiento). */
+const sinDictado = () => {
+  if (typeof navigator === "undefined") return false;
+  const n = navigator as Navigator & { brave?: unknown };
+  return !!n.brave || /\bOPR\/|\bOpera\b|OPX\//.test(navigator.userAgent);
+};
+/** El dictado del sistema, que funciona en cualquier campo y cualquier navegador. */
+const atajoSistema = () => {
+  const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
+  if (/Android|iPhone|iPad/.test(ua)) return "Usa el micrófono de tu teclado: toca el campo y luego el 🎤 del teclado.";
+  if (/Mac/.test(ua)) return "Usa el dictado de tu Mac: toca el campo y presiona dos veces la tecla Fn (🌐).";
+  if (/Windows/.test(ua)) return "Usa el dictado de Windows: toca el campo y presiona Windows + H. Funciona en cualquier navegador.";
+  return "Usa el dictado de tu sistema o del teclado.";
+};
+
 export default function BotonVoz({ valor, onCambio, onListo, className = "" }: { valor: string; onCambio: (t: string) => void; onListo?: (t: string) => void; className?: string }) {
   const [puede, setPuede] = useState(false);
   const [oyendo, setOyendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const rec = useRef<Reconocimiento | null>(null);
   const ultimo = useRef("");
+  const oyo = useRef(false); // ¿llegó algo de texto?
   useEffect(() => setPuede(!!ctor()), []);
   useEffect(() => () => rec.current?.abort(), []);
   useEffect(() => {
@@ -37,6 +53,8 @@ export default function BotonVoz({ valor, onCambio, onListo, className = "" }: {
     if (!C) return;
     if (oyendo) return rec.current?.stop();
     setError(null);
+    // En Brave / Opera el micro se prende pero nunca llega texto: mejor decirlo de una vez
+    if (sinDictado()) return setError(`Este navegador no trae dictado. ${atajoSistema()} O abre tu agenda en Chrome o Edge.`);
     const r = new C();
     r.lang = "es-MX";
     r.interimResults = true;
@@ -44,6 +62,7 @@ export default function BotonVoz({ valor, onCambio, onListo, className = "" }: {
     r.maxAlternatives = 1;
     const base = valor.trim() ? `${valor.trim()} ` : "";
     r.onresult = (e) => {
+      oyo.current = true;
       let t = "";
       for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
       ultimo.current = (base + t.trim()).replace(/\s+/g, " ");
@@ -62,16 +81,19 @@ export default function BotonVoz({ valor, onCambio, onListo, className = "" }: {
       setError(
         e.error === "no-speech" ? "No te oí. Toca y habla otra vez."
         : e.error === "audio-capture" ? "No encuentro tu micrófono. Revisa que esté conectado."
-        : e.error === "network" ? "Este navegador no tiene dictado (en Brave u Opera no funciona). Usa Chrome, Edge o Safari."
+        : e.error === "network" ? `Este navegador no trae dictado. ${atajoSistema()}`
         : e.error === "language-not-supported" ? "Tu navegador no dicta en español."
         : `No se pudo dictar (${e.error}).`
       );
     };
     r.onend = () => {
       setOyendo(false);
+      // Se prendió y se apagó sin texto (pasa en navegadores sin dictado de verdad)
+      if (!oyo.current) setError((x) => x ?? `No me llegó nada. ${atajoSistema()}`);
       if (ultimo.current) onListo?.(ultimo.current);
     };
     ultimo.current = "";
+    oyo.current = false;
     rec.current = r;
     try {
       r.start();
@@ -96,7 +118,7 @@ export default function BotonVoz({ valor, onCambio, onListo, className = "" }: {
           <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM19 11a7 7 0 0 1-14 0M12 18v3" />
         </svg>
       </button>
-      {error && <span role="status" onClick={() => setError(null)} className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] leading-snug text-panel shadow-lg">{error}</span>}
+      {error && <span role="status" onClick={() => setError(null)} className="absolute right-0 top-full z-20 mt-1 w-64 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] leading-snug text-panel shadow-lg">{error}</span>}
     </span>
   );
 }
