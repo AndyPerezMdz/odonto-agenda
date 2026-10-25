@@ -46,4 +46,4 @@ select cron.schedule(
 -- Limpieza: los avisos mandados de hace más de 30 días ya no sirven (corre diario a las 3:17 a. m. UTC)
 select cron.unschedule('mi-agenda-limpia-avisos')
 where exists (select 1 from cron.job where jobname = 'mi-agenda-limpia-avisos');
-select cron.schedule('mi-agenda-limpia-avisos', '17 3 * * *', $$ delete from public.p_push_enviados where dia < current_date - 30; delete from public.p_habitos_avisados where dia < current_date - 30 $$);
+select cron.schedule('mi-agenda-limpia-avisos', '17 3 * * *', $$ delete from public.p_push_enviados where dia < current_date - 30; delete from public.p_habitos_avisados where dia < current_date - 30; delete from public.p_pendientes_avisados where dia < current_date - 30 $$);
