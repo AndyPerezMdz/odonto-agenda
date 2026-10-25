@@ -8,7 +8,7 @@ type Props = { searchParams: Promise<{ a?: string }> };
 // 2.3 · Un solo login, con dos caras: la de clínicas y la de Mi agenda (/login?a=mi).
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const { a } = await searchParams;
-  return a === "mi" ? { ...metaMiAgenda, title: { absolute: "Entra a Mi agenda" } } : { title: "Entrar · Agenda de clínicas" };
+  return a === "mi" ? { ...metaMiAgenda, title: { absolute: "Entra a Mi agenda" } } : { title: "Entrar · La agendita" };
 }
 
 export async function generateViewport({ searchParams }: Props) {

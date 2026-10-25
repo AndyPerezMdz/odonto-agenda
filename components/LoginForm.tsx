@@ -70,7 +70,7 @@ export default function LoginForm({ mi = false }: { mi?: boolean }) {
     <AuthCard
       titulo={mi ? "Entra a Mi agenda" : "Entra a tu agenda"}
       subtitulo={mi ? "Tu agenda personal · sólo tú la ves" : "Agenda de clínicas · Mi agenda"}
-      logo={mi ? "/mi-agenda-icon.svg" : undefined}
+      logo={mi ? "/mi-agenda-icon.svg" : "/laagendita-icon.svg"}
       serif={mi}
     >
       <form onSubmit={entrar}>

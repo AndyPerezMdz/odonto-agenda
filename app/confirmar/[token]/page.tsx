@@ -17,7 +17,7 @@ export default async function ConfirmarPage({ params }: { params: Promise<{ toke
       <div className="w-full max-w-sm rounded-2xl border border-line bg-panel p-6 shadow-sm">
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-accent">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icon.svg" alt="" width={28} height={28} className="h-7 w-7" />
+          <img src="/clinicas-icon.svg" alt="" width={28} height={28} className="h-7 w-7" />
           Agenda de clínicas
         </div>
         {!c ? (

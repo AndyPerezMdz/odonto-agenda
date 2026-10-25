@@ -1,7 +1,7 @@
 export default function AuthCard({
   titulo,
   subtitulo,
-  logo = "/icon.svg",
+  logo = "/clinicas-icon.svg", // 3.3 · lo de clínicas lleva la muela; lo general, el de La agendita
   serif = false,
   children,
 }: {

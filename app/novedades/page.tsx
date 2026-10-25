@@ -15,7 +15,7 @@ export default async function NovedadesPage({ searchParams }: { searchParams: Pr
     <main className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
       <div className="mb-6 flex items-center gap-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/icon.svg" alt="" width={40} height={40} className="h-10 w-10" />
+        <img src="/clinicas-icon.svg" alt="" width={40} height={40} className="h-10 w-10" />
         <div>
           <p className="text-sm text-muted">Agenda de clínicas · versión {APP_VERSION}</p>
           <h1 className="text-2xl font-semibold tracking-tight">Novedades{u === "uady" ? " · UADY" : ""}</h1>

@@ -7,7 +7,7 @@ export default function DocLegal({ titulo, children }: { titulo: string; childre
     <main className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
       <div className="mb-8 flex items-center gap-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/icon.svg" alt="" width={40} height={40} className="h-10 w-10" />
+        <img src="/laagendita-icon.svg" alt="" width={40} height={40} className="h-10 w-10" />
         <div>
           <p className="text-sm text-muted">{LEGAL.servicio}</p>
           <h1 className="text-2xl font-semibold tracking-tight">{titulo}</h1>

@@ -178,7 +178,7 @@ export default function Shell({ actual, titulo, nombreAgenda, uady, esDueno, onS
       <aside className="no-imprimir sticky top-0 hidden h-dvh flex-col border-r border-line bg-panel lg:flex">
         <div className="flex items-center gap-2.5 px-4 pb-3 pt-5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icon.svg" alt="" width={32} height={32} className="h-8 w-8" />
+          <img src="/clinicas-icon.svg" alt="" width={32} height={32} className="h-8 w-8" />
           <div className="min-w-0 leading-tight">
             <p className="truncate text-sm font-semibold">{nombreAgenda || "Agenda"}</p>
             <p className="text-[11px] text-muted">Agenda de clínicas</p>

@@ -233,7 +233,7 @@ function Registro() {
 
   if (!para) {
     return (
-      <AuthCard titulo="Crea tu agenda" subtitulo="¿Para qué es?">
+      <AuthCard logo="/laagendita-icon.svg" titulo="Crea tu agenda" subtitulo="¿Para qué es?">
         <div className="flex flex-col gap-3">
           <button type="button" onClick={() => setPara("personal")} className="flex items-start gap-3 rounded-2xl border border-line p-4 text-left transition hover:border-accent hover:bg-accent-soft/40">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -245,7 +245,7 @@ function Registro() {
           </button>
           <button type="button" onClick={() => setPara("escolar")} className="flex items-start gap-3 rounded-2xl border border-line p-4 text-left transition hover:border-accent hover:bg-accent-soft/40">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icon.svg" alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-xl" />
+            <img src="/clinicas-icon.svg" alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-xl" />
             <span>
               <span className="block font-semibold">Escolar</span>
               <span className="text-sm text-muted">Clínicas de odontología (UPP y UADY): citas, pacientes y tu compañero/a.</span>
