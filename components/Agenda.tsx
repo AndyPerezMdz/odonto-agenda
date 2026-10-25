@@ -1,5 +1,6 @@
 "use client";
 
+import AvisoMudanza from "@/components/AvisoMudanza";
 import RellenarHueco from "@/components/RellenarHueco";
 import { TarjetaTuCuatri } from "@/components/TuCuatri";
 import { AvisoVerificar } from "@/components/AvisoVerificar";
@@ -292,6 +293,7 @@ export default function Agenda({ userId }: { userId: string }) {
           ganchoPersonal={!tienePersonal}
           antes={
             <>
+              <AvisoMudanza />
               <AvisoVerificar />
               {yo && <TarjetaTuCuatri userId={userId} supabase={supabase} materias={nombresMaterias} tipo={periodosDe(ajustes.universidad)} hoy={hoyStr} nombre={yo.nombre} />}
               <BannerPlan pro={pro} quedan={quedanPro} esDueno={yo?.rol === "owner"} cargando={cargando} />

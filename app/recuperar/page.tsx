@@ -5,6 +5,10 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import AuthCard from "@/components/AuthCard";
 
+// Dirección configurada en Supabase → Authentication → Emails → SMTP Settings
+// (3.3: en Vercel, NEXT_PUBLIC_CORREO_REMITENTE = agenda@laagendita.app cuando ya esté verificado en Resend)
+const REMITENTE = process.env.NEXT_PUBLIC_CORREO_REMITENTE || "agenda@tapiceriaautomotrizbynovo.com";
+
 export default function RecuperarPage() {
   const [email, setEmail] = useState("");
   const [enviado, setEnviado] = useState(false);
@@ -35,9 +39,18 @@ export default function RecuperarPage() {
   if (enviado) {
     return (
       <AuthCard titulo="Revisa tu correo" subtitulo={`Si ${email.trim()} tiene cuenta, te llegará un enlace para elegir una nueva contraseña.`}>
+        <div className="mb-4 rounded-xl border border-[#e8c36a] bg-[#fdf6e3] p-4 text-sm text-[#5c4712] dark:border-[#6b5620] dark:bg-[#2a2415] dark:text-[#ecd9a4]">
+          <p className="mb-1 flex items-center gap-2 font-semibold">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+            ¿No lo ves? Busca en Spam
+          </p>
+          <p>
+            Lo más seguro es que llegue a <b>Spam</b> o <b>Promociones</b>. Viene de{" "}
+            <b className="break-all">{REMITENTE}</b>. Márcalo como <b>“No es spam”</b> para que los siguientes lleguen bien.
+          </p>
+        </div>
         <ul className="mb-5 list-disc space-y-1 pl-5 text-sm text-muted">
           <li>Puede tardar un par de minutos.</li>
-          <li>Revisa también la carpeta de spam.</li>
           <li>El enlace sólo sirve una vez y caduca en 1 hora.</li>
         </ul>
         <Link href="/login" className="btn btn-sec w-full">Volver a iniciar sesión</Link>

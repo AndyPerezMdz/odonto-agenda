@@ -4,7 +4,7 @@
 -- Vercel Hobby sólo deja crons diarios, así que el "despertador" lo pone Supabase.
 --
 -- 1) En Supabase: Database → Extensions → enciende pg_cron y pg_net.
--- 2) Cambia abajo TU-SITIO y TU-CRON-SECRET (el mismo CRON_SECRET que está en Vercel).
+-- 2) Cambia abajo TU-CRON-SECRET (el mismo CRON_SECRET que está en Vercel). El sitio ya es laagendita.app.
 --    ¡No subas este archivo con el secreto escrito! Pégalo directo en el SQL Editor.
 -- 3) Corre todo en el SQL Editor. Para revisarlo: select * from cron.job;
 --    Para quitarlo: select cron.unschedule('mi-agenda-recordatorios');
@@ -20,7 +20,7 @@ select cron.schedule(
   '*/5 * * * *',
   $$
   select net.http_get(
-    url := 'https://TU-SITIO.vercel.app/api/push/recordatorios',
+    url := 'https://laagendita.app/api/push/recordatorios',
     headers := jsonb_build_object('Authorization', 'Bearer TU-CRON-SECRET'),
     timeout_milliseconds := 20000
   );
@@ -36,7 +36,7 @@ select cron.schedule(
   '*/15 * * * *',
   $$
   select net.http_get(
-    url := 'https://TU-SITIO.vercel.app/api/push/citas',
+    url := 'https://laagendita.app/api/push/citas',
     headers := jsonb_build_object('Authorization', 'Bearer TU-CRON-SECRET'),
     timeout_milliseconds := 20000
   );

@@ -10,8 +10,26 @@ const SOLO_INVITADOS = ["/login", "/recuperar"];
 const empiezaCon = (path: string, lista: string[]) =>
   lista.some((p) => path === p || path.startsWith(p + "/"));
 
+/** Si la visita llega a *.vercel.app en producción y ya hay dominio propio (NEXT_PUBLIC_SITE_URL), a dónde mandarla. */
+function aDondeMudar(request: NextRequest): string | null {
+  const sitio = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!sitio || process.env.VERCEL_ENV !== "production") return null;
+  let canon: URL;
+  try { canon = new URL(sitio); } catch { return null; }
+  const host = (request.headers.get("host") ?? "").toLowerCase();
+  if (!host.endsWith(".vercel.app") || canon.host.endsWith(".vercel.app")) return null;
+  const path = request.nextUrl.pathname;
+  if (empiezaCon(path, ["/api", "/sw.js", "/.well-known"])) return null;
+  return `${canon.origin}${path}${request.nextUrl.search}`;
+}
+
 // Refresca la sesión en cada request y saca a quien no esté logueado.
 export async function proxy(request: NextRequest) {
+  // 3.3 · Mudanza a laagendita.app: la dirección vieja (*.vercel.app) manda a la nueva.
+  // Menos /api (calendarios ya suscritos, crons, webhooks), /sw.js (avisos ya activados) y /.well-known.
+  const mudanza = aDondeMudar(request);
+  if (mudanza) return NextResponse.redirect(mudanza, 308);
+
   // Diagnóstico: si faltan variables, dilo claro en vez de tronar con un 500 mudo
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     const faltan = [

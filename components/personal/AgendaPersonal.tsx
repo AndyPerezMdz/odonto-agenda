@@ -1,5 +1,6 @@
 "use client";
 
+import AvisoMudanza from "@/components/AvisoMudanza";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePersonal } from "@/lib/usePersonal";
@@ -250,6 +251,7 @@ export default function AgendaPersonal({
           </span>
         </div>
         {demo && <BannerDemo publico={publico} />}
+        {!demo && <AvisoMudanza />}
         {!demo && estado && <AvisoPlan e={estado} prueba={pruebaDisponible} />}
         {error && <p className="mb-4 rounded-xl bg-panel-2 p-3 text-sm text-danger">No se pudo cargar tu agenda: {error}</p>}
         {(acciones.error || accionesVP.error) && <p className="mb-4 rounded-xl bg-panel-2 p-3 text-sm text-danger">No se pudo guardar: {acciones.error || accionesVP.error}</p>}
