@@ -5,7 +5,7 @@ import type { Universidad } from "@/lib/universidades";
 
 export const DOMINIOS: Record<Universidad, string[]> = {
   upp: ["universidadupp.edu.mx"],
-  uady: [], // pendiente: el dominio de los correos de alumnos de la UADY
+  uady: ["alumnos.uady.mx"],
 };
 
 export const requiereVerificacion = (uni: Universidad) => DOMINIOS[uni]?.length > 0;
