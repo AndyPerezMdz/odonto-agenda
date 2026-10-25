@@ -293,6 +293,7 @@ export default function Agenda({ userId }: { userId: string }) {
           ganchoPersonal={!tienePersonal}
           antes={
             <>
+              <Anuncios supabase={supabase} />
               <AvisoMudanza />
               <AvisoVerificar />
               {yo && <TarjetaTuCuatri userId={userId} supabase={supabase} materias={nombresMaterias} tipo={periodosDe(ajustes.universidad)} hoy={hoyStr} nombre={yo.nombre} />}

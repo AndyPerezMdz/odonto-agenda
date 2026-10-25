@@ -319,6 +319,7 @@ export function AnunciosAdmin({ agendas, onAviso }: { agendas: AgendaAdmin[]; on
   const [titulo, setTitulo] = useState("");
   const [texto, setTexto] = useState("");
   const [uni, setUni] = useState<"todas" | "upp" | "uady">("todas");
+  const [para, setPara] = useState<"clinicas" | "mi" | "todos">("todos"); // 3.3
   const [hasta, setHasta] = useState("");
   const [correo, setCorreo] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -332,13 +333,13 @@ export function AnunciosAdmin({ agendas, onAviso }: { agendas: AgendaAdmin[]; on
     cargar();
   }, []);
 
-  const alcance = agendas.filter((a) => uni === "todas" || a.universidad === uni).reduce((n, a) => n + a.miembros.filter((m) => !m.pendiente).length, 0);
+  const alcance = para === "mi" ? 0 : agendas.filter((a) => uni === "todas" || a.universidad === uni).reduce((n, a) => n + a.miembros.filter((m) => !m.pendiente).length, 0);
 
   async function publicar(e: React.FormEvent) {
     e.preventDefault();
     setEnviando(true);
     setError(null);
-    const r = await api("/api/admin/anuncios", "POST", { titulo, texto, universidad: uni, hasta: hasta || null, correo });
+    const r = await api("/api/admin/anuncios", "POST", { titulo, texto, universidad: para === "mi" ? "todas" : uni, para, hasta: hasta || null, correo });
     setEnviando(false);
     if (r.error) return setError(r.error);
     onAviso(r.data.errorCorreo ? `Publicado, pero el correo falló: ${r.data.errorCorreo}` : correo ? `Publicado y enviado a ${r.data.correos} persona${r.data.correos === 1 ? "" : "s"}.` : "Publicado en las agendas.");
@@ -367,9 +368,15 @@ export function AnunciosAdmin({ agendas, onAviso }: { agendas: AgendaAdmin[]; on
           <input className="campo" placeholder="Título (ej. ¡Ya salió la versión 1.9!)" maxLength={80} value={titulo} onChange={(e) => setTitulo(e.target.value)} />
           <textarea className="campo min-h-[100px]" placeholder="Qué les quieres decir…" maxLength={600} value={texto} onChange={(e) => setTexto(e.target.value)} />
           <div>
-            <p className="mb-1 text-xs font-medium text-muted">¿A quién?</p>
-            <Chips opciones={[["todas", "Todas"], ["upp", "Sólo UPP"], ["uady", "Sólo UADY"]]} valor={uni} onCambio={setUni} />
+            <p className="mb-1 text-xs font-medium text-muted">¿Dónde sale?</p>
+            <Chips opciones={[["todos", "Las dos agendas"], ["clinicas", "Sólo clínicas"], ["mi", "Sólo Mi agenda"]]} valor={para} onCambio={setPara} />
           </div>
+          {para !== "mi" && (
+            <div>
+              <p className="mb-1 text-xs font-medium text-muted">{para === "todos" ? "De clínicas, ¿qué universidad?" : "¿Qué universidad?"}</p>
+              <Chips opciones={[["todas", "Todas"], ["upp", "Sólo UPP"], ["uady", "Sólo UADY"]]} valor={uni} onCambio={setUni} />
+            </div>
+          )}
           <label className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted">Se quita solo el</span>
             <input type="date" className="rounded-md border border-line bg-panel px-1.5 py-0.5 text-sm" min={hoy} value={hasta} onChange={(e) => setHasta(e.target.value)} />
@@ -377,11 +384,11 @@ export function AnunciosAdmin({ agendas, onAviso }: { agendas: AgendaAdmin[]; on
           </label>
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" className="mt-1" checked={correo} onChange={(e) => setCorreo(e.target.checked)} />
-            <span>También mandarlo por <b>correo</b> <span className="text-muted">({alcance} persona{alcance === 1 ? "" : "s"})</span></span>
+            <span>También mandarlo por <b>correo</b> <span className="text-muted">({para === "mi" ? "a todas las personas de Mi agenda" : `${alcance} persona${alcance === 1 ? "" : "s"} de clínicas${para === "todos" ? " + las de Mi agenda (sin repetir)" : ""}`})</span></span>
           </label>
           {error && <p className="text-sm text-danger">{error}</p>}
           <button className="btn btn-primario" disabled={enviando || !titulo.trim() || !texto.trim()}>{enviando ? "Publicando…" : "Publicar"}</button>
-          <p className="text-xs text-muted">Sale arriba de su agenda hasta que lo cierren. Cada quien lo cierra una vez.</p>
+          <p className="text-xs text-muted">Sale hasta arriba de Hoy (en la agenda que elegiste) hasta que lo cierren. Cada quien lo cierra una vez.</p>
         </form>
       </Tarjeta>
       <Tarjeta titulo="Publicados">
@@ -399,6 +406,7 @@ export function AnunciosAdmin({ agendas, onAviso }: { agendas: AgendaAdmin[]; on
                   <p className="flex items-center gap-1.5 font-medium">
                     {a.titulo}
                     {a.universidad !== "todas" && <InsigniaUni uni={a.universidad} />}
+                    <span className="rounded-full bg-panel-2 px-2 text-[10px] font-semibold text-muted">{a.para === "mi" ? "Mi agenda" : a.para === "todos" ? "Las dos" : "Clínicas"}</span>
                   </p>
                   <p className="whitespace-pre-line text-sm text-muted">{a.texto}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">

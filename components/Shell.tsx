@@ -96,15 +96,7 @@ export default function Shell({ actual, titulo, nombreAgenda, uady, esDueno, onS
       if (!data.user) return;
       supabase.from("personales").select("activo").eq("user_id", data.user.id).maybeSingle().then(({ data: p }) => setTienePersonal(!!p?.activo));
     });
-    supabase
-      .from("anuncios")
-      .select("id,titulo,texto")
-      .order("created_at", { ascending: false })
-      .limit(5)
-      .then(({ data }) => {
-        const cerrado = (id: string) => { try { return localStorage.getItem(CLAVE_ANUNCIO(id)) === "1"; } catch { return false; } };
-        setAnuncios(((data as Anuncio[]) ?? []).filter((a) => !cerrado(a.id)));
-      });
+    // 3.3 · Los anuncios del staff ya no van en la campanita: salen arriba de Hoy (components/Anuncios.tsx)
   }, [supabase]);
 
   // Escape cierra lo que esté abierto

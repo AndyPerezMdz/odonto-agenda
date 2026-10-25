@@ -136,28 +136,49 @@ export async function listarSugerencias(db: Db): Promise<SugerenciaAdmin[]> {
 
 /* ---------------- anuncios ---------------- */
 
-export type AnuncioAdmin = { id: string; titulo: string; texto: string; universidad: "todas" | Universidad; hasta: string | null; activo: boolean; correos: number; created_at: string };
+export type AnuncioAdmin = { id: string; titulo: string; texto: string; universidad: "todas" | Universidad; hasta: string | null; activo: boolean; correos: number; created_at: string; para?: "clinicas" | "mi" | "todos" };
 
 /** Manda el anuncio por correo a todas las personas (con cuenta activa) de esa universidad. Devuelve a cuántas. */
-export async function correoAnuncio(db: Db, a: { titulo: string; texto: string; universidad: string }, sitio: string) {
-  const [{ data: agendas }, { data: perfiles }, { data: usuarios }] = await Promise.all([
+export async function correoAnuncio(db: Db, a: { titulo: string; texto: string; universidad: string; para?: "clinicas" | "mi" | "todos" }, sitio: string) {
+  const para = a.para ?? "clinicas";
+  const [{ data: agendas }, { data: perfiles }, { data: usuarios }, { data: personales }] = await Promise.all([
     db.from("agendas").select("id,universidad"),
-    db.from("perfiles").select("id,nombre,agenda_id").not("agenda_id", "is", null),
+    db.from("perfiles").select("id,nombre,agenda_id"),
     db.auth.admin.listUsers({ perPage: 1000 }),
+    db.from("personales").select("user_id,nombre").eq("activo", true),
   ]);
   const ids = new Set((agendas ?? []).filter((x) => a.universidad === "todas" || x.universidad === a.universidad).map((x) => x.id));
   const correo = new Map((usuarios?.users ?? []).filter((u) => u.email && (u.email_confirmed_at || u.last_sign_in_at)).map((u) => [u.id, u.email!]));
-  const destinos = (perfiles ?? []).filter((p) => ids.has(p.agenda_id) && correo.has(p.id)).map((p) => ({ para: correo.get(p.id)!, nombre: String(p.nombre ?? "").split(" ")[0] }));
-  const parrafos = esc(a.texto).split(/\n+/).map((t) => `<p style="margin:0 0 8px;color:#4a4843;">${t}</p>`).join("");
-  const html = envolver(esc(a.titulo), parrafos, { texto: "Abrir mi agenda", url: `${sitio}/` });
-  const texto = `${a.titulo}\n\n${a.texto}\n\n${sitio}/`;
+  // Clínicas: quienes están en una agenda de esa universidad. Mi agenda (3.3): quienes tienen Mi agenda activa.
+  // Si es para todos y alguien tiene las dos, le llega una sola vez (la de clínicas).
+  const destinos: { para: string; mi: boolean }[] = [];
+  const ya = new Set<string>();
+  if (para !== "mi")
+    for (const p of perfiles ?? []) {
+      if (!p.agenda_id || !ids.has(p.agenda_id) || !correo.has(p.id)) continue;
+      ya.add(p.id);
+      destinos.push({ para: correo.get(p.id)!, mi: false });
+    }
+  if (para !== "clinicas")
+    for (const p of personales ?? []) {
+      if (ya.has(p.user_id as string) || !correo.has(p.user_id as string)) continue;
+      ya.add(p.user_id as string);
+      destinos.push({ para: correo.get(p.user_id as string)!, mi: true });
+    }
+  const parrafos = (color: string) => esc(a.texto).split(/\n+/).map((t) => `<p style="margin:0 0 8px;color:${color};">${t}</p>`).join("");
+  const { correoPersonal } = await import("@/lib/personalServer");
+  const htmlCl = envolver(esc(a.titulo), parrafos("#4a4843"), { texto: "Abrir mi agenda", url: `${sitio}/` });
+  const htmlMi = correoPersonal(esc(a.titulo), parrafos("#4a4d55"), { texto: "Abrir Mi agenda", url: `${sitio}/personal` });
   // Resend en lotes de hasta 100 (una sola llamada por lote)
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error("Falta la variable RESEND_API_KEY en Vercel.");
   const { REMITENTE } = await import("@/lib/recordatorios");
+  const deMi = REMITENTE.replace(/^[^<]*</, "Mi agenda <");
   let enviados = 0;
   for (let i = 0; i < destinos.length; i += 100) {
-    const lote = destinos.slice(i, i + 100).map((d) => ({ from: REMITENTE, to: [d.para], subject: a.titulo, html, text: texto }));
+    const lote = destinos.slice(i, i + 100).map((d) => ({
+      from: d.mi ? deMi : REMITENTE, to: [d.para], subject: a.titulo, html: d.mi ? htmlMi : htmlCl, text: `${a.titulo}\n\n${a.texto}\n\n${sitio}/${d.mi ? "personal" : ""}`,
+    }));
     const res = await fetch(`${process.env.RESEND_API_URL || "https://api.resend.com"}/emails/batch`, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },

@@ -1442,3 +1442,10 @@ end;
 $$;
 drop trigger if exists p_habitos_proteger on public.p_habitos;
 create trigger p_habitos_proteger before insert or update on public.p_habitos for each row execute function public.p_habitos_proteger();
+
+-- =====================================================================
+-- 3.3 · Anuncios también para Mi agenda: ¿para quién? clínicas, Mi agenda o todos
+-- =====================================================================
+alter table public.anuncios add column if not exists para text not null default 'clinicas';
+alter table public.anuncios drop constraint if exists anuncios_para;
+alter table public.anuncios add constraint anuncios_para check (para in ('clinicas', 'mi', 'todos'));
