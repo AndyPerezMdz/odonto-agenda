@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 // Una sola vez por navegador, hasta fin de año, y sólo en la dirección nueva.
 
 const HASTA = "2026-12-31";
-const LLAVE = "aviso-mudanza-laagendita";
+const LLAVE = "fiesta-laagendita"; // (llave nueva: la del aviso anterior ya la tenían quienes lo cerraron)
 const COLORES = ["#f0a37f", "#2f5d50", "#b4472e", "#e8c36a", "#7fb7a6", "#fbf8f2"];
 
 export default function AvisoMudanza() {
