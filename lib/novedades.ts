@@ -2,12 +2,20 @@
 // 1) sube APP_VERSION, 2) agrega su bloque ARRIBA de la lista. Cada quien la ve una vez.
 // 3) Si es sólo para una universidad, ponle solo: "upp" o solo: "uady". Sin "solo" le sale a las dos.
 
-export const APP_VERSION = "2.3";
+export const APP_VERSION = "2.4";
 
 export type Novedad = { titulo: string; texto: string; icono: keyof typeof ICONOS };
 export type Version = { version: string; fecha: string; items: Novedad[]; solo?: "upp" | "uady" }; // solo = sólo la ve esa universidad
 
 export const NOVEDADES: Version[] = [
+  {
+    version: "2.4",
+    fecha: "octubre 2026",
+    items: [
+      { icono: "check", titulo: "Funciona sin conexión", texto: "¿Sin señal en la clínica? Abre la agenda y ves lo último que tenías. Lo que agendes o cambies sin internet se sube solo cuando vuelva (si se encima con otra cita, te avisa)." },
+      { icono: "reloj", titulo: "Ya no te saca", texto: "Instalada en tu inicio, la sesión se mantiene aunque la señal falle o no la abras en días." },
+    ],
+  },
   {
     version: "2.3",
     fecha: "octubre 2026",

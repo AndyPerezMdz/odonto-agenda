@@ -84,11 +84,26 @@ async function sesion(request: NextRequest) {
 
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
 
-  if (!user && !empiezaCon(path, PUBLICAS)) {
+  // 3.4 · Que no te saque nomás porque la señal falló: si trae su sesión y Supabase no contestó
+  // (red o servidor caído), se deja pasar en vez de mandarla al login. Sólo se saca si la sesión de veras no sirve.
+  const llaves = request.cookies.getAll().filter((c) => /^sb-.+-auth-token(\.\d+)?$/.test(c.name));
+  const fallaDeRed = !user && !!error && llaves.length > 0 && (error.name === "AuthRetryableFetchError" || !error.status || error.status >= 500);
+
+  // 3.4 · Safari (sobre todo instalada en inicio) borra a los 7 días las cookies que escribe JavaScript.
+  // Cada vez que abres la agenda, el servidor vuelve a poner las de la sesión con vigencia larga.
+  if (user) {
+    for (const c of llaves) {
+      if (response.cookies.get(c.name)) continue; // ya se renovó arriba
+      response.cookies.set(c.name, c.value, { path: "/", maxAge: 400 * 24 * 60 * 60, sameSite: "lax", secure: request.nextUrl.protocol === "https:" });
+    }
+  }
+
+  if (!user && !fallaDeRed && !empiezaCon(path, PUBLICAS)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = path === "/personal" || path.startsWith("/personal/") ? "?a=mi" : path === "/clinicas/nueva" ? "?next=/clinicas/nueva" : ""; // Mi agenda: su propio login · 3.1: volver a abrir su agenda de clínicas

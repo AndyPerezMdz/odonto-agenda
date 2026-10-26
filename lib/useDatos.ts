@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { EVENTO_SINCRONIZADA } from "@/lib/conexion";
 import { createClient } from "@/lib/supabase/client";
 import { diasPro, esPro } from "@/lib/plan";
 import { hoyISO } from "@/lib/fechas";
@@ -38,12 +39,14 @@ export function useCatalogos() {
 
   useEffect(() => {
     recargar();
+    window.addEventListener(EVENTO_SINCRONIZADA, recargar); // 3.4 · ya se subió lo que anotaste sin señal
     const canal = supabase
       .channel(`catalogos-${idCanal}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "clinicas" }, recargar)
       .on("postgres_changes", { event: "*", schema: "public", table: "materias" }, recargar)
       .subscribe();
     return () => {
+      window.removeEventListener(EVENTO_SINCRONIZADA, recargar);
       supabase.removeChannel(canal);
     };
   }, [supabase, recargar, idCanal]);
@@ -76,11 +79,13 @@ export function useCitas(desde: string, hasta: string) {
 
   useEffect(() => {
     recargar();
+    window.addEventListener(EVENTO_SINCRONIZADA, recargar); // 3.4 · ya se subió lo que anotaste sin señal
     const canal = supabase
       .channel(`citas-${desde}-${idCanal}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "citas" }, recargar)
       .subscribe();
     return () => {
+      window.removeEventListener(EVENTO_SINCRONIZADA, recargar);
       supabase.removeChannel(canal);
     };
   }, [supabase, recargar, desde, idCanal]);
@@ -98,6 +103,8 @@ export function useHorarios() {
   }, [supabase]);
   useEffect(() => {
     recargar();
+    window.addEventListener(EVENTO_SINCRONIZADA, recargar); // 3.4 · ya se subió lo que anotaste sin señal
+    return () => window.removeEventListener(EVENTO_SINCRONIZADA, recargar);
   }, [recargar]);
   return { horarios, recargar };
 }
@@ -112,6 +119,8 @@ export function usePacientes() {
   }, [supabase]);
   useEffect(() => {
     recargar();
+    window.addEventListener(EVENTO_SINCRONIZADA, recargar); // 3.4 · ya se subió lo que anotaste sin señal
+    return () => window.removeEventListener(EVENTO_SINCRONIZADA, recargar);
   }, [recargar]);
   return { pacientes, recargar };
 }
@@ -126,6 +135,8 @@ export function useMaterial() {
   }, [supabase]);
   useEffect(() => {
     recargar();
+    window.addEventListener(EVENTO_SINCRONIZADA, recargar); // 3.4 · ya se subió lo que anotaste sin señal
+    return () => window.removeEventListener(EVENTO_SINCRONIZADA, recargar);
   }, [recargar]);
   return { material, recargar };
 }

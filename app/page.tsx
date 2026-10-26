@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { pendienteEscolar } from "@/lib/verificacionServer";
 import { BloqueoVerificar } from "@/components/AvisoVerificar";
 import { cookies } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, usuarioConReintento } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { esSuperadmin } from "@/lib/admin";
 import { personalDe } from "@/lib/personalServer";
@@ -16,7 +16,7 @@ export default async function Home() {
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await usuarioConReintento(supabase);
   if (!user) redirect("/login");
 
   const { data: perfil } = await supabase.from("perfiles").select("agenda_id").eq("id", user.id).maybeSingle();

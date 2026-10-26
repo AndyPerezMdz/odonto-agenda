@@ -26,3 +26,13 @@ export async function createClient() {
     }
   );
 }
+
+/** 3.4 · getUser() con un par de reintentos si lo que falló fue la red (para no mandar al login por un tropiezo de señal). */
+export async function usuarioConReintento(supabase: Awaited<ReturnType<typeof createClient>>) {
+  let r = await supabase.auth.getUser();
+  for (let i = 0; i < 2 && !r.data.user && r.error && (r.error.name === "AuthRetryableFetchError" || !r.error.status || r.error.status >= 500); i++) {
+    await new Promise((ok) => setTimeout(ok, 400 * (i + 1)));
+    r = await supabase.auth.getUser();
+  }
+  return r;
+}

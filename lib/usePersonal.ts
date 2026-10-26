@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { EVENTO_SINCRONIZADA } from "@/lib/conexion";
 import { ejemploListas, ejemploPersonal, type PCategoria, type PEvento, type PerfilPersonal, type PHabito, type PMarca, type PPendiente } from "@/lib/personal";
 import { hoyISO } from "@/lib/fechas";
 import { sumarDias } from "@/lib/pagos";
@@ -98,7 +99,11 @@ export function usePersonal(demo = false, perfilDemo: PerfilPersonal = "odonto")
     // Si vuelve a la pestaña (o al cel), refresca
     const alVolver = () => document.visibilityState === "visible" && recargar();
     document.addEventListener("visibilitychange", alVolver);
-    return () => document.removeEventListener("visibilitychange", alVolver);
+    window.addEventListener(EVENTO_SINCRONIZADA, recargar); // 3.4 · ya se subió lo que anotaste sin señal
+    return () => {
+      document.removeEventListener("visibilitychange", alVolver);
+      window.removeEventListener(EVENTO_SINCRONIZADA, recargar);
+    };
   }, [recargar]);
 
   return {

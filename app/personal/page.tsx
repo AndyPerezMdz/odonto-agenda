@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, usuarioConReintento } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { personalDe } from "@/lib/personalServer";
 import AuthCard from "@/components/AuthCard";
@@ -19,7 +19,7 @@ export default async function PersonalPage() {
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await usuarioConReintento(supabase);
   if (!user) redirect("/login?a=mi");
 
   const db = createAdminClient();

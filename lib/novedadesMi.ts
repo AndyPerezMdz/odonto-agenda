@@ -4,6 +4,14 @@
 export type NovedadMi = { e: string; t: string; x: string; pro?: boolean };
 export const NOVEDADES_MI: { version: string; titulo: string; items: NovedadMi[] }[] = [
   {
+    version: "3.4",
+    titulo: "Sin señal, sin problema",
+    items: [
+      { e: "📶", t: "Funciona sin conexión", x: "Ábrela sin internet y ves lo último que tenías. Lo que anotes, palomees o borres sin señal se sube solo cuando vuelva." },
+      { e: "🔒", t: "Ya no te saca", x: "Instalada en tu inicio, la sesión se mantiene aunque la señal falle o no la abras en días." },
+    ],
+  },
+  {
     version: "3.2",
     titulo: "Rachas que no se rompen",
     items: [
