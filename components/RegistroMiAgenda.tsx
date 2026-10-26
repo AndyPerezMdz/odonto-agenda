@@ -1,5 +1,6 @@
 "use client";
 
+import { avisarFalloCorreo, esFalloCorreo } from "@/lib/avisarFalloCorreo";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -66,6 +67,7 @@ export default function RegistroMiAgenda({ onVolver }: { onVolver?: () => void }
       if (error.code === "weak_password") return setError("Esa contraseña es muy débil. Prueba una más larga.");
       if (error.code === "over_email_send_rate_limit" || error.status === 429) return setError("Se pidieron muchos códigos seguidos. Espera un minuto e inténtalo otra vez.");
       if (error.code === "user_already_exists") return setYaExiste(true);
+      if (esFalloCorreo(error)) return setError(avisarFalloCorreo("registro-mi", error));
       return setError("No se pudo crear la cuenta: " + error.message);
     }
     // Supabase no dice si el correo ya existía: en ese caso regresa un usuario sin identidades
@@ -98,7 +100,7 @@ export default function RegistroMiAgenda({ onVolver }: { onVolver?: () => void }
   async function reenviar() {
     setError(null);
     const { error } = await createClient().auth.resend({ type: "signup", email: email.trim().toLowerCase() });
-    if (error) return setError(error.status === 429 ? "Espera un minuto antes de pedir otro código." : error.message);
+    if (error) return setError(error.status === 429 ? "Espera un minuto antes de pedir otro código." : esFalloCorreo(error) ? avisarFalloCorreo("reenviar", error) : error.message);
     setEspera(60);
   }
 

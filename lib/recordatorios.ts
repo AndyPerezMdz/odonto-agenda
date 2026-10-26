@@ -18,6 +18,28 @@ export function fechaEnZona(n = 0): string {
   return f.toISOString().slice(0, 10);
 }
 
+/** 3.5 · Zona base (Mérida) y validación de la zona que manda el cel de cada quien. */
+export const ZONA_BASE = ZONA;
+export function zonaValida(z: unknown): string {
+  if (typeof z !== "string" || !z || z.length > 64) return ZONA;
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: z });
+    return z;
+  } catch {
+    return ZONA;
+  }
+}
+
+/** 3.5 · "Hoy" (YYYY-MM-DD) y el minuto del día (0–1439) en una zona horaria. */
+export function ahoraEn(zona: string, ahora = new Date()): { hoy: string; min: number } {
+  const partes = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", { timeZone: zona, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(ahora)
+      .map((x) => [x.type, x.value])
+  );
+  return { hoy: `${partes.year}-${partes.month}-${partes.day}`, min: (Number(partes.hour) % 24) * 60 + Number(partes.minute) };
+}
+
 export function urlSitio(origenPeticion?: string): string {
   if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
@@ -141,7 +163,13 @@ export async function enviarConResend(m: { para: string; asunto: string; html: s
     },
     body: JSON.stringify({ from: m.nombreRemitente ? REMITENTE.replace(/^[^<]*</, `${m.nombreRemitente} <`) : REMITENTE, to: [m.para], subject: m.asunto, html: m.html, text: m.texto, ...(m.responderA?.length ? { reply_to: m.responderA } : {}) }),
   });
-  if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    const detalle = `Resend ${res.status}: ${await res.text()}`;
+    // 3.5 · Que te enteres tú y no tu prima (máximo un push por hora). 429 = límite del plan, también cuenta.
+    const { alertaCorreo } = await import("@/lib/alertas");
+    await alertaCorreo(createAdminClient(), "Correos de la app", detalle);
+    throw new Error(detalle);
+  }
 }
 
 export const esc = (s: string) =>

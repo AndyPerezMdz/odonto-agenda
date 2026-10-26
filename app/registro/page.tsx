@@ -1,5 +1,6 @@
 "use client";
 
+import { avisarFalloCorreo, esFalloCorreo } from "@/lib/avisarFalloCorreo";
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -116,6 +117,7 @@ function Registro() {
       if (error.code === "weak_password") return setError("Esa contraseña es muy débil. Prueba una más larga.");
       if (error.code === "over_email_send_rate_limit" || error.status === 429) return setError("Se pidieron muchos códigos seguidos. Espera un minuto e inténtalo otra vez.");
       if (error.code === "user_already_exists") return setError("Ese correo ya tiene cuenta. Inicia sesión.");
+      if (esFalloCorreo(error)) return setError(avisarFalloCorreo("registro", error));
       return setError("No se pudo crear la cuenta: " + error.message);
     }
     // Supabase no dice si el correo ya existía: en ese caso regresa un usuario sin identidades

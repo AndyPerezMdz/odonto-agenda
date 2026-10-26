@@ -24,6 +24,7 @@ export type Salud = {
   llaves: { id: string; nombre: string; ok: boolean; detalle: string }[];
   crones: { id: string; nombre: string; cada: string; at: string | null; ok: boolean }[];
   sql: { id: string; nombre: string; ok: boolean }[];
+  correo: { ok: boolean; detalle: string }; // 3.5
   problemas: number;
 };
 
@@ -53,6 +54,13 @@ export async function saludSistema(db: Db): Promise<Salud> {
     { id: "3.0", nombre: "Compartir y bloques de tiempo (3.0)", ok: await existe("p_compartidos") },
     { id: "3.1", nombre: "Correo institucional (3.1)", ok: await existe("verificaciones_escolares") },
   ];
-  const problemas = llaves.filter((x) => !x.ok).length + crones.filter((x) => !x.ok).length + sql.filter((x) => !x.ok).length;
-  return { llaves, crones, sql, problemas };
+  // 3.5 · ¿Falló algún correo en las últimas 24 h?
+  const { ultimoFalloCorreo } = await import("@/lib/alertas");
+  const f = await ultimoFalloCorreo(db).catch(() => null);
+  const fresco = !!f && ahora - new Date(f.at).getTime() < 24 * 3600000;
+  const correo = fresco
+    ? { ok: false, detalle: `${f!.n} fallo${f!.n === 1 ? "" : "s"} · el último ${new Date(f!.at).toLocaleString("es-MX", { timeZone: "America/Merida", dateStyle: "short", timeStyle: "short" })} · ${f!.origen}: ${f!.detalle}` }
+    : { ok: true, detalle: f ? "Sin fallas en las últimas 24 h" : "Sin fallas registradas" };
+  const problemas = llaves.filter((x) => !x.ok).length + crones.filter((x) => !x.ok).length + sql.filter((x) => !x.ok).length + (correo.ok ? 0 : 1);
+  return { llaves, crones, sql, correo, problemas };
 }

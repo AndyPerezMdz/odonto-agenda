@@ -20,10 +20,11 @@ type Props = {
   pro?: boolean; // 2.3 · en Gratis: sin viajes nuevos
   onPro?: () => void; // abre "Eso es de Pro"
   compartir?: React.ReactNode; // 3.0 · "Compartir con…" (sólo eventos ya guardados)
+  avisoDefecto?: number | null; // 3.5 · aviso para eventos nuevos (minutos antes; null = sin aviso). Por defecto 30.
   borrador?: { tipo?: TipoEvento; titulo?: string; fecha?: string | null; fecha_fin?: string | null; hora_inicio?: string | null; hora_fin?: string | null; lugar?: string | null; repetir?: Repetir }; // 2.6 · de "Anotar rápido"
 };
 
-export default function EventoModal({ supabase, userId, evento, fechaInicial, tipoInicial, categorias, onClose, onGuardado, demo = false, odonto = true, pro = true, onPro, borrador: b, compartir }: Props) {
+export default function EventoModal({ supabase, userId, evento, fechaInicial, tipoInicial, categorias, onClose, onGuardado, demo = false, odonto = true, pro = true, onPro, borrador: b, compartir, avisoDefecto = 30 }: Props) {
   const nuevo = !evento;
   const dia = evento && "dia" in evento ? evento.dia : null; // la aparición que se abrió (series)
   const tipo0 = evento?.tipo ?? b?.tipo ?? tipoInicial ?? "evento";
@@ -42,7 +43,10 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
   const [repetir, setRepetir] = useState<Repetir>(evento?.repetir ?? b?.repetir ?? "nunca");
   const [hasta, setHasta] = useState(evento?.repetir_hasta ?? "");
   const [hecho, setHecho] = useState(evento?.hecho ?? false);
-  const [avisoMin, setAvisoMin] = useState<string>(evento?.aviso_min != null ? String(evento.aviso_min) : "");
+  // 3.5 · Los eventos nuevos traen aviso por defecto (si no, "no me llegó la noti" porque nunca se pidió)
+  const avisoInicial = (t: TipoEvento) => (t === "evento" && avisoDefecto != null ? String(avisoDefecto) : "");
+  const [avisoMin, setAvisoMin] = useState<string>(evento ? (evento.aviso_min != null ? String(evento.aviso_min) : "") : avisoInicial(tipo0));
+  const [avisoTocado, setAvisoTocado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [borrar, setBorrar] = useState(false);
@@ -53,6 +57,11 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, [onClose]);
+
+  useEffect(() => {
+    if (!evento && !avisoTocado) setAvisoMin(avisoInicial(tipo));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipo]);
 
   const conHora = (tipo === "evento" || tipo === "recordatorio") && !todoElDia;
   const puedeRepetir = tipo === "evento" || tipo === "recordatorio";
@@ -232,7 +241,7 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
 
           {conHora && (
             <label className="col-span-2 text-sm"><span className="mb-1 block font-medium">Aviso en el cel</span>
-              <select className="campo" value={avisoMin} onChange={(e) => setAvisoMin(e.target.value)}>
+              <select className="campo" value={avisoMin} onChange={(e) => { setAvisoMin(e.target.value); setAvisoTocado(true); }}>
                 <option value="">{tipo === "recordatorio" ? "A la hora" : "Sin aviso"}</option>
                 {tipo === "evento" && <option value="0">A la hora</option>}
                 {[5, 10, 15, 30, 60, 120].map((m) => <option key={m} value={m}>{m < 60 ? `${m} min antes` : m === 60 ? "1 hora antes" : "2 horas antes"}</option>)}

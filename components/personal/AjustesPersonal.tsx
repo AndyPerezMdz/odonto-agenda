@@ -11,7 +11,7 @@ import type { PerfilPersonal } from "@/lib/personal";
 
 export default function AjustesPersonal({ userId, email, pro = true, perfil = "general", tieneClinica = false }: { userId: string; email: string; pro?: boolean; perfil?: PerfilPersonal; tieneClinica?: boolean }) {
   const { supabase, categorias, prefs, recargar } = usePersonal();
-  async function guardarPref(k: "dia" | "correo" | "semana", v: boolean) {
+  async function guardarPref(k: "dia" | "correo" | "semana" | "aviso_def", v: boolean | number | null) {
     await supabase.from("personales").update({ prefs: { ...prefs, [k]: v } }).eq("user_id", userId);
     recargar();
   }
@@ -89,6 +89,14 @@ export default function AjustesPersonal({ userId, email, pro = true, perfil = "g
                     <Interruptor titulo="Correo de la mañana" detalle="Lo mismo, por correo. Si no hay nada, no llega." on={prefs.correo !== false} pro={pro} onCambio={(v) => guardarPref("correo", v)} />
                     <Interruptor titulo="“Tu semana” cada domingo" detalle="Correo y aviso en el cel con lo que viene de lunes a domingo." on={prefs.semana !== false} pro={pro} onCambio={(v) => guardarPref("semana", v)} />
                   </ul>
+                  <label className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line p-3 text-sm">
+                    <span><b className="font-medium">Aviso para eventos nuevos</b><span className="block text-xs text-muted">Lo que trae puesto cada evento con hora que crees. Lo cambias en cada uno.</span></span>
+                    <select className="campo" style={{ width: "auto" }} value={prefs.aviso_def === undefined ? "30" : prefs.aviso_def === null ? "" : String(prefs.aviso_def)} onChange={(e) => guardarPref("aviso_def", e.target.value === "" ? null : Number(e.target.value))}>
+                      <option value="">Sin aviso</option>
+                      <option value="0">A la hora</option>
+                      {[10, 15, 30, 60, 120].map((m) => <option key={m} value={m}>{m < 60 ? `${m} min antes` : m === 60 ? "1 hora antes" : "2 horas antes"}</option>)}
+                    </select>
+                  </label>
                   {!pro && <p className="mt-2 text-xs text-muted">Los de la mañana y del domingo son de Pro. <a href="#plan" className="font-medium text-accent hover:underline">Ver planes</a></p>}
                 </section>
                 {pro ? (

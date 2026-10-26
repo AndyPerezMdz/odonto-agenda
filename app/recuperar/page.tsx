@@ -1,5 +1,6 @@
 "use client";
 
+import { avisarFalloCorreo, esFalloCorreo } from "@/lib/avisarFalloCorreo";
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -28,7 +29,9 @@ export default function RecuperarPage() {
       setError(
         error.status === 429
           ? "Se pidieron demasiados correos. Espera unos minutos e inténtalo de nuevo."
-          : "No se pudo enviar el correo. Inténtalo más tarde."
+          : esFalloCorreo(error)
+            ? avisarFalloCorreo("recuperar", error)
+            : "No se pudo enviar el correo. Inténtalo más tarde."
       );
       return;
     }

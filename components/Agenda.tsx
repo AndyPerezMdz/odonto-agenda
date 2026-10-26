@@ -1,5 +1,6 @@
 "use client";
 
+import RecordarManana from "@/components/RecordarManana";
 import AvisoMudanza from "@/components/AvisoMudanza";
 import RellenarHueco from "@/components/RellenarHueco";
 import { TarjetaTuCuatri } from "@/components/TuCuatri";
@@ -752,7 +753,10 @@ function SeccionHoy({
         Hola, <b className="text-ink">{nombre.split(" ")[0]}</b> · {fechaLarga(hoy)}
       </p>
       {/* Avisos y tarjetas de arriba: separados entre sí y del resto (cada uno trae su margen; aquí se unifica) */}
-      <div className="mb-5 flex flex-col gap-3 empty:hidden [&>*]:!mb-0">{antes}</div>
+      <div className="mb-5 flex flex-col gap-3 empty:hidden [&>*]:!mb-0">
+        {antes}
+        {pro && <RecordarManana citas={citas} hoy={hoy} userId={userId} clinicaPorId={clinicaPorId} onAbrir={onAbrir} />}
+      </div>
 
       {misHoy.length > 0 ? (
         panel

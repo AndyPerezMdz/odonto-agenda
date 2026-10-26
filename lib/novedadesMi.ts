@@ -4,6 +4,14 @@
 export type NovedadMi = { e: string; t: string; x: string; pro?: boolean };
 export const NOVEDADES_MI: { version: string; titulo: string; items: NovedadMi[] }[] = [
   {
+    version: "3.5",
+    titulo: "Avisos a tu hora",
+    items: [
+      { e: "🌎", t: "Tu hora, estés donde estés", x: "Los avisos llegan a la hora de donde estás (tu cel nos dice tu zona), no a la de Mérida." },
+      { e: "🔔", t: "Eventos con aviso", x: "Los eventos nuevos ya traen aviso 30 min antes. Lo cambias en cada uno, o el de todos en Ajustes → Avisos." },
+    ],
+  },
+  {
     version: "3.4",
     titulo: "Sin señal, sin problema",
     items: [

@@ -63,8 +63,28 @@ export default function SaludAdmin({ onAviso }: { onAviso: (m: string) => void }
           {s.sql.some((x) => !x.ok) && <p className="mt-2 text-xs text-muted">Corre <b>supabase/schema.sql</b> completo en el SQL Editor (se puede correr las veces que quieras).</p>}
         </div>
       </div>
+      {s.correo && (
+        <div className="mt-4 flex items-start gap-2 border-t border-line pt-3 text-sm">
+          <span className="mt-1.5 flex"><Punto ok={s.correo.ok} /></span>
+          <span>Envío de correos<span className="block break-words text-xs text-muted">{s.correo.detalle}</span></span>
+        </div>
+      )}
       <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-3">
         <button className="btn btn-sec py-1.5 text-xs" onClick={recargar}>Volver a revisar</button>
+        <button
+          className="btn btn-sec py-1.5 text-xs"
+          disabled={mandando}
+          onClick={async () => {
+            setMandando(true);
+            const r = await fetch("/api/admin/salud", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "smtp" }) });
+            const d = await r.json().catch(() => ({}));
+            setMandando(false);
+            onAviso(r.ok ? "Supabase sí manda correos: te llegó uno de “restablecer contraseña” (ignóralo)." : `Supabase NO pudo mandar el correo: ${d.error ?? r.status}. Revisa la llave del SMTP.`);
+            recargar();
+          }}
+        >
+          Probar correos de registro
+        </button>
         <button
           className="btn btn-sec py-1.5 text-xs"
           disabled={mandando}

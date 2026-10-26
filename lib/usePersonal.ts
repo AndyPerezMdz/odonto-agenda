@@ -9,7 +9,7 @@ import { sumarDias } from "@/lib/pagos";
 import { CAMPOS_COSA, CAMPOS_PAGO, ejemploViajesPagos, type PCosa, type PPagoFijo, type PPagoHecho } from "@/lib/viajesPagos";
 
 /** Preferencias de Mi agenda (personales.prefs). */
-export type PrefsMi = { correo?: boolean; semana?: boolean; dia?: boolean; bienvenida?: boolean; novedades?: string; hoy_ocultos?: string[] };
+export type PrefsMi = { correo?: boolean; semana?: boolean; dia?: boolean; bienvenida?: boolean; novedades?: string; hoy_ocultos?: string[]; zona?: string; aviso_def?: number | null };
 
 export const CAMPOS_P = "id,user_id,tipo,titulo,fecha,fecha_fin,hora_inicio,hora_fin,lugar,notas,categoria_id,hecho,hecho_at,repetir,repetir_hasta,excepciones";
 

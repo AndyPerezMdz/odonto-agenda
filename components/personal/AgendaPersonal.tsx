@@ -92,6 +92,14 @@ export default function AgendaPersonal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demo, prefsCargadas, eventos === null]);
+  // 3.5 · La zona horaria del cel (para que los avisos lleguen a TU hora aunque no estés en Mérida)
+  useEffect(() => {
+    if (demo || !prefsCargadas) return;
+    let zona = "";
+    try { zona = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch {}
+    if (zona && zona !== (prefs.zona ?? "America/Merida")) guardarPrefs({ zona });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demo, prefsCargadas]);
   const ocultos = useMemo(() => new Set(prefs.hoy_ocultos ?? []), [prefs.hoy_ocultos]);
   const accionesVP = useAccionesVP({ supabase, demo, setCosas, setPresupuestos, setPagosFijos, setPagosHechos, recargar, onPro: () => setHoja("pro") });
   const [viajeAbierto, setViajeAbierto] = useState<string | null>(null);
@@ -471,6 +479,7 @@ export default function AgendaPersonal({
           pro={pro}
           onPro={() => { setModal(null); setHoja("pro"); }}
           compartir={modal.evento && !demo ? <Compartir tipo="evento" id={modal.evento.id} /> : null}
+          avisoDefecto={prefs.aviso_def === undefined ? 30 : prefs.aviso_def}
         />
       )}
     </div>
