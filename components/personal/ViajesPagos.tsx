@@ -179,7 +179,7 @@ export function ViajeDetalle({
   ];
 
   return (
-    <div className="mi-agenda entrar-der fixed inset-0 z-50 overflow-y-auto bg-bg" role="dialog" aria-label={`Viaje: ${viaje.titulo}`}>
+    <div className="mi-agenda entrar-der fixed inset-0 z-50 overflow-y-auto bg-bg pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]" role="dialog" aria-label={`Viaje: ${viaje.titulo}`}>
       <div className="mx-auto max-w-2xl px-4 pb-24 pt-3 sm:px-6 sm:pt-6">
         <div className="mb-4 flex items-center gap-2">
           <button onClick={onClose} className="btn btn-sec rounded-full px-3 py-1.5 text-sm"><Ico d={IC.atras} size={16} /> Volver</button>

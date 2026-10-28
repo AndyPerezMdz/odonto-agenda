@@ -47,7 +47,7 @@ export default function AjustesPersonal({ userId, email, pro = true, perfil = "g
 
       <div className="md:grid md:grid-cols-[13rem_minmax(0,1fr)] md:gap-8">
         {/* Secciones: arriba en el cel (se desliza), a la izquierda en la compu */}
-        <nav aria-label="Secciones de ajustes" className="sticky top-0 z-10 -mx-3 mb-4 bg-bg/95 px-3 py-2 backdrop-blur md:static md:mx-0 md:mb-0 md:bg-transparent md:p-0">
+        <nav aria-label="Secciones de ajustes" className="sticky top-[env(safe-area-inset-top)] z-10 -mx-3 mb-4 bg-bg/95 px-3 py-2 backdrop-blur md:static md:mx-0 md:mb-0 md:bg-transparent md:p-0">
           <ul className="flex gap-1.5 overflow-x-auto md:sticky md:top-6 md:flex-col md:gap-0.5 md:overflow-visible">
             {SECCIONES.map((x) => (
               <li key={x.id} className="shrink-0">

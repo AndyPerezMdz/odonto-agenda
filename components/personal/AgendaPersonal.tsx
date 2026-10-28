@@ -307,7 +307,7 @@ export default function AgendaPersonal({
       </main>
 
       {/* ---------- Barra de abajo (cel) ---------- */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-panel/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Navegación">
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-panel/95 pb-[max(env(safe-area-inset-bottom),0.75rem)] backdrop-blur lg:hidden" aria-label="Navegación">
         <div className="mx-auto grid max-w-md grid-cols-5 items-end px-2">
           {nav.slice(0, 2).map((n) => <BotonNav key={n.id} activo={seccion === n.id} d={n.d} t={n.t} onClick={() => ir(n.id)} />)}
           <div className="grid place-items-center">

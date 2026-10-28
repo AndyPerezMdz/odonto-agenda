@@ -487,3 +487,6 @@ html[data-intro="no"] .intro { display: none; }
 .intro-destello { opacity: 0; transform-box: fill-box; transform-origin: center; animation: destello 0.6s var(--rebote) both; }
 @keyframes destello { 0% { opacity: 0; transform: scale(0) rotate(-45deg); } 60% { opacity: 1; transform: scale(1.2) rotate(0); } 100% { opacity: 1; transform: scale(1); } }
 .intro-carita { opacity: 0; animation: entra-arriba 0.3s var(--curva) 1.3s both; }
+
+/* 3.7 · iPhone: con viewport-fit=cover la página llega hasta las orillas; lo de arriba no se mete debajo de la hora/batería */
+body { padding-top: env(safe-area-inset-top); }

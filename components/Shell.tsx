@@ -197,7 +197,7 @@ export default function Shell({ actual, titulo, nombreAgenda, uady, esDueno, onS
 
       <div className="min-w-0">
         {/* ---------- Encabezado: título, buscar, campanita ---------- */}
-        <header className="no-imprimir sticky top-0 z-30 border-b border-line bg-bg/85 backdrop-blur">
+        <header className="no-imprimir sticky top-[env(safe-area-inset-top)] z-30 border-b border-line bg-bg/85 backdrop-blur">
           <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-3 sm:px-6">
             <div className="mr-auto min-w-0 leading-tight">
               <p className="truncate text-[11px] text-muted lg:hidden">{nombreAgenda || "Agenda de clínicas"}</p>
@@ -249,7 +249,7 @@ export default function Shell({ actual, titulo, nombreAgenda, uady, esDueno, onS
       </div>
 
       {/* ---------- Barra de abajo (celular) ---------- */}
-      <nav className="no-imprimir fixed inset-x-0 bottom-0 z-30 border-t border-line bg-panel/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Navegación">
+      <nav className="no-imprimir fixed inset-x-0 bottom-0 z-30 border-t border-line bg-panel/95 pb-[max(env(safe-area-inset-bottom),0.75rem)] backdrop-blur lg:hidden" aria-label="Navegación">
         <div className="mx-auto grid h-16 max-w-md grid-cols-5 items-center px-1">
           {[principales[0], principales[1]].map((it) =>
             enlace(it, "flex flex-col items-center gap-0.5 text-[11px] font-medium", "text-accent", "text-muted", <><Ico d={it.d} size={22} />{it.t}</>)

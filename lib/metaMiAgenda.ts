@@ -10,6 +10,7 @@ export const metaMiAgenda: Metadata = {
 };
 
 export const viewportMiAgenda: Viewport = {
+  viewportFit: "cover", // 3.7 · para que la barra de abajo respete la rayita del iPhone
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f3ede2" },
     { media: "(prefers-color-scheme: dark)", color: "#1c1915" },
