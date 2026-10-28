@@ -71,7 +71,7 @@ export default function BuscarPaciente({ supabase, userId, perfiles, clinicas, m
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-[2px] sm:items-start sm:p-4 sm:pt-[10vh]"
+      className="hoja-fondo fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-[2px] sm:items-start sm:p-4 sm:pt-[10vh]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="flex max-h-[88dvh] w-full max-w-lg flex-col rounded-t-2xl border border-line bg-panel shadow-xl sm:rounded-2xl">

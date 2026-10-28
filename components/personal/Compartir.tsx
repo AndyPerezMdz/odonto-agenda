@@ -172,7 +172,7 @@ export function VerCompartido({ e, p, dia, onMarcar, onQuitar, onClose }: { e?: 
   }, [onClose]);
   const notas = e?.notas ?? p?.notas;
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
+    <div className="hoja-fondo fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
       <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-line bg-bg p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl sm:rounded-3xl" onClick={(x) => x.stopPropagation()} role="dialog" aria-label="Te lo compartieron">
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line sm:hidden" />
         <p className="versalitas text-accent">👥 Te lo compartió {c.de}</p>

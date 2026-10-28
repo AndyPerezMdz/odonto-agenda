@@ -2,12 +2,19 @@
 // 1) sube APP_VERSION, 2) agrega su bloque ARRIBA de la lista. Cada quien la ve una vez.
 // 3) Si es sólo para una universidad, ponle solo: "upp" o solo: "uady". Sin "solo" le sale a las dos.
 
-export const APP_VERSION = "2.5";
+export const APP_VERSION = "2.6";
 
 export type Novedad = { titulo: string; texto: string; icono: keyof typeof ICONOS };
 export type Version = { version: string; fecha: string; items: Novedad[]; solo?: "upp" | "uady" }; // solo = sólo la ve esa universidad
 
 export const NOVEDADES: Version[] = [
+  {
+    version: "2.6",
+    fecha: "octubre 2026",
+    items: [
+      { icono: "check", titulo: "Más suave", texto: "Mientras carga ves la forma de tu agenda (no una pantalla en blanco), las ventanas suben y bajan suave y los botones se hunden al tocarlos." },
+    ],
+  },
   {
     version: "2.5",
     fecha: "octubre 2026",

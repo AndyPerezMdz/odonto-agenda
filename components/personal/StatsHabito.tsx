@@ -29,7 +29,7 @@ export default function StatsHabito({ h, marcas, hoy, onClose, comodines }: { h:
   const frase = s.d30.pct >= 90 ? "Máquina. 🔥" : s.d30.pct >= 70 ? "Vas muy bien." : s.d30.pct >= 40 ? "Ahí la llevas. Se puede más." : s.d30.tocaban ? "Este mes está flojito. Hoy es buen día para volver." : "Apenas empiezas.";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
+    <div className="hoja-fondo fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
       <div className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-line bg-bg p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Estadísticas de ${h.nombre}`}>
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line sm:hidden" />
         <p className="versalitas text-muted">Estadísticas</p>

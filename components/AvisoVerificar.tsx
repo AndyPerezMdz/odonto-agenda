@@ -37,7 +37,7 @@ export function AvisoVerificar() {
         <button className="btn btn-primario shrink-0 px-3 py-1.5 text-sm" onClick={() => setAbierto(true)}>{p.enRevision ? "Usar mi correo" : "Verificar"}</button>
       </div>
       {abierto && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={() => setAbierto(false)}>
+        <div className="hoja-fondo fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={() => setAbierto(false)}>
           <div className="max-h-[92dvh] w-full max-w-sm overflow-y-auto rounded-t-2xl border border-line bg-panel p-6 shadow-xl sm:rounded-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Confirma que eres estudiante">
             <h2 className="mb-1 text-xl font-semibold">Confirma que eres estudiante</h2>
             <p className="mb-4 text-sm text-muted">Agenda de clínicas · {u.nombre}</p>

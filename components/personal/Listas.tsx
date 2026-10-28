@@ -165,7 +165,7 @@ function Ventana({ titulo, onClose, children }: { titulo: string; onClose: () =>
     return () => window.removeEventListener("keydown", k);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
+    <div className="hoja-fondo fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
       <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-line bg-bg p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={titulo}>
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line sm:hidden" />
         <p className="serif mb-4 text-2xl">{titulo}</p>
@@ -556,17 +556,32 @@ function Subtareas({ padre, subs, acciones, onEditar, onAgendar }: { padre: PPen
   );
 }
 
+/** 3.6 · Brinquito al palomear (con la API de animaciones: React no lo pisa al re-pintar). */
+function brinco(el: HTMLElement) {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  el.animate([{ transform: "scale(1)" }, { transform: "scale(1.15)" }, { transform: "scale(1)" }], { duration: 320, easing: "cubic-bezier(0.3, 1.6, 0.5, 1)" });
+}
+
 export function Palomita({ checked, onChange, etiqueta, chica = false, color }: { checked: boolean; onChange: (v: boolean) => void; etiqueta: string; chica?: boolean; color?: string }) {
   const s = chica ? "h-[18px] w-[18px]" : "h-[22px] w-[22px]";
+  // 3.6 · Al palomear: se rellena y da un brinquito, y hasta después se va a "hechos" (si no, se esfuma sin que lo veas)
+  const [pop, setPop] = useState(false);
+  const lleno = checked || pop;
   return (
     <button
       type="button"
       role="checkbox"
-      aria-checked={checked}
+      aria-checked={lleno}
       aria-label={etiqueta}
-      onClick={() => onChange(!checked)}
-      className={`grid ${s} mt-px shrink-0 place-items-center rounded-full border-2 transition ${checked ? "border-transparent text-white" : "border-muted/50 text-transparent hover:border-accent"}`}
-      style={checked ? { background: color ?? "var(--accent)" } : undefined}
+      onClick={() => {
+        if (checked) return onChange(false);
+        if (pop) return;
+        if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return onChange(true);
+        setPop(true);
+        setTimeout(() => { onChange(true); setPop(false); }, 260);
+      }}
+      className={`grid ${s} mt-px shrink-0 place-items-center rounded-full border-2 transition ${pop ? "pop" : ""} ${lleno ? "border-transparent text-white" : "border-muted/50 text-transparent hover:border-accent"}`}
+      style={lleno ? { background: color ?? "var(--accent)" } : undefined}
     >
       <Ico d={ICONO_LISTAS.check} size={chica ? 11 : 13} w={3} />
     </button>
@@ -665,7 +680,7 @@ function TarjetaHabito({
     <li className="rounded-2xl border border-line bg-panel p-4">
       <div className="flex items-start gap-3">
         <button
-          onClick={() => acciones.marcarHabito(h, hoy, !hecho)}
+          onClick={(e) => { if (!hecho) brinco(e.currentTarget); acciones.marcarHabito(h, hoy, !hecho); }}
           aria-pressed={hecho}
           aria-label={hecho ? `Quitar palomita de hoy: ${h.nombre}` : `Palomear hoy: ${h.nombre}`}
           className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl border-2 transition active:scale-95 ${hecho ? "border-transparent text-white" : toca ? "text-transparent hover:text-muted" : "border-dashed text-transparent opacity-60"}`}
@@ -776,7 +791,7 @@ export function HabitosHoy({ habitos, marcas, hoy, acciones, onVer, onNuevo }: {
           return (
             <li key={h.id} className="snap-start">
               <button
-                onClick={() => acciones.marcarHabito(h, hoy, !hecho)}
+                onClick={(e) => { if (!hecho) brinco(e.currentTarget); acciones.marcarHabito(h, hoy, !hecho); }}
                 aria-pressed={hecho}
                 className={`flex w-[8.5rem] flex-col items-start gap-2 rounded-2xl border p-3 text-left transition active:scale-[0.97] ${hecho ? "border-transparent text-white" : "border-line bg-panel"}`}
                 style={hecho ? { background: h.color } : undefined}

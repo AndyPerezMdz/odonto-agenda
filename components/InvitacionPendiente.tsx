@@ -49,7 +49,7 @@ export default function InvitacionPendiente({ onVisible }: { onVisible?: (v: boo
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-[2px] sm:items-center sm:p-4">
+    <div className="hoja-fondo fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-[2px] sm:items-center sm:p-4">
       <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-line bg-panel p-5 shadow-xl sm:rounded-2xl">
         <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-accent">Invitación</p>
         <h2 className="text-lg font-semibold">

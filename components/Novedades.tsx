@@ -37,7 +37,7 @@ export default function Novedades({ supabase, userId, vista, universidad, todas 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-[2px] sm:items-center sm:p-4">
+    <div className="hoja-fondo fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-[2px] sm:items-center sm:p-4">
       <div className="flex max-h-[90dvh] w-full max-w-md flex-col rounded-t-2xl border border-line bg-panel shadow-xl sm:rounded-2xl">
         <div className="border-b border-line p-5 pb-4">
           <p className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-0.5 text-xs font-medium text-accent">

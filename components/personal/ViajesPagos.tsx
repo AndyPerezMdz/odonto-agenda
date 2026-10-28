@@ -123,7 +123,7 @@ function Ventana({ titulo, onClose, children }: { titulo: string; onClose: () =>
     return () => window.removeEventListener("keydown", k);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
+    <div className="hoja-fondo fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
       <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-line bg-bg p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={titulo}>
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line sm:hidden" />
         <p className="serif mb-4 text-2xl">{titulo}</p>
@@ -179,7 +179,7 @@ export function ViajeDetalle({
   ];
 
   return (
-    <div className="mi-agenda fixed inset-0 z-50 overflow-y-auto bg-bg" role="dialog" aria-label={`Viaje: ${viaje.titulo}`}>
+    <div className="mi-agenda entrar-der fixed inset-0 z-50 overflow-y-auto bg-bg" role="dialog" aria-label={`Viaje: ${viaje.titulo}`}>
       <div className="mx-auto max-w-2xl px-4 pb-24 pt-3 sm:px-6 sm:pt-6">
         <div className="mb-4 flex items-center gap-2">
           <button onClick={onClose} className="btn btn-sec rounded-full px-3 py-1.5 text-sm"><Ico d={IC.atras} size={16} /> Volver</button>

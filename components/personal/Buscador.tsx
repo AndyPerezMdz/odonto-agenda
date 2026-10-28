@@ -35,7 +35,7 @@ export default function Buscador({
   const iPasado = res.findIndex((r) => r.fecha && r.fecha < hoy);
 
   return (
-    <div className="fixed inset-0 z-[65] flex items-start justify-center bg-black/40 sm:p-4 sm:pt-[10vh]" onClick={onClose}>
+    <div className="hoja-fondo fixed inset-0 z-[65] flex items-start justify-center bg-black/40 sm:p-4 sm:pt-[10vh]" onClick={onClose}>
       <div className="flex max-h-[100dvh] w-full max-w-lg flex-col overflow-hidden border border-line bg-bg shadow-2xl sm:max-h-[75vh] sm:rounded-3xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Buscar en tu agenda">
         <div className="flex items-center gap-2 border-b border-line p-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:pt-3">
           <span className="pl-1 text-muted" aria-hidden>🔍</span>

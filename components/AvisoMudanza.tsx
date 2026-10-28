@@ -103,7 +103,7 @@ export default function AvisoMudanza() {
     setVer(false);
   };
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Nos mudamos">
+    <div className="hoja-fondo fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Nos mudamos">
       <canvas ref={lienzo} className="pointer-events-none fixed inset-0 h-full w-full" aria-hidden />
       <div className="relative w-full max-w-sm animate-[aparecer_.45s_ease-out] rounded-3xl border border-line bg-panel p-6 text-center shadow-2xl">
         <p className="text-5xl" aria-hidden>🎉🏡</p>

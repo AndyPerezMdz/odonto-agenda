@@ -47,7 +47,7 @@ export default function CuatriModal({ yo, onCambio, onVisible }: { yo: Perfil; o
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-[2px] sm:items-center sm:p-4">
+    <div className="hoja-fondo fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-[2px] sm:items-center sm:p-4">
       <div className="w-full max-w-md rounded-t-2xl border border-line bg-panel p-6 shadow-xl sm:rounded-2xl">
         {estado && (
           <p className="mb-2 inline-block rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent">

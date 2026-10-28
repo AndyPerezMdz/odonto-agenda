@@ -62,7 +62,7 @@ export function VistaCuatri({ n, periodo, tipo, nombre, onClose }: { n: NumerosC
   const palabra = palabraPeriodo(tipo, true);
   const datos = tarjetas(n);
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
+    <div className="hoja-fondo fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
       <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-line bg-panel p-5 shadow-xl sm:rounded-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Tu ${palabra} en números`}>
         <p className="text-xs font-semibold uppercase tracking-wider text-accent">{palabra} {periodo.nombre}</p>
         <h2 className="mb-4 text-2xl font-bold leading-tight">Tu {palabra.toLowerCase()} en números</h2>

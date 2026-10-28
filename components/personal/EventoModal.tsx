@@ -114,7 +114,7 @@ export default function EventoModal({ supabase, userId, evento, fechaInicial, ti
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" onClick={onClose}>
+    <div className="hoja-fondo fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" onClick={onClose}>
       <form
         onSubmit={guardar}
         onClick={(e) => e.stopPropagation()}

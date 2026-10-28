@@ -4,6 +4,13 @@
 export type NovedadMi = { e: string; t: string; x: string; pro?: boolean };
 export const NOVEDADES_MI: { version: string; titulo: string; items: NovedadMi[] }[] = [
   {
+    version: "3.6",
+    titulo: "Más suave",
+    items: [
+      { e: "✨", t: "Se siente viva", x: "Las secciones se deslizan, las ventanas suben y bajan suave, y al palomear la palomita da su brinquito. Si tu cel tiene “Reducir movimiento”, se respeta." },
+    ],
+  },
+  {
     version: "3.5",
     titulo: "Avisos a tu hora",
     items: [

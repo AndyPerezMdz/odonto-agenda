@@ -30,7 +30,7 @@ export default function RellenarHueco({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
+    <div className="hoja-fondo fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
       <div className="max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-line bg-panel p-5 shadow-xl sm:rounded-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Rellenar el hueco">
         <p className="text-xs font-semibold uppercase tracking-wider text-accent">Se liberó un espacio</p>
         <h2 className="mt-1 text-xl font-semibold leading-snug">

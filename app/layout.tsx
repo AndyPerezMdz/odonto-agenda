@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { SCRIPT_TEMA_INICIAL } from "@/lib/tema";
 import Conexion from "@/components/Conexion";
+import Movimiento from "@/components/Movimiento";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-dvh font-sans antialiased">
         {children}
         <Conexion />
+        <Movimiento />
       </body>
     </html>
   );

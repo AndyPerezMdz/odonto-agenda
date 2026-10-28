@@ -243,7 +243,9 @@ export default function Shell({ actual, titulo, nombreAgenda, uady, esDueno, onS
           </div>
         </header>
 
-        <main className="pb-24 lg:pb-8">{children}</main>
+        <main className="pb-24 lg:pb-8">
+          <div key={actual} className="entrar">{children}</div>
+        </main>
       </div>
 
       {/* ---------- Barra de abajo (celular) ---------- */}
@@ -272,7 +274,7 @@ export default function Shell({ actual, titulo, nombreAgenda, uady, esDueno, onS
 
       {/* ---------- "Más" (celular): hoja desde abajo ---------- */}
       {mas && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/40 lg:hidden" onClick={() => setMas(false)}>
+        <div className="hoja-fondo fixed inset-0 z-50 flex items-end bg-black/40 lg:hidden" onClick={() => setMas(false)}>
           <div className="max-h-[85dvh] w-full overflow-y-auto rounded-t-3xl bg-panel px-3 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-2" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-line" />
             <div className="mb-2 grid grid-cols-3 gap-2">
@@ -331,7 +333,7 @@ function Recorrido({ uady, onClose }: { uady: boolean; onClose: () => void }) {
   ];
   const p = pasos[i];
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4">
+    <div className="hoja-fondo fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4">
       <div className="w-full max-w-sm rounded-3xl bg-panel p-6 text-center shadow-2xl">
         <p className="text-xs font-semibold uppercase tracking-widest text-muted">Así se usa · {i + 1} de {pasos.length}</p>
         <span className="mx-auto mt-4 grid h-16 w-16 place-items-center rounded-2xl bg-accent-soft text-accent"><Ico d={p.d} size={30} /></span>

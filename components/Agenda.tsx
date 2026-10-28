@@ -1,5 +1,6 @@
 "use client";
 
+import { EsqueletoDia } from "@/components/Esqueletos";
 import RecordarManana from "@/components/RecordarManana";
 import AvisoMudanza from "@/components/AvisoMudanza";
 import RellenarHueco from "@/components/RellenarHueco";
@@ -276,6 +277,7 @@ export default function Agenda({ userId }: { userId: string }) {
       onNovedades={() => setNovedades(sinLeer ? "nuevas" : "todas")}
       tourListo={!!yo?.acepto_terminos_at && !sinLeer && novedades === null && cuatriAbierto !== true && invitacionAbierta !== true && !modal}
     >
+      {seccion === "hoy" && !yo && <div className="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-5"><EsqueletoDia /></div>}
       {seccion === "hoy" && yo && (
         <SeccionHoy
           nombre={yo.nombre}

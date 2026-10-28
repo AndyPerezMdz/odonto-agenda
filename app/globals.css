@@ -383,3 +383,71 @@ textarea {
   background: var(--nota);
   color: var(--nota-ink);
 }
+
+/* ============================================================
+   3.6 · Movimiento: que se sienta viva.
+   Todo cortito (≤ 300 ms) y se apaga solo con "Reducir movimiento".
+   ============================================================ */
+:root {
+  --curva: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --rebote: cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+html { -webkit-tap-highlight-color: transparent; }
+
+/* Al tocar: se hunde tantito (y regresa con resorte) */
+button, a, [role="button"], summary, label:has(> input[type="checkbox"]) {
+  transition-property: transform, background-color, color, border-color, opacity, box-shadow;
+  transition-duration: 0.18s;
+  transition-timing-function: var(--rebote);
+}
+button:not(:disabled):active, a:active, [role="button"]:active, summary:active {
+  transform: scale(0.96);
+  transition-duration: 0.06s;
+  transition-timing-function: ease-out;
+}
+/* Los botones grandotes (ancho completo) se hunden menos, si no se ve raro */
+.w-full:not(:disabled):active { transform: scale(0.985); }
+
+/* Cambio de sección: entra con un deslizamiento cortito */
+@keyframes entra-arriba { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes entra-der { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+@keyframes entra-izq { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
+.entrar { animation: entra-arriba 0.26s var(--curva) both; }
+.entrar-der { animation: entra-der 0.26s var(--curva) both; }
+.entrar-izq { animation: entra-izq 0.26s var(--curva) both; }
+
+/* Modales y hojas: el fondo se oscurece y la hoja sube */
+@keyframes fondo-entra { from { background-color: rgb(0 0 0 / 0); backdrop-filter: none; } }
+@keyframes hoja-sube { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: none; } }
+@keyframes hoja-aparece { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
+.hoja-fondo { animation: fondo-entra 0.22s ease-out both; }
+.hoja-fondo > :not(canvas) { animation: hoja-sube 0.32s var(--curva) both; }
+@media (min-width: 640px) {
+  .hoja-fondo > :not(canvas) { animation-name: hoja-aparece; animation-duration: 0.24s; }
+}
+/* Al cerrar (lo pone cerrarSuave) */
+.hoja-fondo.saliendo { animation: fondo-sale 0.18s ease-in both; }
+.hoja-fondo.saliendo > :not(canvas) { animation: hoja-baja 0.18s ease-in both; }
+@keyframes fondo-sale { to { background-color: rgb(0 0 0 / 0); backdrop-filter: none; } }
+@keyframes hoja-baja { to { opacity: 0; transform: translateY(30px); } }
+
+/* Palomita: "pop" al marcar */
+@keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.28); } 100% { transform: scale(1); } }
+.pop { animation: pop 0.32s var(--rebote); }
+
+/* Esqueletos de carga: la forma de la pantalla con un brillo que pasa */
+@keyframes brillo { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+.hueso {
+  background: linear-gradient(100deg, var(--panel-2) 30%, color-mix(in srgb, var(--panel-2) 55%, var(--panel)) 50%, var(--panel-2) 70%);
+  background-size: 250% 100%;
+  animation: brillo 1.3s ease-in-out infinite;
+}
+
+/* Barrita de arriba mientras cambia de página */
+@keyframes barra { 0% { transform: scaleX(0); } 60% { transform: scaleX(0.7); } 100% { transform: scaleX(0.92); } }
+.barra-carga { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 100; background: var(--accent); transform-origin: left; animation: barra 2.5s var(--curva) forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  .hueso { animation: none; }
+}

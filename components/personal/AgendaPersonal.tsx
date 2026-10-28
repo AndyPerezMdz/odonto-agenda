@@ -1,5 +1,6 @@
 "use client";
 
+import { EsqueletoDia } from "@/components/Esqueletos";
 import Anuncios from "@/components/Anuncios";
 import AvisoMudanza from "@/components/AvisoMudanza";
 import { useEffect, useMemo, useState } from "react";
@@ -107,6 +108,7 @@ export default function AgendaPersonal({
   const [modalPago, setModalPago] = useState<{ p: PPagoFijo | null; borrador?: Parameters<typeof PagoModal>[0]["borrador"] } | null>(null);
   const hoy = hoyISO();
   const [seccion, setSeccion] = useState<Seccion>("hoy");
+  const [direccion, setDireccion] = useState(0);
   const [modal, setModal] = useState<Modal | null>(null);
   const [fechaNuevo, setFechaNuevo] = useState(hoy);
   const [ocultas, setOcultas] = useState<Set<string>>(new Set());
@@ -194,6 +196,9 @@ export default function AgendaPersonal({
     { id: "pagos", t: "Pagos", d: I.pagos },
   ];
   const ir = (x: Seccion) => {
+    // 3.6 · Para deslizar hacia el lado correcto (a la derecha si vas "adelante" en la barra)
+    const orden = nav.map((n) => n.id);
+    setDireccion(Math.sign(orden.indexOf(x) - orden.indexOf(seccion)));
     setSeccion(x);
     setHoja(null);
     window.scrollTo({ top: 0 });
@@ -265,8 +270,9 @@ export default function AgendaPersonal({
         {!demo && estado && <AvisoPlan e={estado} prueba={pruebaDisponible} />}
         {error && <p className="mb-4 rounded-xl bg-panel-2 p-3 text-sm text-danger">No se pudo cargar tu agenda: {error}</p>}
         {(acciones.error || accionesVP.error) && <p className="mb-4 rounded-xl bg-panel-2 p-3 text-sm text-danger">No se pudo guardar: {acciones.error || accionesVP.error}</p>}
+        <div key={eventos ? seccion : "cargando"} className={!eventos ? "" : direccion > 0 ? "entrar-der" : direccion < 0 ? "entrar-izq" : "entrar"}>
         {!eventos ? (
-          <p className="serif py-24 text-center text-2xl text-muted">Abriendo tu agenda…</p>
+          <EsqueletoDia />
         ) : seccion === "hoy" ? (
           <SeccionHoy
             odonto={odonto} eventos={visibles} todos={todosEventos ?? []} hoy={hoy} nombre={nombre} catPorId={catPorId} onAbrir={abrir} onMarcar={marcar} onNuevo={nuevo}
@@ -292,6 +298,7 @@ export default function AgendaPersonal({
         ) : (
           <SeccionViajes eventos={todosEventos ?? []} hoy={hoy} catPorId={catPorId} cosas={cosas} onAbrir={(e) => abrir({ ...e, dia: e.fecha, serie: false })} onNuevo={() => (pro ? setModal({ evento: null, fecha: hoy, tipo: "viaje" }) : setHoja("pro"))} />
         )}
+        </div>
         <p className="serif mt-12 text-center text-sm italic text-muted">{demo ? "Demo con datos de ejemplo" : "Mi agenda · sólo tú la ves"}</p>
       </main>
 
@@ -507,7 +514,7 @@ function ItemMenu({ href, onClick, d, t }: { href: string; onClick?: () => void;
 
 function Hoja({ titulo, onClose, children }: { titulo: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
+    <div className="hoja-fondo fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
       <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-line bg-bg p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={titulo}>
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line sm:hidden" />
         <p className="serif mb-4 text-2xl">{titulo}</p>
