@@ -409,20 +409,25 @@ button:not(:disabled):active, a:active, [role="button"]:active, summary:active {
    Ojo: :active también lo tienen los PAPÁS de lo que tocas, así que sólo botones y links (no cualquier .w-full). */
 button.w-full:not(:disabled):active, a.w-full:active { transform: scale(0.985); }
 
+/* OJO: las animaciones con transform usan "backwards", no "both". Con "both" el transform se queda puesto al acabar
+   y todo lo position:fixed de adentro (modales) deja de estar fijo a la pantalla y se mueve con el scroll. */
 /* Cambio de sección: entra con un deslizamiento cortito */
 @keyframes entra-arriba { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes entra-der { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
 @keyframes entra-izq { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
-.entrar { animation: entra-arriba 0.26s var(--curva) both; }
-.entrar-der { animation: entra-der 0.26s var(--curva) both; }
-.entrar-izq { animation: entra-izq 0.26s var(--curva) both; }
+.entrar { animation: entra-arriba 0.26s var(--curva) backwards; }
+.entrar-der { animation: entra-der 0.26s var(--curva) backwards; }
+.entrar-izq { animation: entra-izq 0.26s var(--curva) backwards; }
 
 /* Modales y hojas: el fondo se oscurece y la hoja sube */
 @keyframes fondo-entra { from { background-color: rgb(0 0 0 / 0); backdrop-filter: none; } }
 @keyframes hoja-sube { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: none; } }
 @keyframes hoja-aparece { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
 .hoja-fondo { animation: fondo-entra 0.22s ease-out both; }
-.hoja-fondo > :not(canvas) { animation: hoja-sube 0.32s var(--curva) both; }
+.hoja-fondo { overscroll-behavior: contain; }
+/* Con un modal abierto, lo de atrás no se mueve (lo pone Movimiento) */
+html.con-modal, html.con-modal body { overflow: hidden; }
+.hoja-fondo > :not(canvas) { animation: hoja-sube 0.32s var(--curva) backwards; }
 @media (min-width: 640px) {
   .hoja-fondo > :not(canvas) { animation-name: hoja-aparece; animation-duration: 0.24s; }
 }
@@ -454,6 +459,7 @@ button.w-full:not(:disabled):active, a.w-full:active { transform: scale(0.985); 
 }
 
 /* 3.7 · Intro al abrir la agenda (componente Intro) */
+html[data-intro="no"] .intro { display: none; }
 .intro { animation: fondo-entra 0.2s ease-out both; }
 .intro.intro-sale { animation: intro-sale 0.45s var(--curva) both; }
 @keyframes intro-sale { to { opacity: 0; transform: scale(1.06); } }

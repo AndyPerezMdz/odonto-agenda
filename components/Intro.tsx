@@ -1,57 +1,95 @@
 "use client";
 
-import { useEffect, useState } from "react";
+
+import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+import { fuentePapel } from "@/lib/fuentePapel";
 
 /**
  * 3.7 · Animación al abrir la agenda (una vez por sesión: al abrir la app, no cada que cambias de sección).
  * - "mi": un libro abierto que se escribe solo, con su pluma.
  * - "clinicas": un diente que se cepilla, hace burbujas y queda brillando.
- * Dura lo que tarde en cargar tu agenda, mínimo ~2 s y máximo 3 s. Tocarla la salta. Con "Reducir movimiento", no sale.
+ * Vive en el layout raíz y viene desde el HTML del servidor, así que es LO PRIMERO que se ve (antes que la agenda).
+ * Si ya se vio en esta sesión, el script del <head> (SCRIPT_INTRO) la esconde antes de pintar.
+ * Se va cuando la agenda avisa que ya cargó (avisarAgendaLista), mínimo ~2 s y máximo 3 s. Tocarla la salta.
  */
 const MINIMO = 2100; // lo que dura la animación completa (libro con su palomita; diente con su brillo)
 const MAXIMO = 3000;
+const EVENTO = "agenda:lista";
 
-export default function Intro({ tipo, listo }: { tipo: "mi" | "clinicas"; listo: boolean }) {
-  const llave = `intro-${tipo}`;
-  const [fase, setFase] = useState<"no" | "si" | "saliendo">("no");
-  const [inicio] = useState(() => Date.now());
+type Tipo = "mi" | "clinicas";
+const tipoDe = (ruta: string | null): Tipo | null =>
+  ruta === "/" ? "clinicas" : ruta === "/personal" || ruta?.startsWith("/mi-agenda/demo") ? "mi" : null;
 
+
+/** La agenda ya cargó: que se vaya la intro (cuando termine su animación). */
+export function avisarAgendaLista() {
+  (window as unknown as { __agendaLista?: boolean }).__agendaLista = true;
+  window.dispatchEvent(new Event(EVENTO));
+}
+
+export default function Intro() {
+  const tipo = tipoDe(usePathname());
+  const [mostrar, setMostrar] = useState<Tipo | null>(tipo);
+  const [saliendo, setSaliendo] = useState(false);
+  const inicio = useRef(0); // ms desde que abrió la página (la animación CSS arrancó al pintar)
+  const montado = useRef(false);
+
+  // Al abrir (o al pasar a la otra agenda): ¿toca enseñarla?
   useEffect(() => {
+    const primera = !montado.current;
+    montado.current = true;
+    if (!tipo) return setMostrar(null);
+    let visto = true;
     try {
-      if (sessionStorage.getItem(llave) || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      sessionStorage.setItem(llave, "1");
-    } catch {
+      visto = (primera && document.documentElement.dataset.intro === "no") || !!sessionStorage.getItem(`intro-${tipo}`) || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (!visto) sessionStorage.setItem(`intro-${tipo}`, "1");
+    } catch {}
+    if (visto) {
+      if (primera) setMostrar(null);
       return;
     }
-    setFase("si");
-    const t = setTimeout(() => setFase((f) => (f === "si" ? "saliendo" : f)), MAXIMO);
-    return () => clearTimeout(t);
-  }, [llave]);
+    delete document.documentElement.dataset.intro;
+    if (!primera) {
+      (window as unknown as { __agendaLista?: boolean }).__agendaLista = false;
+      inicio.current = performance.now();
+    }
+    setSaliendo(false);
+    setMostrar(tipo);
+  }, [tipo]);
+
+  // Cuándo se va
+  useEffect(() => {
+    if (!mostrar || saliendo) return;
+    const salir = () => setSaliendo(true);
+    const resta = (ms: number) => Math.max(0, inicio.current + ms - performance.now());
+    let tMin: ReturnType<typeof setTimeout> | undefined;
+    const alListo = () => { clearTimeout(tMin); tMin = setTimeout(salir, resta(MINIMO)); };
+    const tMax = setTimeout(salir, resta(MAXIMO));
+    window.addEventListener(EVENTO, alListo);
+    if ((window as unknown as { __agendaLista?: boolean }).__agendaLista) alListo();
+    return () => { clearTimeout(tMax); clearTimeout(tMin); window.removeEventListener(EVENTO, alListo); };
+  }, [mostrar, saliendo]);
 
   useEffect(() => {
-    if (fase !== "si" || !listo) return;
-    const t = setTimeout(() => setFase("saliendo"), Math.max(0, MINIMO - (Date.now() - inicio)));
+    if (!saliendo) return;
+    const t = setTimeout(() => { setMostrar(null); setSaliendo(false); }, 450);
     return () => clearTimeout(t);
-  }, [fase, listo, inicio]);
+  }, [saliendo]);
 
-  useEffect(() => {
-    if (fase !== "saliendo") return;
-    const t = setTimeout(() => setFase("no"), 450);
-    return () => clearTimeout(t);
-  }, [fase]);
-
-  if (fase === "no") return null;
+  if (!mostrar) return null;
   return (
     <div
-      className={`intro fixed inset-0 z-[95] grid place-items-center ${tipo === "mi" ? "mi-agenda" : ""} ${fase === "saliendo" ? "intro-sale" : ""}`}
+      key={mostrar}
+      className={`intro fixed inset-0 z-[95] grid place-items-center ${mostrar === "mi" ? `mi-agenda ${fuentePapel.variable}` : ""} ${saliendo ? "intro-sale" : ""}`}
       style={{ background: "var(--bg)" }}
-      onClick={() => setFase("saliendo")}
+      onClick={() => setSaliendo(true)}
       aria-hidden
     >
       <div className="flex flex-col items-center">
-        {tipo === "mi" ? <Libro /> : <Diente />}
-        <p className={`intro-titulo mt-5 text-2xl ${tipo === "mi" ? "serif" : "font-semibold tracking-tight"}`} style={{ color: "var(--text, inherit)" }}>
-          {tipo === "mi" ? "Mi agenda" : "Tu agenda de clínicas"}
+        {mostrar === "mi" ? <Libro /> : <Diente />}
+        <p className={`intro-titulo mt-5 text-2xl ${mostrar === "mi" ? "serif" : "font-semibold tracking-tight"}`} style={{ color: "var(--text, inherit)" }}>
+          {mostrar === "mi" ? "Mi agenda" : "Tu agenda de clínicas"}
         </p>
       </div>
     </div>

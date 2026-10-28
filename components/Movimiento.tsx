@@ -15,8 +15,9 @@ export default function Movimiento() {
   useEffect(() => setCargando(false), [ruta]);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const quieto = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const obs = new MutationObserver((cambios) => {
+      if (quieto) return;
       for (const c of cambios) {
         c.removedNodes.forEach((n) => {
           if (!(n instanceof HTMLElement) || n.dataset.fantasma) return;
@@ -45,6 +46,11 @@ export default function Movimiento() {
         });
       }
     });
+    // 3.7 · Con un modal abierto, la página de atrás no scrollea (en iPhone se iba todo para arriba y abajo)
+    const bloquear = () => document.documentElement.classList.toggle("con-modal", !!document.querySelector(".hoja-fondo:not(.saliendo)"));
+    const obsModal = new MutationObserver(bloquear);
+    obsModal.observe(document.body, { childList: true, subtree: true });
+    bloquear();
     obs.observe(document.body, { childList: true, subtree: true });
 
     const alClic = (e: MouseEvent) => {
@@ -58,6 +64,7 @@ export default function Movimiento() {
     document.addEventListener("click", alClic);
     return () => {
       obs.disconnect();
+      obsModal.disconnect();
       document.removeEventListener("click", alClic);
     };
   }, []);

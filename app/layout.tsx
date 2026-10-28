@@ -4,6 +4,8 @@ import "./globals.css";
 import { SCRIPT_TEMA_INICIAL } from "@/lib/tema";
 import Conexion from "@/components/Conexion";
 import Movimiento from "@/components/Movimiento";
+import Intro from "@/components/Intro";
+import { SCRIPT_INTRO } from "@/lib/intro";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -27,11 +29,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es" className={inter.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA_INICIAL }} />
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_INTRO }} />
       </head>
       <body className="min-h-dvh font-sans antialiased">
         {children}
         <Conexion />
         <Movimiento />
+        <Intro />
       </body>
     </html>
   );

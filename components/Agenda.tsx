@@ -1,6 +1,6 @@
 "use client";
 
-import Intro from "@/components/Intro";
+import { avisarAgendaLista } from "@/components/Intro";
 import { EsqueletoDia } from "@/components/Esqueletos";
 import RecordarManana from "@/components/RecordarManana";
 import AvisoMudanza from "@/components/AvisoMudanza";
@@ -118,6 +118,9 @@ export default function Agenda({ userId }: { userId: string }) {
 
   const { supabase, perfiles, clinicas, materias, nombreAgenda, pagadoHasta, ajustes, recargar: recargarCatalogos, pro, quedanPro, cargando } = useCatalogos();
   const yo = perfiles.find((p) => p.id === userId);
+  // 3.7 · Ya cargó: que se vaya la intro del diente
+  const cargoYo = !!yo;
+  useEffect(() => { if (cargoYo) avisarAgendaLista(); }, [cargoYo]);
   // Recordar que la última agenda que usó fue la de clínicas (para el login único)
   useEffect(() => {
     document.cookie = "ultima_agenda=clinicas; path=/; max-age=31536000; samesite=lax";
@@ -276,8 +279,6 @@ export default function Agenda({ userId }: { userId: string }) {
   const hoyStr = hoyISO();
 
   return (
-    <>
-    <Intro tipo="clinicas" listo={!!yo} />
     <Shell
       actual={seccion}
       titulo={seccion === "hoy" ? "Hoy" : "Agenda"}
@@ -631,7 +632,6 @@ export default function Agenda({ userId }: { userId: string }) {
         />
       )}
     </Shell>
-    </>
   );
 }
 
