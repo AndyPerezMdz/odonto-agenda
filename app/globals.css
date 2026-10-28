@@ -451,3 +451,32 @@ button:not(:disabled):active, a:active, [role="button"]:active, summary:active {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
   .hueso { animation: none; }
 }
+
+/* 3.7 · Intro al abrir la agenda (componente Intro) */
+.intro { animation: fondo-entra 0.2s ease-out both; }
+.intro.intro-sale { animation: intro-sale 0.45s var(--curva) both; }
+@keyframes intro-sale { to { opacity: 0; transform: scale(1.06); } }
+.intro-titulo { animation: entra-arriba 0.5s var(--curva) 0.35s both; }
+.intro-libro { animation: hoja-aparece 0.45s var(--curva) both; }
+.intro-trazo { stroke-dasharray: 1; stroke-dashoffset: 1; animation-name: trazo; animation-timing-function: linear; animation-fill-mode: forwards; }
+@keyframes trazo { to { stroke-dashoffset: 0; } }
+.intro-diente { transform-origin: 60px 126px; animation: diente-baila 0.45s ease-in-out 1.45s 2 alternate; }
+@keyframes diente-baila { from { transform: rotate(0); } to { transform: rotate(-5deg) translateY(-3px); } }
+.intro-cepillo { animation: cepillo 1.4s ease-in-out both; }
+@keyframes cepillo {
+  0% { transform: translate(60px, -30px); opacity: 0; }
+  10% { transform: translate(0, 0); opacity: 1; }
+  22% { transform: translate(-26px, 6px); } 34% { transform: translate(4px, 0); }
+  46% { transform: translate(-26px, 6px); } 58% { transform: translate(4px, 0); }
+  70% { transform: translate(-26px, 6px); } 82% { transform: translate(0, 0); opacity: 1; }
+  100% { transform: translate(70px, -40px); opacity: 0; }
+}
+.intro-manchas { animation: manchas 1.2s ease-in 0.15s both; }
+@keyframes manchas { to { opacity: 0; } }
+.intro-burbuja { opacity: 0; animation: burbuja 0.9s ease-out both; transform-box: fill-box; transform-origin: center; }
+@keyframes burbuja { 0% { opacity: 0; transform: translateY(10px) scale(0.3); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(-22px) scale(1.1); } }
+.intro-brillo { animation: brillo-diente 0.7s ease-in-out 1.35s both; }
+@keyframes brillo-diente { from { transform: skewX(-20deg) translateX(0); } to { transform: skewX(-20deg) translateX(200px); } }
+.intro-destello { opacity: 0; transform-box: fill-box; transform-origin: center; animation: destello 0.6s var(--rebote) both; }
+@keyframes destello { 0% { opacity: 0; transform: scale(0) rotate(-45deg); } 60% { opacity: 1; transform: scale(1.2) rotate(0); } 100% { opacity: 1; transform: scale(1); } }
+.intro-carita { opacity: 0; animation: entra-arriba 0.3s var(--curva) 1.3s both; }

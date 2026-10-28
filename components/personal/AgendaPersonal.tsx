@@ -1,5 +1,6 @@
 "use client";
 
+import Intro from "@/components/Intro";
 import { EsqueletoDia } from "@/components/Esqueletos";
 import Anuncios from "@/components/Anuncios";
 import AvisoMudanza from "@/components/AvisoMudanza";
@@ -225,6 +226,7 @@ export default function AgendaPersonal({
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[236px_minmax(0,1fr)]">
+      <Intro tipo="mi" listo={!!eventos} />
       {/* ---------- Barra lateral (compu) ---------- */}
       <aside className="sticky top-0 hidden h-dvh flex-col overflow-y-auto overscroll-contain border-r border-line bg-panel/80 px-4 py-5 backdrop-blur lg:flex">
         <p className="serif px-2 text-3xl leading-none">Mi agenda</p>

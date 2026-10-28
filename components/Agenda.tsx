@@ -1,5 +1,6 @@
 "use client";
 
+import Intro from "@/components/Intro";
 import { EsqueletoDia } from "@/components/Esqueletos";
 import RecordarManana from "@/components/RecordarManana";
 import AvisoMudanza from "@/components/AvisoMudanza";
@@ -275,6 +276,8 @@ export default function Agenda({ userId }: { userId: string }) {
   const hoyStr = hoyISO();
 
   return (
+    <>
+    <Intro tipo="clinicas" listo={!!yo} />
     <Shell
       actual={seccion}
       titulo={seccion === "hoy" ? "Hoy" : "Agenda"}
@@ -628,6 +631,7 @@ export default function Agenda({ userId }: { userId: string }) {
         />
       )}
     </Shell>
+    </>
   );
 }
 
