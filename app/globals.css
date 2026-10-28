@@ -490,3 +490,22 @@ html[data-intro="no"] .intro { display: none; }
 
 /* 3.7 · iPhone: con viewport-fit=cover la página llega hasta las orillas; lo de arriba no se mete debajo de la hora/batería */
 body { padding-top: env(safe-area-inset-top); }
+
+/* 3.7 · iPhone: los campos de fecha y hora traen un ancho mínimo propio y se salían del recuadro
+   (y el de fecha vacío salía más alto). Que se porten como cualquier otro campo. */
+input[type="date"].campo,
+input[type="time"].campo,
+input[type="datetime-local"].campo,
+input[type="month"].campo {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 2.6rem;
+  line-height: 1.4;
+}
+input.campo::-webkit-date-and-time-value { text-align: left; margin: 0; min-height: 1.4em; }
+input.campo::-webkit-datetime-edit { padding: 0; }
+/* En grids/flex, que los campos puedan encogerse en vez de empujar a la orilla */
+.campo { min-width: 0; }
