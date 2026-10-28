@@ -7,7 +7,7 @@ import RellenarHueco from "@/components/RellenarHueco";
 import { TarjetaTuCuatri } from "@/components/TuCuatri";
 import { AvisoVerificar } from "@/components/AvisoVerificar";
 import TuSemanaClinicas from "@/components/TuSemanaClinicas";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCatalogos, useCitas, useHorarios, usePacientes } from "@/lib/useDatos";
@@ -66,6 +66,17 @@ export default function Agenda({ userId }: { userId: string }) {
   const [buscando, setBuscando] = useState(false);
   const [sugerir, setSugerir] = useState(false);
   const [vista, setVista] = useState<"mes" | "lista">("mes");
+  // 3.6 · Al cambiar de mes, desliza hacia el lado correcto (siguiente → derecha)
+  const claveMes = anio * 12 + mes;
+  const ultimaClave = useRef(claveMes);
+  const dirRef = useRef(0);
+  /* eslint-disable react-hooks/refs */
+  if (ultimaClave.current !== claveMes) {
+    dirRef.current = Math.sign(claveMes - ultimaClave.current);
+    ultimaClave.current = claveMes;
+  }
+  const dirMes = dirRef.current;
+  /* eslint-enable react-hooks/refs */
   // 2.2: "Hoy" (inicio) y "Agenda" (calendario) viven en la misma página
   const [seccion, setSeccionEstado] = useState<"hoy" | "agenda">("hoy");
   function setSeccion(s: "hoy" | "agenda") {
@@ -344,6 +355,7 @@ export default function Agenda({ userId }: { userId: string }) {
             </div>
           </div>
 
+          <div key={`${vista}-${anio}-${mes}`} className={dirMes > 0 ? "entrar-der" : dirMes < 0 ? "entrar-izq" : "entrar"}>
           {vista === "lista" && (
             <VistaLista
               dias={diasVisibles.filter((d) => d.getMonth() === mes).map(aISO)}
@@ -453,11 +465,12 @@ export default function Agenda({ userId }: { userId: string }) {
             })}
           </div>
           </>)}
+          </div>
         </section>
 
         {/* Panel del día */}
         {vista === "mes" && (
-        <aside id="panel-dia" className="scroll-mt-3 rounded-2xl border border-line bg-panel p-4">
+        <aside id="panel-dia" key={seleccionado} className="entrar scroll-mt-3 rounded-2xl border border-line bg-panel p-4">
           <div className="mb-4 flex items-start justify-between gap-2">
             <div>
               <p className="text-xs uppercase tracking-wide text-muted">Día seleccionado</p>

@@ -1,5 +1,6 @@
 "use client";
 
+import { lluviaDientes } from "@/lib/lluviaDientes";
 import BotonVoz from "@/components/BotonVoz";
 import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -228,6 +229,7 @@ export default function CitaModal({
       }
       setGuardando(false);
       if (pacienteOrigen && ok > 0) await supabase.from("pacientes").update({ estado: "agendado" }).eq("id", pacienteOrigen);
+      if (ok > 0) lluviaDientes(); // 3.6 · 🦷🦷🦷
       if (choques.length === 0) return onGuardado(fecha);
       return setResumen({ ok, choques });
     }
@@ -250,6 +252,7 @@ export default function CitaModal({
       return;
     }
     if (esNueva && pacienteOrigen) await supabase.from("pacientes").update({ estado: "agendado" }).eq("id", pacienteOrigen);
+    if (esNueva) lluviaDientes(); // 3.6 · idea de Itiel: dientes volando al agendar
     // 3.2 · ¿Se liberó un espacio? (cancelaste una cita tuya que todavía no pasaba)
     const libero = !esNueva && cita && cita.owner_id === userId && estado === "cancelo" && cita.estado !== "cancelo" && aunNoPasa(cita);
     onGuardado(fecha, libero ? cita : undefined);

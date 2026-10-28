@@ -13,6 +13,7 @@ export const NOVEDADES: Version[] = [
     fecha: "octubre 2026",
     items: [
       { icono: "check", titulo: "Más suave", texto: "Mientras carga ves la forma de tu agenda (no una pantalla en blanco), las ventanas suben y bajan suave y los botones se hunden al tocarlos." },
+      { icono: "estrella", titulo: "🦷🦷🦷", texto: "Agenda a un paciente nuevo y vas a ver. Idea de Itiel." },
     ],
   },
   {
